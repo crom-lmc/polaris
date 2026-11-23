@@ -15,6 +15,7 @@ import org.springframework.cloud.gateway.filter.GatewayFilterChain;
 import org.springframework.cloud.gateway.filter.GlobalFilter;
 import org.springframework.core.Ordered;
 import org.springframework.core.io.buffer.DataBuffer;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.server.reactive.ServerHttpRequest;
@@ -42,6 +43,15 @@ import java.nio.charset.StandardCharsets;
 public class JwtAuthFilter implements GlobalFilter, Ordered {
 
     private static final String AUTHORIZATION = "Authorization";
+
+    /**
+     * 演示账户用户名。该账号拥有全部菜单查看权限（绑定超管角色），但所有写操作在网关层被拒绝，
+     * 用于对外演示时「可看不可改」。这里按用户名识别，与是否具有超管身份无关。
+     */
+    private static final String DEMO_ACCOUNT_USERNAME = "yanshi";
+    /** 演示账户只读专用业务码，避免与通用 403 混淆，前端按 message 提示即可 */
+    private static final int DEMO_READONLY_CODE = 4031;
+    private static final String DEMO_READONLY_MESSAGE = "演示账户不能进行操作";
 
     private final GatewayProperties props;
     private final JwtVerifier verifier;
@@ -87,6 +97,15 @@ public class JwtAuthFilter implements GlobalFilter, Ordered {
         if (revocationCache.isRevoked(claims.getId()) || isSessionRevoked(claims)) {
             if (whitelisted) return chain.filter(clean);
             return deny(clean, HttpStatus.UNAUTHORIZED, ErrorCode.UNAUTHORIZED, "登录状态已失效，请重新登录");
+        }
+
+        // 4.1) 演示账户只读：验签通过后，对非白名单的写操作一律拒绝。
+        // 白名单路径（登录/刷新/登出/换票等）必须放行，否则演示账号根本登不进来、也拿不到令牌。
+        // 用 HTTP 200 + 业务码返回，使响应进入前端统一的「code != 0 → message.error」分支，
+        // 用户点击任何新增/编辑/删除按钮时都会看到「演示账户不能进行操作」。
+        if (DEMO_ACCOUNT_USERNAME.equals(claims.get(JwtClaims.USERNAME, String.class))
+                && !whitelisted && isWriteMethod(clean.getRequest().getMethod())) {
+            return denyDemo(clean);
         }
 
         // 5) 注入可信头
@@ -154,6 +173,33 @@ public class JwtAuthFilter implements GlobalFilter, Ordered {
         String sid = claims.get(JwtClaims.SESSION_ID, String.class);
         return sid != null && !sid.isBlank()
                 && revocationCache.isRevoked(JwtClaims.SID_REVOKE_PREFIX + sid);
+    }
+
+    /**
+     * 写方法判定：POST/PUT/PATCH/DELETE 视为写操作；GET/HEAD/OPTIONS 为只读。
+     */
+    private boolean isWriteMethod(HttpMethod method) {
+        if (method == null) return false;
+        return HttpMethod.POST.equals(method) || HttpMethod.PUT.equals(method)
+                || HttpMethod.PATCH.equals(method) || HttpMethod.DELETE.equals(method);
+    }
+
+    /**
+     * 演示账户只读拒绝：用 HTTP 200 + 业务码，让响应进入前端统一的业务失败分支，
+     * 由各应用的 message.error(e.message) 展示「演示账户不能进行操作」。
+     * 不用 403 是为了避免前端把 4xx 当成网络/鉴权错误而清令牌或跳登录页。
+     */
+    private Mono<Void> denyDemo(ServerWebExchange exchange) {
+        ServerHttpResponse response = exchange.getResponse();
+        if (response.isCommitted()) {
+            return Mono.empty();
+        }
+        response.setStatusCode(HttpStatus.OK);
+        response.getHeaders().setContentType(new MediaType(MediaType.APPLICATION_JSON, StandardCharsets.UTF_8));
+        byte[] bytes = JsonUtils.toJson(R.fail(DEMO_READONLY_CODE, DEMO_READONLY_MESSAGE))
+                .getBytes(StandardCharsets.UTF_8);
+        DataBuffer buffer = response.bufferFactory().wrap(bytes);
+        return response.writeWith(Mono.just(buffer));
     }
 
     private Mono<Void> deny(ServerWebExchange exchange, HttpStatus status, ErrorCode code, String message) {

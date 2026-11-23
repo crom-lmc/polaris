@@ -13,6 +13,28 @@ polaris/
     └── README.md        # 前端说明：本地部署、生产部署、应用与端口、FAQ
 ```
 
+## 在线体验
+
+生产环境已部署，可通过统一账号在任意应用登录（单点登录后互相免登）：
+
+| 应用 | 访问地址 |
+|:---|:---|
+| 统一账号中心 | https://polaris-sso.laimengchao.site/ |
+| 人力中心（EHR） | https://polaris-ehr.laimengchao.site/ |
+| 内容中心（CMS） | https://polaris-cms.laimengchao.site/ |
+| 配置中心 | https://polaris-settings.laimengchao.site/ |
+| 调度中心 | https://polaris-job.laimengchao.site/ |
+| 接口开放平台 | https://polaris-openapi.laimengchao.site/ |
+| 北极星空论坛（前台） | https://polaris-forum.laimengchao.site/ |
+| 论坛管理后台 | https://polaris-forum.laimengchao.site/admin/ |
+| 内容门户 | https://polaris-portal.laimengchao.site/ |
+
+**演示账号**：`yanshi` / `yanshi`
+
+> 该账号拥有全部菜单的查看权限，可用于浏览各应用功能；为保护线上数据，演示账号**只读**，点击新增 / 编辑 / 删除等写操作会提示「演示账户不能进行操作」。
+>
+> **首次使用需由管理员在「配置中心 → 安全配置」中打开「演示模式」开关**（默认关闭）。演示模式关闭时，演示账号无法登录（提示「演示模式未开启，演示账号暂不可登录」）；开启后方可登录。该开关同时控制：关闭演示模式可随时收回演示账号的登录权限。演示账号访问安全配置页时，默认密码等敏感字段一律脱敏显示。
+
 ## 界面预览
 
 以下截图均来自生产环境（[polaris-sso.laimengchao.site](https://polaris-sso.laimengchao.site/)）。共 **80 张**，覆盖全部 9 个前端应用的每个应用 / 模块 / 菜单，原图见 [docs/screenshots/](docs/screenshots/)。

@@ -63,6 +63,9 @@ public class SecurityConfig {
     /** 验证码过期时间（分钟） */
     private Integer verifyCodeExpireMinutes;
 
+    /** 演示模式开关：1 开启（演示账号可登录）/ 0 关闭（拒绝演示账号登录） */
+    private Boolean demoMode;
+
     /** 最后修改人 */
     private String updatedBy;
 

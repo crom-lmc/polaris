@@ -8,6 +8,7 @@ import com.laimengchao.sso.settings.client.api.FamilyRelationApi;
 import com.laimengchao.sso.settings.client.api.LeaveTypeApi;
 import com.laimengchao.sso.settings.client.api.PositionApi;
 import com.laimengchao.sso.settings.client.api.ResignReasonApi;
+import com.laimengchao.sso.settings.client.api.SecurityApi;
 import com.laimengchao.sso.settings.client.dto.DictBatchRequest;
 import com.laimengchao.sso.settings.client.dto.DictItemDTO;
 import com.laimengchao.sso.settings.client.dto.EmbedPointDTO;
@@ -48,6 +49,7 @@ public class SettingsClient {
     private final ResignReasonApi resignReasonApi;
     private final FamilyRelationApi familyRelationApi;
     private final EmbedPointApi embedPointApi;
+    private final SecurityApi securityApi;
 
     /** typeCode → (items, 过期时间)；dict() 的 value→label 从 items 派生，保证两个方法同源 */
     private final Map<String, CacheEntry> cache = new ConcurrentHashMap<>();
@@ -63,7 +65,7 @@ public class SettingsClient {
     public SettingsClient(DictApi dictApi, BankApi bankApi, EducationApi educationApi,
                           PositionApi positionApi, LeaveTypeApi leaveTypeApi,
                           ResignReasonApi resignReasonApi, FamilyRelationApi familyRelationApi,
-                          EmbedPointApi embedPointApi) {
+                          EmbedPointApi embedPointApi, SecurityApi securityApi) {
         this.dictApi = dictApi;
         this.bankApi = bankApi;
         this.educationApi = educationApi;
@@ -72,6 +74,7 @@ public class SettingsClient {
         this.resignReasonApi = resignReasonApi;
         this.familyRelationApi = familyRelationApi;
         this.embedPointApi = embedPointApi;
+        this.securityApi = securityApi;
     }
 
     /**
@@ -221,6 +224,42 @@ public class SettingsClient {
     public void evictEmbedPoints() {
         embedCache.clear();
     }
+
+    /**
+     * 演示模式开关：仅当明确读取到「开启」时返回 true。
+     * 安全相关开关刻意采用 fail-close——配置中心不可用 / 读取失败时按「关闭」处理，
+     * 宁可拒绝演示账号登录，也不因配置中心抖动放行。60s 本地缓存，改完最多 60 秒生效。
+     */
+    public boolean demoMode() {
+        long now = Instant.now().toEpochMilli();
+        Boolean cached = demoModeCache;
+        if (cached != null && now < demoModeExpireAt) {
+            return cached;
+        }
+        boolean value = false;
+        try {
+            R<Boolean> resp = securityApi.demoMode();
+            if (resp != null && resp.ok() && Boolean.TRUE.equals(resp.getData())) {
+                value = true;
+            }
+        } catch (FeignException e) {
+            log.warn("读取配置中心演示模式开关失败（HTTP {}），按关闭处理", e.status());
+        } catch (Exception e) {
+            log.warn("读取配置中心演示模式开关失败（{}），按关闭处理", e.getMessage());
+        }
+        demoModeCache = value;
+        demoModeExpireAt = now + CACHE_TTL_MS;
+        return value;
+    }
+
+    /** 失效演示模式缓存：运维排查时方便（60s 自然过期） */
+    public void evictDemoMode() {
+        demoModeCache = null;
+        demoModeExpireAt = 0;
+    }
+
+    private volatile Boolean demoModeCache;
+    private volatile long demoModeExpireAt = 0;
 
     private List<EmbedPointDTO> fetchEmbedPoints() {
         try {

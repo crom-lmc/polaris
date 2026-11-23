@@ -11,6 +11,7 @@ import com.laimengchao.sso.settings.client.api.LeaveTypeApi;
 import com.laimengchao.sso.settings.client.api.NoticeApi;
 import com.laimengchao.sso.settings.client.api.PositionApi;
 import com.laimengchao.sso.settings.client.api.ResignReasonApi;
+import com.laimengchao.sso.settings.client.api.SecurityApi;
 import com.laimengchao.sso.settings.client.support.SettingsClient;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
@@ -37,7 +38,8 @@ import org.springframework.context.annotation.Bean;
         PositionApi.class,
         LeaveTypeApi.class,
         ResignReasonApi.class,
-        FamilyRelationApi.class
+        FamilyRelationApi.class,
+        SecurityApi.class
 })
 public class SettingsClientAutoConfiguration {
 
@@ -46,8 +48,8 @@ public class SettingsClientAutoConfiguration {
     public SettingsClient settingsClient(DictApi dictApi, BankApi bankApi, EducationApi educationApi,
                                          PositionApi positionApi, LeaveTypeApi leaveTypeApi,
                                          ResignReasonApi resignReasonApi, FamilyRelationApi familyRelationApi,
-                                         EmbedPointApi embedPointApi) {
+                                         EmbedPointApi embedPointApi, SecurityApi securityApi) {
         return new SettingsClient(dictApi, bankApi, educationApi, positionApi,
-                leaveTypeApi, resignReasonApi, familyRelationApi, embedPointApi);
+                leaveTypeApi, resignReasonApi, familyRelationApi, embedPointApi, securityApi);
     }
 }

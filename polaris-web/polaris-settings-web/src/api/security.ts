@@ -21,6 +21,8 @@ export interface SecurityConfig {
   userLockMinutes: number
   emailCodeDigits: number
   verifyCodeExpireMinutes: number
+  /** 演示模式开关：true 开启（演示账号可登录）/ false 关闭 */
+  demoMode: boolean
   updatedBy?: string
   createdAt?: string
   updatedAt?: string

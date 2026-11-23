@@ -494,6 +494,7 @@ CREATE TABLE IF NOT EXISTS `cfg_security_config` (
   `user_lock_minutes` int(11) NOT NULL DEFAULT '10' COMMENT '用户锁定时长（分钟）',
   `email_code_digits` int(11) NOT NULL DEFAULT '6' COMMENT '邮箱验证码位数',
   `verify_code_expire_minutes` int(11) NOT NULL DEFAULT '10' COMMENT '验证码过期时间（分钟）',
+  `demo_mode` tinyint(4) NOT NULL DEFAULT '0' COMMENT '演示模式开关 1 开启（演示账号可登录）/ 0 关闭',
   `updated_by` varchar(64) DEFAULT NULL COMMENT '最后修改人',
   `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,

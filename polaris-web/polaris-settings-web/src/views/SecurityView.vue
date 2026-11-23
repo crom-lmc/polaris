@@ -36,6 +36,13 @@
 
                 <a-form-item label="默认密码">
                   <a-input
+                    v-if="isDemo"
+                    value="••••••••"
+                    disabled
+                    placeholder="演示账号不可查看"
+                  />
+                  <a-input
+                    v-else
                     v-model:value="form.defaultPassword"
                     :disabled="form.initialPasswordMode === 'RANDOM'"
                     :maxlength="64"
@@ -102,6 +109,13 @@
               :wrapper-col="{ style: { flex: 1 } }"
             >
               <div class="field-grid">
+                <a-form-item label="演示模式" class="span-2">
+                  <div>
+                    <a-switch v-model:checked="form.demoMode" :disabled="!canManage" />
+                    <span class="demo-hint">开启后演示账号（yanshi）才可登录；关闭时该账号禁止登录。默认关闭。</span>
+                  </div>
+                </a-form-item>
+
                 <a-form-item label="首次登录强制改密">
                   <a-radio-group v-model:value="form.forceChangePassword">
                     <a-radio :value="true">启用</a-radio>
@@ -153,7 +167,7 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import { message } from 'ant-design-vue'
 import { useUserStore } from '@/stores/user'
 import {
@@ -166,6 +180,8 @@ import {
 const store = useUserStore()
 /** 保存按钮权限：无 security:manage 只读 */
 const canManage = store.can('security:manage')
+/** 演示账号：默认密码属于敏感值，页面不允许明文展示 */
+const isDemo = computed(() => store.username === 'yanshi')
 
 const loading = ref(false)
 const saving = ref(false)
@@ -194,7 +210,8 @@ const form = reactive<SecurityConfigBody>({
   maxLoginErrorCount: 5,
   userLockMinutes: 10,
   emailCodeDigits: 6,
-  verifyCodeExpireMinutes: 10
+  verifyCodeExpireMinutes: 10,
+  demoMode: false
 })
 
 function applyConfig(raw: SecurityConfig) {
@@ -274,6 +291,11 @@ onMounted(load)
 }
 .unit {
   margin-left: 6px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.demo-hint {
+  margin-left: 10px;
   font-size: 12px;
   color: var(--muted);
 }

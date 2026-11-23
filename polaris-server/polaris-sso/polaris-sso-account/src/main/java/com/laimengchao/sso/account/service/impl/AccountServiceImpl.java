@@ -25,6 +25,7 @@ import com.laimengchao.sso.account.mapper.SsoRoleMapper;
 import com.laimengchao.sso.account.security.AccountContextService;
 import com.laimengchao.sso.account.security.PasswordPolicy;
 import com.laimengchao.sso.common.security.ScopeCodeCache;
+import com.laimengchao.sso.settings.client.support.SettingsClient;
 import com.laimengchao.sso.account.service.AccountService;
 import com.laimengchao.sso.account.service.AuditLogService;
 import com.laimengchao.sso.common.BizException;
@@ -49,6 +50,9 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class AccountServiceImpl implements AccountService {
 
+    /** 演示账户用户名，与网关只读拦截保持一致 */
+    private static final String DEMO_ACCOUNT_USERNAME = "yanshi";
+
     private final SsoAccountMapper accountMapper;
     private final SsoAccountRoleMapper accountRoleMapper;
     private final SsoRoleMapper roleMapper;
@@ -58,6 +62,7 @@ public class AccountServiceImpl implements AccountService {
     private final EhrOrgClient ehrOrgClient;
     private final AuditLogService auditLogService;
     private final ScopeCodeCache scopeCodeCache;
+    private final SettingsClient settingsClient;
 
     @Value("${sso.security.max-login-fail:5}")
     private int maxLoginFail;
@@ -296,6 +301,11 @@ public class AccountServiceImpl implements AccountService {
         }
         if (a == null) {
             throw new BizException(ErrorCode.UNAUTHORIZED, "用户名或密码错误");
+        }
+        // 演示账号仅在「演示模式」开启时允许登录。开关在配置中心安全配置维护，
+        // 经 settings-client 读取（fail-close：配置中心不可用时按关闭处理，拒绝登录）。
+        if (DEMO_ACCOUNT_USERNAME.equals(username) && !settingsClient.demoMode()) {
+            throw new BizException(4032, "演示模式未开启，演示账号暂不可登录");
         }
         // 锁定判定
         if (a.getStatus() != null && a.getStatus() == AccountStatus.LOCKED.getCode()) {

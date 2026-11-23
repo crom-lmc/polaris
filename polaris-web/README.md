@@ -6,6 +6,26 @@ Polaris 一体化企业平台前端，包含统一账号中心、EHR、配置与
 
 > 本仓库是前后端一体化仓库：`polaris/` 下包含 `polaris-server/`（后端，见 [后端 README](../polaris-server/README.md)）与 `polaris-web/`（前端，本文）。只需 clone 一次即可拿到全部代码。
 
+## 在线体验
+
+生产环境访问地址（统一 SSO 登录，单点互通）：
+
+| 应用 | 访问地址 |
+|:---|:---|
+| 统一账号中心 | https://polaris-sso.laimengchao.site/ |
+| 人力中心（EHR） | https://polaris-ehr.laimengchao.site/ |
+| 内容中心（CMS） | https://polaris-cms.laimengchao.site/ |
+| 配置中心 | https://polaris-settings.laimengchao.site/ |
+| 调度中心 | https://polaris-job.laimengchao.site/ |
+| 接口开放平台 | https://polaris-openapi.laimengchao.site/ |
+| 北极星空论坛（前台） | https://polaris-forum.laimengchao.site/ |
+| 论坛管理后台 | https://polaris-forum.laimengchao.site/admin/ |
+| 内容门户 | https://polaris-portal.laimengchao.site/ |
+
+**演示账号**：`yanshi` / `yanshi`（全部菜单可查看；写操作由网关拦截，提示「演示账户不能进行操作」）。
+
+> 演示账号默认禁止登录，需管理员在「配置中心 → 安全配置」打开「演示模式」开关后方可登录（安全配置的 `demoMode` 字段，经 settings-client 提供给 sso-account 做登录前置校验）。演示账号访问安全配置页时，默认密码字段脱敏显示。
+
 ---
 
 ## 一、从 clone 到启动：本地部署

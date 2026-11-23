@@ -71,4 +71,8 @@ public class SecurityConfigRequest {
     @NotNull @Min(1) @Max(120)
     private Integer verifyCodeExpireMinutes;
 
+    /** 演示模式开关：true 开启（演示账号可登录）/ false 关闭 */
+    @NotNull(message = "演示模式开关不能为空")
+    private Boolean demoMode;
+
 }

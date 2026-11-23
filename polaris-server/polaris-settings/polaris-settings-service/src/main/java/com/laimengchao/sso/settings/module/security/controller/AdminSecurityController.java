@@ -2,6 +2,7 @@ package com.laimengchao.sso.settings.module.security.controller;
 
 import com.laimengchao.sso.common.R;
 import com.laimengchao.sso.common.security.PermissionCodes;
+import com.laimengchao.sso.common.security.SecurityUtils;
 import com.laimengchao.sso.settings.module.security.dto.SecurityConfigRequest;
 import com.laimengchao.sso.settings.module.security.entity.SecurityConfig;
 import com.laimengchao.sso.settings.module.security.service.SecurityConfigService;
@@ -30,10 +31,18 @@ public class AdminSecurityController {
         this.securityConfigService = securityConfigService;
     }
 
+    /** 演示账户用户名，与其只读拦截保持一致；该账号读取配置时默认密码一律脱敏 */
+    private static final String DEMO_ACCOUNT_USERNAME = "yanshi";
+
     @GetMapping
     @Permit(PermissionCodes.SECURITY_VIEW)
     public R<SecurityConfig> get() {
-        return R.ok(securityConfigService.get());
+        SecurityConfig config = securityConfigService.get();
+        // 演示账号只读且对外演示，默认密码属于敏感值，返回前清空，避免明文下发到浏览器
+        if (DEMO_ACCOUNT_USERNAME.equals(SecurityUtils.currentUsername().orElse(null))) {
+            config.setDefaultPassword("");
+        }
+        return R.ok(config);
     }
 
     @PutMapping

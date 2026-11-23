@@ -46,6 +46,12 @@ public class SecurityConfigService {
         return config;
     }
 
+    /** 演示模式开关（供 sso-auth 跨服读取）；未开启或配置缺失一律按关闭处理 */
+    public boolean isDemoModeEnabled() {
+        SecurityConfig config = mapper.selectById(CONFIG_ID);
+        return config != null && Boolean.TRUE.equals(config.getDemoMode());
+    }
+
     /** 保存并发回最新配置 */
     @Transactional
     public SecurityConfig save(SecurityConfigRequest req) {
@@ -68,6 +74,7 @@ public class SecurityConfigService {
         config.setUserLockMinutes(req.getUserLockMinutes());
         config.setEmailCodeDigits(req.getEmailCodeDigits());
         config.setVerifyCodeExpireMinutes(req.getVerifyCodeExpireMinutes());
+        config.setDemoMode(req.getDemoMode());
         config.setUpdatedBy(SecurityUtils.currentUsername().orElse(null));
         mapper.updateById(config);
         return mapper.selectById(CONFIG_ID);
