@@ -160,42 +160,64 @@ server {
 
 ## 四、功能模块
 
-### 4.1 统一账号中心
+### 4.1 统一账号中心（`polaris-sso-web`）
 
-登录/验证码/退出与跨应用单点登录；工作台、通知中心；账号/角色/权限码管理；应用登记与授权；数据权限；登录日志。
+面向全员与管理员。登录页 `LoginView`、授权页 `AuthorizeView`；登录后的管理后台 `/admin/`（由 `AdminLayout` 承载）包含：
 
-### 4.2 人力中心
+- **工作台与个人信息**：`DashboardView` 概览、`ProfileView` 个人资料、`PasswordView` 修改密码。
+- **主数据与权限**：`AccountListView` 账号、`RoleListView` 角色、`PermissionListView` 权限码、`ApplicationListView` 应用登记与授权、`MyApplicationsView` 我的应用。
+- **审批与通知**：`ApprovalListView` 审批、`NoticeCenterView` 公告、`NotificationCenterView` 通知。
+- **审计**：`LoginLogView` 登录日志。
 
-工作台指标、组织树、人员管理与档案抽屉、合同/司龄/年假、招聘、考勤假勤、请假/加班、转正离职、审批中心、通知公告、人力台账（服务端筛选/分页/图表）。数据权限在服务端执行，前端隐藏按钮不替代鉴权。
+前端只按权限码控制入口与按钮，数据范围由服务端执行。
 
-### 4.3 配置与审批中心
+### 4.2 人力中心（`polaris-ehr-web`）
 
-字典类型与字典项、单号规则、主数据与参数；审批模板/流程/场景/消息配置；待办已办我发起；消息通知；安全配置（初始密码、复杂度、锁定、会话）。
+15 个页面，覆盖员工全生命周期：
+
+- **首页与组织**：`DashboardView` 指标看板、`OrgView` 组织树、`EmployeeView` 人员管理与档案抽屉。
+- **假勤**：`AttendanceView` 考勤、`LeaveView` 请假、`AnnouncementView` 公告。
+- **员工自助**：`MyRegularizeView` 我的转正、`MyResignView` 我的离职、`CallbackView` 审批回调落地页。
+- **HR 管理**：`RecruitView` 招聘、`ApprovalView` 审批、`EmpChangeApprovalView` 异动审批、`HrLedgerView` 人力台账、`AuditLogView` 审计日志。
+- `NoAccessView` 无权限提示。台账支持服务端筛选/分页/图表；数据权限在服务端执行，前端隐藏按钮不替代鉴权。
+
+### 4.3 配置与审批中心（`polaris-settings-web`）
+
+- **基础数据**：`DictView` 字典类型与字典项、`CodeRuleView` 单号规则、`BizDataView` 主数据、`BizPointView`/`EmbedPointView` 业务点位与嵌入点。
+- **审批**：`ApprovalSceneView` 审批场景/模板/流程配置、`ApprovalView` 统一待办已办我发起、`CallbackView` 回调落地页。
+- **消息与安全**：`NoticeConfigView` 通知配置、`SecurityView` 安全配置（初始密码、复杂度、失败锁定、会话）。
+- `DashboardView` 概览、`NoAccessView` 无权限提示。
 
 ### 4.4 CMS / Portal
 
-文章列表与 Markdown 编辑、草稿/提交审批/发布/下架、树形栏目、Banner 与推荐位、门户首页与文章详情、统一待办聚合、深浅色主题。
+**CMS（`polaris-cms-web`）**：`ArticleListView` + `ArticleEditView`（Markdown 编辑、草稿/提交审批/发布/下架）、`CategoryView` 树形栏目、`TagView` 标签、`BannerView` Banner 与推荐位、`PortalLayoutView` 门户布局、`MediaView` 媒体库、`FriendLinkView` 友链、`DashboardView` 概览。
 
-### 4.5 调度中心
+**Portal（`polaris-portal-web`）**：`HomeView` 门户首页、`ArticleListView`/`ArticleView` 文章列表与详情、`CareersView` 招聘展示、`JobDetailView`/`JobProgressView` 职位详情与进度、`CallbackView` 回调落地页。聚合 CMS 公开内容、settings 待办与 EHR 招聘，支持深浅色主题。
 
-任务定义与 Cron、启停/手工触发、执行器与 Handler、执行日志与失败原因、报警规则。
+### 4.5 调度中心（`polaris-job-web`）
+
+按目录组织：`jobs` 任务定义与 Cron、启停/手工触发；`executors` 执行器注册与心跳；`logs` 执行日志与失败原因；`alarms` 失败报警规则；`dashboard` 概览；`callback` 回调落地页。
 
 ### 4.6 论坛
 
-前台：板块/标签、帖子、抽奖（九宫格/转盘）与活动。管理端（`/admin/`）：板块/二级栏目/标签、内容审核、礼品与发放、抽奖配置与奖项权重、论坛活动运营权限。
+**前台（`polaris-forum-web`，18 个页面）**：`HomeView` 首页、`BoardView` 板块、`ContentFeedView` 内容流、`ThreadView`/`NewThreadView` 帖子浏览与发布、`DraftsView` 草稿、`FavoritesView` 收藏、`NotificationsView` 通知；`PointsView` 积分、`LevelsView` 等级、`BadgesView` 徽章、`GiftsView` 礼品兑换；`LotteryView` 抽奖（方形九宫格/转盘双形态）；`MemberView`/`ProfileView`/`ProfileEditView` 会员主页与资料；`AboutView` 关于。
+
+**管理端（`polaris-forum-admin-web`，base `/admin/`）**：`OverviewView` 概览、`TaxonomyView` 一级板块/二级栏目/标签、`ThreadsView`/`CommentsView` 内容审核、`GiftsView`/`ExchangesView` 礼品与发放记录（含来源列）、`LotteryView` 抽奖配置与奖项权重、`BadgesView`/`LevelsView` 徽章等级、`SensitiveWordsView` 敏感词、`ReportsView` 举报、`SiteView` 站点设置。使用独立权限码（如 `forum:lottery`），归「论坛活动运营」角色。
 
 ### 4.7 接口开放平台管理端
 
-`polaris-openapi-web`（端口 5184，生产域名 `polaris-openapi.laimengchao.site`），管理第三方开放能力：
+`polaris-openapi-web`（端口 5184，生产域名 `polaris-openapi.laimengchao.site`）是开放平台的管理控制台，8 个功能页 + 回调落地页，全部通过 SSO 用户登录 + 权限码访问 `/api/open/admin/**`：
 
-- **概览**：调用趋势、失败 TOP、最近异常、状态指标。
-- **API 管理**：注册/维护开放接口，配置方向（出站=对外提供 / 入站=调用第三方）、操作类型、权限码、限流、幂等。
-- **对接应用**：维护第三方应用（appCode/名称/状态/IP 白名单），新增/查看密钥/重置密钥；有接口授权的应用禁止删除（按钮置灰并提示）。
-- **应用授权**：按接口粒度勾选授权，支持停用/启用，启用状态的接口不能删除。
-- **出站渠道**：配置平台调用外部的渠道（邮件 SMTP）、凭证托管与 auth_config。
-- **调用日志**：Trace ID、方向、调用方向、应用/API/渠道、HTTP 状态、耗时、时间；详情抽屉；按条件筛选与导出。
-- **统计报表**：按方向/应用/时间统计调用量、成功率、耗时分布、TOP 应用与接口。
-- **平台设置**：令牌有效期、签名容差、限流等全局参数。
+- **概览 `DashboardView`**：状态指标卡片、调用趋势、失败 TOP、最近异常；表格/详情统一用抽屉展示；方向按数据流向标注（出站=对外提供、入站=调用第三方）。
+- **API 管理 `EndpointView`**：注册/维护开放接口，配置方向、操作类型、权限码、限流、幂等、状态；启用状态的接口不能删除，只能停用。
+- **对接应用 `AppView`**：维护第三方应用（appCode/名称/状态/IP 白名单）；新增/查看密钥/重置密钥（密钥抽屉区分查看/重置/新建三种模式）；有接口授权的应用「删除」按钮置灰并提示，后端同时兜底拦截。
+- **应用授权 `AuthzView`**：按接口粒度勾选授权（唯一键 `(app_code, api_code)`），支持停用/启用；停用/删除单个接口不联动其他接口；顶部可按应用筛选。
+- **出站渠道 `ChannelView`**：配置平台调用外部的渠道（目前邮件 SMTP）的鉴权方式、超时、重试、允许应用与凭证托管；凭证只回显「是否已配置」，不明文展示。
+- **调用日志 `LogView`**：Trace ID、方向、**调用方向**（箭头直观展示「应用→平台」或「平台→渠道」）、应用/API/渠道、HTTP 状态、耗时、时间；详情抽屉含三张卡片；支持按条件筛选与导出。
+- **统计报表 `StatView`**：按方向/应用/时间统计调用量、成功率、耗时分布、TOP 应用与接口。
+- **平台设置 `SettingView`**：令牌有效期、签名容差、限流等全局参数。
+
+页面统一遵循：弹窗改抽屉、分页固定右下角、空状态铺满、操作列左对齐不换行、确认框居中；详情见 `src/styles/global.css` 的 `.drawer-body-flex`。
 
 ---
 

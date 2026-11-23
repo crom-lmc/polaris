@@ -294,46 +294,103 @@ polaris/
 
 ### 5.1 Gateway：统一网关
 
-对外监听 `9080`，按路径转发各业务服务；RS256 验签并检查吊销名单；把用户信息转成可信头；默认直连 `127.0.0.1:9001~9009`，可选 Nacos Discovery。
+对外监听 `9080`，是前端与第三方唯一入口，业务服务端口不直接暴露公网。核心职责：
+
+- **路由转发**：按路径前缀转发到 auth/account/ehr/cms/portal/settings/job/forum/openapi，默认直连 `127.0.0.1:9001~9010`，可选 Nacos Discovery 服务发现。
+- **令牌校验**：用 RSA 公钥验 RS256 签名，检查 Redis 吊销名单， denied 令牌直接 401。
+- **可信头注入**：解析令牌后把用户 ID/账号/权限码写成可信请求头传给下游，业务服务不再自行验签。
+- **白名单放行**：登录、验证码、开放平台换票等公开路径免鉴权，其余一律经鉴权链。
 
 ### 5.2 SSO：统一认证与账号中心
 
-- **auth :9001**：账号/邮箱登录、验证码、失败锁定；签发/刷新/吊销 RS256 令牌；跨应用 ticket 换票。
-- **account :9002**：账号、角色、权限码、应用登记与授权、组织数据范围、登录日志、初始密码策略。
+**auth :9001（5 个 Controller）** — 认证与令牌中枢：
+
+- 账号/邮箱登录、图形验证码、连续失败锁定与解锁。
+- RS256 access/refresh 令牌签发、刷新、吊销；吊销名单写 Redis。
+- 跨应用一次性 ticket 换票：前端拿 ticket 换取本应用登录态，ticket 只能用一次。
+- 内部接口 `/internal/**` 供各业务服务换取用户信息，凭 `X-Internal-Token` 调用。
+- 微信绑定等第三方账号关联。
+
+**account :9002（13 个 Controller）** — 主数据与权限中枢：
+
+- 账号 `Account`、角色 `Role`、权限码 `Permission` 的增删改查与授权关系维护。
+- 应用登记 `Application`：登记各前端应用的 `base_url` 与 appSecret，作为 SSO 换票凭据。
+- 组织实体 `InternalEntity`、数据范围授权：按组织维度限制可见数据，空范围按空集处理。
+- 审批中心 `ApprovalCenter`：应用接入/权限申请类审批。
+- 概览 `Overview`、当前用户 `CurrentAccount`、登录日志、初始管理员与密码策略。
+- 对开放平台提供 `InternalOpenapi`：按应用 ID 签发 client 用途令牌（见 5.7）。
 
 ### 5.3 EHR：人力中心
 
-工作台指标、组织架构、员工档案与敏感信息脱敏、合同/司龄/年假、招聘、考勤假勤、转正离职、审批协同、通知公告、模板导入与 Excel 导出、人力台账。应用「功能权限 + 组织数据权限」，空范围按空集处理。
+共 33 个 Controller，是覆盖面最广的业务模块。按能力分组：
+
+- **组织与员工**：`AdminOrg` 组织树、`AdminEmployee`/`EmployeeProfile` 员工档案（敏感字段脱敏）、`EmployeeLookup` 人员检索、`Attachment` 附件。
+- **合同与假期**：`Contract` 合同、`AdminSeniority` 司龄、`AnnualLeave`/`LeaveQuota`/`LeaveRule` 年假与假期规则、`WorkCalendar` 工作日历。
+- **考勤假勤**：`Attendance` 打卡、`AttendanceDaily` 日报、`AttendanceRule` 规则、`AttendanceCorrection` 补卡、`AttendanceMock` 模拟数据。
+- **请假与异动**：`AdminLeave`/`Leave` 请假、`MyRegularize`/`MyResign` 转正离职、`EmpChangeApproval` 异动审批。
+- **招聘**：`Recruit`/`PublicRecruit` 社招与公开职位门户。
+- **协同与台账**：`Approval` 审批、`AdminAnnouncement`/`Announcement` 公告、`Reminder` 提醒、`HrLedger` 人力台账、`Dashboard` 指标、`ImportExport` 模板导入与 Excel 导出、`AuditLog` 审计日志。
+- **内部接口**：`InternalOrg`/`InternalEntity` 供开放平台与 settings 查询组织和人员，`InternalApprovalCallback` 接收审批回调。
+
+权限模型为「功能权限 + 组织数据权限」双层，数据范围在服务端 SQL 层执行，前端隐藏按钮不替代鉴权。
 
 ### 5.4 Settings：配置、审批与消息中心
 
-数据字典、单号规则、主数据；审批模板/流程/场景/消息配置；统一待办已办与业务回调；站内消息（可配 SMTP 邮件）；安全配置；向其他服务提供 `/internal/dicts/**`、`/internal/approval/**`。
+19 个 Controller，提供全平台共享的基础设施能力：
+
+- **基础数据**：`AdminDict`/`InternalDict` 数据字典类型与字典项、`AdminCodeRule`/`InternalCodeRule` 单号规则、`AdminBizData`/`InternalBizData` 主数据、`AdminEmbedPoint`/`InternalEmbedPoint` 嵌入点、`AdminBizPoint` 业务点位。
+- **审批引擎**：`AdminApproval` 审批模板/流程/场景/消息配置、`Approval` 统一待办已办我发起、`Callback` 业务回调（幂等）、`NoticeConfig` 通知配置。
+- **消息**：`MeNotice`/`AdminNotice` 站内消息，可对接 SMTP 发邮件。
+- **安全配置**：`AdminSecurity` 初始密码策略、复杂度、失败锁定、会话设置。
+- **对外接口**：`PublicReference` 公开引用数据、`SsoExchange` SSO 换票、`InternalApproval`/`InternalNotice` 供其他服务复用审批与消息能力。
 
 ### 5.5 CMS / Portal
 
-CMS：文章草稿/发布/下架、Markdown 与安全清洗、树形栏目、门户 Banner/推荐位、内容审批回调。Portal：聚合 CMS 公开内容与 settings 待办，无独立业务库。
+**CMS（12 个 Controller）**：`AdminArticle` 文章草稿/提交审批/发布/下架、Markdown 编辑与安全清洗；`AdminTaxonomy` 树形栏目与标签；`AdminBanner` 门户 Banner/推荐位、`AdminPortalLayout` 门户布局；`AdminMedia`/`AdminFriendLink` 媒体库与友链；`PublicContent` 公开内容供门户与开放平台读取；`InternalApprovalCallback` 审批回调。
+
+**Portal（3 个 Controller）**：无独立业务库，聚合 CMS 公开内容、settings 待办与 EHR 招聘信息，提供门户首页、文章详情、招聘列表与职位详情。
 
 ### 5.6 Job / Forum
 
-Job：任务定义、Cron、启停/触发、执行器与 Handler、心跳、失败报警（复用 settings 消息）。Forum：论坛板块、标签、帖子、抽奖与活动运营，见前端论坛应用。
+**Job（6 个 Controller）**：`AdminJob` 任务定义与 Cron 表达式、启停与手工触发；`AdminExecutor` 执行器注册与心跳、`AdminAuth` 执行器鉴权；`AdminLog` 执行日志与失败原因；`AdminAlarm` 失败报警规则（复用 settings 消息）；`InternalJob` 供其他服务触发任务。
+
+**Forum（16 个 Controller）**：`Forum`/`AdminForum` 板块与帖子、`PublicForum` 公开内容、`Draft` 草稿、`Attachment` 附件、`Notification` 通知；`Level`/`ExperienceRule`/`AdminExperienceRule`/`AdminLevel`/`Badge`/`AdminBadge` 等级、经验与徽章；`Reward` 积分兑换与抽奖奖励、`Poll` 投票；`Overview`/`Reports` 运营看板；`InternalMember` 会员信息内部接口。详情见前端论坛应用。
 
 ### 5.7 接口开放平台（OpenAPI）
 
-独立服务 `polaris-openapi :9010`，独立库 `polaris_openapi`，管理端为前端 `polaris-openapi-web`（:5184）。定位：**第三方系统通过标准协议调用平台能力，以及平台内部服务调用外部渠道**。
+独立服务 `polaris-openapi :9010`（11 个 Controller），独立库 `polaris_openapi`，管理端为前端 `polaris-openapi-web`（:5184）。定位：**第三方系统通过标准协议调用平台能力（入站接口），以及平台内部服务调用外部渠道（出站渠道）**。注意这里的入/出站按**数据流向**定义：第三方调我们、平台返回数据给对方 = 出站；我们调第三方、对方返回数据给平台 = 入站。
 
-- **对接应用**：维护外部第三方应用（`app_code` + 应用密钥），密钥 SHA-256 摘要用于验签、明文列仅供管理端「查看密钥」；支持启停、IP 白名单。
-- **应用授权**：按接口粒度授权（`api_client_app_permission` 唯一键 `(app_code, api_code)`），停用/删除单个接口不联动；授权接口编码写入令牌 `perms`。
-- **换票与鉴权**：第三方用 `app_code + app_secret` 调 `POST /api/open/token` 换取 Bearer Token（有效期可配），token 的 `sub` 为应用数字 ID、`purpose=client_app`；由 sso-auth 唯一 RS256 签发，openapi 不自建签发体系。鉴权兼容旧 `perm_code`。
-- **入站接口（第三方调平台）**：`GET /api/open/v1/dict/{typeCode}/items`、`POST /api/open/v1/dict/batch`、`/employees/active`、`/master/**`、`/orgs/**` 等；nonce + 时间戳防重放、限流、审计日志。
-- **出站渠道（平台调第三方）**：`api_outbound_channel` 配置目标渠道（目前邮件 SMTP），凭证 AES-GCM 加密（`OPENAPI_CHANNEL_KEY`），适配器 SPI + 重试/熔断；非幂等接口自动禁用重试。
-- **日志与统计**：`api_call_log` 记录脱敏调用日志（**出站=数据流向平台外，入站=数据流向平台内**），概览/趋势/失败 TOP/应用与接口排行。
-- **管理端**：通过 SSO 用户令牌 + 权限码访问 `/api/open/admin/**`，覆盖概览、API 管理、对接应用、应用授权、出站渠道、调用日志、统计报表、平台设置。
+**公开接口（`OpenapiController`）**
 
-数据表：`api_open_endpoint`、`api_call_log`、`api_open_setting`、`api_outbound_channel`、`api_client_app`、`api_client_app_permission`。
+- `POST /api/open/token`：第三方用 `app_code + app_secret` 换票。openapi 本地校验应用状态与密钥摘要，再走内部接口请 sso-auth 签发令牌——openapi **不自建签发体系**，全平台只有 auth 持有 RS256 私钥。
+- 令牌 `sub` 为应用数字 ID、`client_app_code=appCode`、`purpose=client_app`、`perms` 为授权的接口编码列表；有效期由 `OPENAPI_TOKEN_TTL_SECONDS` 配置，过期后用同样凭据重新换票，无 refresh token。
+- 入站业务接口：`GET /api/open/v1/dict/{typeCode}/items`、`POST /api/open/v1/dict/batch`、`/employees/active`、`/master/categories`、`/master/{type}/items`、`/orgs/tree`、`/orgs/{id}/employees`。经 nonce + 时间戳防重放、限流、接口级鉴权后，内部调用 settings/ehr 取数。
+
+**管理端接口（`/api/open/admin/**`，SSO 用户令牌 + 权限码访问）**
+
+| Controller | 能力 |
+|---|---|
+| `AppAdmin` | 对接应用 CRUD、启停、IP 白名单、新增/重置/查看应用密钥 |
+| `AuthzAdmin` | 按接口粒度授权/撤销/启停，授权列表 |
+| `EndpointAdmin` | 开放接口目录注册与维护（方向、操作类型、权限码、限流、幂等、状态） |
+| `ChannelAdmin` | 出站渠道配置（鉴权方式、超时、重试、允许应用、凭证托管） |
+| `LogAdmin` | 调用日志查询与导出（Trace ID、方向、应用/接口/渠道、状态、耗时） |
+| `StatAdmin` | 概览指标、调用趋势、失败 TOP、应用与接口排行 |
+| `SettingAdmin` | 令牌有效期、签名容差、限流等全局参数 |
+| `Me` / `SsoExchange` | 管理端当前用户与 SSO 换票 |
+
+**核心机制**
+
+- **对接应用**：`app_code` + 应用密钥，SHA-256 摘要用于验签、`app_secret_plain` 明文列仅供管理端「查看密钥」；启停与 IP 白名单控制接入。
+- **应用授权**：`api_client_app_permission` 唯一键 `(app_code, api_code)`，按接口粒度独立授权；停用/删除单个接口不联动，启用状态的接口不能删除；授权编码写入令牌 `perms`，旧 `perm_code` 令牌兼容放行。
+- **出站渠道**：`api_outbound_channel` 配置目标渠道（目前邮件 SMTP），第三方口令用 AES-GCM 加密（`OPENAPI_CHANNEL_KEY`），适配器 SPI 便于扩展；非幂等接口自动把重试降为 0，避免重复投递。
+- **日志与统计**：`api_call_log` 记录脱敏调用日志，支持概览/趋势/失败 TOP/排行；前端展示的「出站/入站」按上述数据流向语义。
+
+数据表：`api_open_endpoint`、`api_call_log`、`api_open_setting`、`api_outbound_channel`、`api_client_app`、`api_client_app_permission`。第三方接入的完整调用示例（换票、Bearer Token 调用、错误码说明）见项目目录下的迭代文档 `openapi-platform-design.md`（迭代文档放仓库外，不纳入 Git）。
 
 ### 5.8 Common 与各 Client
 
-`R<T>` 统一响应、`BizException`/`ErrorCode`、`LoginUser` 上下文、JWT/可信头、`ENC(...)` 启动期解密；各 `*-client` 封装 Feign 契约与内部令牌。
+`R<T>` 统一响应、`BizException`/`ErrorCode` 统一异常码、`LoginUser` 安全上下文、JWT 与可信头工具、`ENC(...)` 启动期配置解密；各 `*-client`（sso/client、settings/client、job/client）封装 Feign 契约与 `X-Internal-Token` 注入，不单独启动。
 
 ---
 
