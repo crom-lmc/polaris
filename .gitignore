@@ -1,0 +1,40 @@
+# ============ 后端 polaris-server ============
+# 构建产物
+target/
+*.class
+
+# 运行期日志与 PID
+logs/
+*.log
+
+# 密钥材料：绝不入库（JWT 私钥、app-secret、内部 token、配置主密钥、管理口令备份）
+**/.secrets/
+**/.env
+*.pem
+!**/src/main/resources/keys/jwt-public.pem
+
+# 上传文件与运行期数据
+polaris-server/upload*/
+polaris-server/data/
+
+# IDE（仅共享 Spring Boot 启动配置）
+polaris-server/.idea/*
+!polaris-server/.idea/runConfigurations/
+polaris-server/.idea/runConfigurations/*
+!polaris-server/.idea/runConfigurations/*.xml
+*.iml
+
+# ============ 前端 polaris-web ============
+node_modules/
+dist/
+dist_bak_*/
+.env.local
+.env.*.local
+
+# ============ 通用 ============
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+
+# 迭代文档位于仓库外（../迭代文档/），不在本仓库内

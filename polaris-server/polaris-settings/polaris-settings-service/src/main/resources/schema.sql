@@ -1,0 +1,525 @@
+-- SETTINGS 全量结构基线（MySQL 5.7）
+-- 2026-11-16 从本地 settings 数据库导出；不含过程备份表。
+-- 可重复执行，不包含 DROP/ALTER，不用于存量库升级。
+
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE IF NOT EXISTS `appr_action` (
+  `id` bigint(20) NOT NULL COMMENT '雪花ID',
+  `instance_id` bigint(20) NOT NULL,
+  `task_id` bigint(20) DEFAULT NULL,
+  `step_seq` int(11) DEFAULT '0',
+  `node_id` bigint(20) DEFAULT NULL,
+  `node_name` varchar(64) DEFAULT '',
+  `actor_id` bigint(20) DEFAULT NULL COMMENT '操作人账号ID',
+  `actor_name` varchar(64) DEFAULT '',
+  `action` varchar(16) NOT NULL COMMENT 'SUBMIT/APPROVE/REJECT/SKIP/TRANSFER/ADD_SIGN/CC/WITHDRAW/TERMINATE',
+  `target_id` bigint(20) DEFAULT NULL COMMENT '转办/加签目标',
+  `target_name` varchar(64) DEFAULT '',
+  `opinion` varchar(500) DEFAULT '',
+  `deleted` tinyint(4) NOT NULL DEFAULT '0',
+  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_appr_act_inst` (`instance_id`,`created_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='审批流水';
+/*!40101 SET character_set_client = @saved_cs_client */;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE IF NOT EXISTS `appr_callback` (
+  `id` bigint(20) NOT NULL COMMENT '雪花ID',
+  `instance_id` bigint(20) NOT NULL,
+  `biz_type` varchar(64) NOT NULL,
+  `biz_id` varchar(64) NOT NULL,
+  `result` tinyint(4) NOT NULL COMMENT '1通过 2驳回 3撤回 4终止',
+  `callback_url` varchar(255) NOT NULL,
+  `payload` mediumtext COMMENT '回调报文快照',
+  `status` tinyint(4) NOT NULL DEFAULT '0' COMMENT '0待回调 1成功 2失败',
+  `retry_count` int(11) NOT NULL DEFAULT '0',
+  `next_retry_at` datetime DEFAULT NULL,
+  `last_error` varchar(500) DEFAULT '',
+  `deleted` tinyint(4) NOT NULL DEFAULT '0',
+  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_appr_cb_retry` (`status`,`next_retry_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='业务回调补偿（终审结果异步通知业务方）';
+/*!40101 SET character_set_client = @saved_cs_client */;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE IF NOT EXISTS `appr_delegate` (
+  `id` bigint(20) NOT NULL COMMENT '雪花ID',
+  `owner_id` bigint(20) NOT NULL COMMENT '委托人账号ID',
+  `owner_name` varchar(64) DEFAULT '',
+  `delegate_id` bigint(20) NOT NULL COMMENT '被委托人账号ID',
+  `delegate_name` varchar(64) DEFAULT '',
+  `biz_type` varchar(64) DEFAULT '' COMMENT '空=全部业务',
+  `start_time` datetime NOT NULL,
+  `end_time` datetime NOT NULL,
+  `enabled` tinyint(4) NOT NULL DEFAULT '1',
+  `remark` varchar(255) DEFAULT '',
+  `deleted` tinyint(4) NOT NULL DEFAULT '0',
+  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_appr_dele_owner` (`owner_id`,`enabled`),
+  KEY `idx_appr_dele_target` (`delegate_id`,`enabled`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='审批委托（一段时间全量代收）';
+/*!40101 SET character_set_client = @saved_cs_client */;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE IF NOT EXISTS `appr_instance` (
+  `id` bigint(20) NOT NULL COMMENT '雪花ID',
+  `template_id` bigint(20) NOT NULL,
+  `template_code` varchar(64) NOT NULL COMMENT '模板编码快照',
+  `template_version` int(11) NOT NULL DEFAULT '1',
+  `biz_type` varchar(64) NOT NULL,
+  `biz_name` varchar(64) NOT NULL,
+  `biz_id` varchar(64) NOT NULL COMMENT '业务主键（可能是数字或字符串）',
+  `subject_id` varchar(64) DEFAULT NULL COMMENT '业务主体ID（员工/组织/文章），与 biz_id 解耦',
+  `biz_id_kind` varchar(16) DEFAULT NULL COMMENT 'SUBJECT=业务主体 / DOC=本次单据；NULL=存量未标注',
+  `biz_no` varchar(64) DEFAULT '' COMMENT '业务单号',
+  `appr_no` varchar(64) NOT NULL DEFAULT '' COMMENT '审批单自身的单号',
+  `title` varchar(200) NOT NULL DEFAULT '' COMMENT '如「入职审批 · 张伟」',
+  `applicant_id` bigint(20) NOT NULL COMMENT '发起人账号ID',
+  `applicant_name` varchar(64) DEFAULT '',
+  `applicant_org_id` bigint(20) DEFAULT NULL,
+  `org_path` varchar(255) DEFAULT '' COMMENT '发起时组织路径快照',
+  `form_data` mediumtext COMMENT '业务表单快照JSON（提交时冻结）',
+  `snapshot` mediumtext COMMENT '流程快照JSON：步骤+分支+解析后的审批人',
+  `table_bindings` mediumtext COMMENT '数据表绑定快照JSON（发起时冻结）',
+  `page_version` int(11) DEFAULT NULL COMMENT '页面配置锁定版本，空=跟随最新',
+  `status` tinyint(4) NOT NULL DEFAULT '0' COMMENT '0进行中 1已通过 2已驳回 3已撤回 4已终止',
+  `current_step` int(11) NOT NULL DEFAULT '1',
+  `total_step` int(11) NOT NULL DEFAULT '1',
+  `callback_status` tinyint(4) NOT NULL DEFAULT '0' COMMENT '业务回调：0不需要 1待回调 2成功 3失败',
+  `callback_url` varchar(255) DEFAULT '' COMMENT '终审回调地址',
+  `finished_at` datetime DEFAULT NULL,
+  `deleted` tinyint(4) NOT NULL DEFAULT '0',
+  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `urge_count` int(11) NOT NULL DEFAULT '0' COMMENT '被催办次数',
+  `last_urge_at` datetime DEFAULT NULL COMMENT '最近一次催办时间',
+  PRIMARY KEY (`id`),
+  KEY `idx_appr_inst_biz` (`biz_type`,`biz_id`,`status`),
+  KEY `idx_appr_inst_applicant` (`applicant_id`,`created_at`),
+  KEY `idx_appr_inst_status` (`status`,`current_step`),
+  KEY `idx_appr_inst_subject` (`biz_type`,`subject_id`,`status`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='审批实例（在途单据）';
+/*!40101 SET character_set_client = @saved_cs_client */;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE IF NOT EXISTS `appr_task` (
+  `id` bigint(20) NOT NULL COMMENT '雪花ID',
+  `instance_id` bigint(20) NOT NULL,
+  `step_seq` int(11) NOT NULL,
+  `step_name` varchar(64) DEFAULT '',
+  `node_id` bigint(20) DEFAULT NULL COMMENT '分支节点ID（快照里的）',
+  `node_seq` int(11) DEFAULT '0',
+  `node_name` varchar(64) DEFAULT '',
+  `approver_id` bigint(20) NOT NULL COMMENT '审批人账号ID',
+  `approver_name` varchar(64) DEFAULT '',
+  `approver_source` varchar(16) NOT NULL DEFAULT 'USER' COMMENT 'USER直接 DELEGATE代收',
+  `delegate_owner_id` bigint(20) DEFAULT NULL COMMENT '代收时原审批人',
+  `delegate_owner_name` varchar(64) DEFAULT '',
+  `task_kind` varchar(8) NOT NULL DEFAULT 'APPROVE' COMMENT 'APPROVE审批 CC抄送',
+  `status` tinyint(4) NOT NULL DEFAULT '0' COMMENT '0待办 1通过 2驳回 3跳过 4作废 9已转办',
+  `approve_mode` varchar(8) NOT NULL DEFAULT 'ANY',
+  `seq_in_node` int(11) NOT NULL DEFAULT '0' COMMENT '会签/依次模式下节点内序号',
+  `opinion` varchar(500) DEFAULT '' COMMENT '审批意见',
+  `acted_at` datetime DEFAULT NULL,
+  `due_at` datetime DEFAULT NULL COMMENT '预留：超时时间',
+  `deleted` tinyint(4) NOT NULL DEFAULT '0',
+  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `parent_node_id` bigint(20) DEFAULT NULL COMMENT '任务所属条件分支节点ID；NULL=普通主干任务',
+  `branch_path` varchar(256) NOT NULL DEFAULT '' COMMENT '任务路径键，供分组展示与汇合判断',
+  `depth` int(11) NOT NULL DEFAULT '0' COMMENT '任务嵌套深度，供详情页树形分组',
+  PRIMARY KEY (`id`),
+  KEY `idx_appr_task_inst` (`instance_id`,`step_seq`),
+  KEY `idx_appr_task_approver` (`approver_id`,`status`,`created_at`),
+  KEY `idx_appr_task_path` (`instance_id`,`branch_path`(128),`status`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='审批任务（每人每条）';
+/*!40101 SET character_set_client = @saved_cs_client */;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE IF NOT EXISTS `biz_bank` (
+  `id` bigint(20) NOT NULL COMMENT '雪花ID（迁移数据保留原字典项ID）',
+  `code` varchar(64) NOT NULL COMMENT '取值编码；业务表里存的就是它，如 icbc',
+  `name` varchar(128) NOT NULL COMMENT '展示名，如 工商银行',
+  `sort` int(11) NOT NULL DEFAULT '0' COMMENT '同级排序，小的在前',
+  `status` tinyint(4) NOT NULL DEFAULT '1' COMMENT '1启用 0停用',
+  `remark` varchar(255) DEFAULT '' COMMENT '备注/扩展字段占位',
+  `built_in` tinyint(4) NOT NULL DEFAULT '0' COMMENT '1内置(种子,禁删) 0自定义',
+  `deleted` tinyint(4) NOT NULL DEFAULT '0' COMMENT '逻辑删除',
+  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_biz_bank_code` (`code`,`deleted`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='主数据：银行';
+/*!40101 SET character_set_client = @saved_cs_client */;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE IF NOT EXISTS `biz_education` (
+  `id` bigint(20) NOT NULL COMMENT '雪花ID（迁移数据保留原字典项ID）',
+  `code` varchar(64) NOT NULL COMMENT '取值编码；业务表里存的就是它，如 icbc',
+  `name` varchar(128) NOT NULL COMMENT '展示名，如 工商银行',
+  `sort` int(11) NOT NULL DEFAULT '0' COMMENT '同级排序，小的在前',
+  `status` tinyint(4) NOT NULL DEFAULT '1' COMMENT '1启用 0停用',
+  `remark` varchar(255) DEFAULT '' COMMENT '备注/扩展字段占位',
+  `built_in` tinyint(4) NOT NULL DEFAULT '0' COMMENT '1内置(种子,禁删) 0自定义',
+  `deleted` tinyint(4) NOT NULL DEFAULT '0' COMMENT '逻辑删除',
+  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_biz_bank_code` (`code`,`deleted`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='主数据：学历';
+/*!40101 SET character_set_client = @saved_cs_client */;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE IF NOT EXISTS `biz_family_relation` (
+  `id` bigint(20) NOT NULL COMMENT '雪花ID（迁移数据保留原字典项ID）',
+  `code` varchar(64) NOT NULL COMMENT '取值编码；业务表里存的就是它，如 icbc',
+  `name` varchar(128) NOT NULL COMMENT '展示名，如 工商银行',
+  `sort` int(11) NOT NULL DEFAULT '0' COMMENT '同级排序，小的在前',
+  `status` tinyint(4) NOT NULL DEFAULT '1' COMMENT '1启用 0停用',
+  `remark` varchar(255) DEFAULT '' COMMENT '备注/扩展字段占位',
+  `built_in` tinyint(4) NOT NULL DEFAULT '0' COMMENT '1内置(种子,禁删) 0自定义',
+  `deleted` tinyint(4) NOT NULL DEFAULT '0' COMMENT '逻辑删除',
+  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_biz_bank_code` (`code`,`deleted`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='主数据：家庭成员关系';
+/*!40101 SET character_set_client = @saved_cs_client */;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE IF NOT EXISTS `biz_leave_type` (
+  `id` bigint(20) NOT NULL COMMENT '雪花ID（迁移数据保留原字典项ID）',
+  `code` varchar(64) NOT NULL COMMENT '取值编码；业务表里存的就是它，如 icbc',
+  `name` varchar(128) NOT NULL COMMENT '展示名，如 工商银行',
+  `sort` int(11) NOT NULL DEFAULT '0' COMMENT '同级排序，小的在前',
+  `status` tinyint(4) NOT NULL DEFAULT '1' COMMENT '1启用 0停用',
+  `remark` varchar(255) DEFAULT '' COMMENT '备注/扩展字段占位',
+  `built_in` tinyint(4) NOT NULL DEFAULT '0' COMMENT '1内置(种子,禁删) 0自定义',
+  `deleted` tinyint(4) NOT NULL DEFAULT '0' COMMENT '逻辑删除',
+  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_biz_bank_code` (`code`,`deleted`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='主数据：请假类型';
+/*!40101 SET character_set_client = @saved_cs_client */;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE IF NOT EXISTS `biz_position` (
+  `id` bigint(20) NOT NULL COMMENT '雪花ID（迁移数据保留原字典项ID）',
+  `code` varchar(64) NOT NULL COMMENT '取值编码；业务表里存的就是它，如 icbc',
+  `name` varchar(128) NOT NULL COMMENT '展示名，如 工商银行',
+  `sort` int(11) NOT NULL DEFAULT '0' COMMENT '同级排序，小的在前',
+  `status` tinyint(4) NOT NULL DEFAULT '1' COMMENT '1启用 0停用',
+  `remark` varchar(255) DEFAULT '' COMMENT '备注/扩展字段占位',
+  `category` varchar(32) DEFAULT NULL COMMENT '职位类别：管理类/技术类',
+  `built_in` tinyint(4) NOT NULL DEFAULT '0' COMMENT '1内置(种子,禁删) 0自定义',
+  `deleted` tinyint(4) NOT NULL DEFAULT '0' COMMENT '逻辑删除',
+  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `job_family` varchar(32) DEFAULT NULL COMMENT '职务族编码',
+  `job_family_name` varchar(64) DEFAULT NULL COMMENT '职务族展示名',
+  `series` varchar(2) DEFAULT NULL COMMENT 'M管理/P专业',
+  `level_no` int(11) DEFAULT NULL COMMENT '等级序号',
+  `level_name` varchar(16) DEFAULT NULL COMMENT '等级展示名',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_biz_bank_code` (`code`,`deleted`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='主数据：职位';
+/*!40101 SET character_set_client = @saved_cs_client */;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE IF NOT EXISTS `biz_resign_reason` (
+  `id` bigint(20) NOT NULL COMMENT '雪花ID（迁移数据保留原字典项ID）',
+  `code` varchar(64) NOT NULL COMMENT '取值编码；业务表里存的就是它，如 icbc',
+  `name` varchar(128) NOT NULL COMMENT '展示名，如 工商银行',
+  `sort` int(11) NOT NULL DEFAULT '0' COMMENT '同级排序，小的在前',
+  `status` tinyint(4) NOT NULL DEFAULT '1' COMMENT '1启用 0停用',
+  `remark` varchar(255) DEFAULT '' COMMENT '备注/扩展字段占位',
+  `built_in` tinyint(4) NOT NULL DEFAULT '0' COMMENT '1内置(种子,禁删) 0自定义',
+  `deleted` tinyint(4) NOT NULL DEFAULT '0' COMMENT '逻辑删除',
+  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_biz_bank_code` (`code`,`deleted`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='主数据：离职/减员原因';
+/*!40101 SET character_set_client = @saved_cs_client */;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE IF NOT EXISTS `cfg_approval_node` (
+  `id` bigint(20) NOT NULL COMMENT '雪花ID',
+  `template_id` bigint(20) NOT NULL COMMENT '所属模板（冗余，免联表）',
+  `step_id` bigint(20) NOT NULL COMMENT '所属步骤',
+  `seq` int(11) NOT NULL COMMENT '步骤内顺序',
+  `name` varchar(64) NOT NULL DEFAULT '' COMMENT '分支名，留空用审批人摘要',
+  `condition_expr` varchar(500) DEFAULT '' COMMENT '分支条件，空=总生效',
+  `condition_desc` varchar(255) DEFAULT '',
+  `approvers` text NOT NULL COMMENT '审批人规则JSON数组：[{"type":"ORG_LEADER","levelOffset":0}]',
+  `approve_mode` varchar(8) NOT NULL DEFAULT 'ANY' COMMENT 'ANY或签(竞争) ALL会签(并行) SEQ依次',
+  `allow_self` tinyint(4) NOT NULL DEFAULT '0' COMMENT '允许审批自己提交的单据',
+  `skip_same` tinyint(4) NOT NULL DEFAULT '1' COMMENT '与上一步骤同人则跳过',
+  `on_empty` varchar(8) NOT NULL DEFAULT 'SKIP' COMMENT '无人可审：SKIP跳过 BLOCK阻塞',
+  `timeout_hours` int(11) DEFAULT NULL COMMENT '预留：超时提醒',
+  `deleted` tinyint(4) NOT NULL DEFAULT '0',
+  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `is_fallback` tinyint(4) NOT NULL DEFAULT '0' COMMENT '兜底分支：同一网关其它分支均未命中时才生效',
+  `child_chain` tinyint(4) NOT NULL DEFAULT '0' COMMENT '该分支是否挂了独立子链（冗余标记，以 step.parent_node_id 为准）',
+  PRIMARY KEY (`id`),
+  KEY `idx_appr_node_step` (`step_id`,`seq`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='审批分支（步骤内并行）';
+/*!40101 SET character_set_client = @saved_cs_client */;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE IF NOT EXISTS `cfg_approval_page` (
+  `id` bigint(20) NOT NULL COMMENT '雪花ID',
+  `template_id` bigint(20) NOT NULL,
+  `view` varchar(16) NOT NULL DEFAULT 'APPROVAL' COMMENT 'APPROVAL审批人 DETAIL发起人回看 AUDIT审计',
+  `render_mode` varchar(16) NOT NULL DEFAULT 'SECTIONS' COMMENT 'GRID/SECTIONS/TEMPLATE/COMPONENT',
+  `config` mediumtext COMMENT '字段与布局JSON',
+  `route_path` varchar(255) DEFAULT '' COMMENT 'render_mode=ROUTE 的自定义页面地址（应用内路由或完整URL）',
+  `version` int(11) NOT NULL DEFAULT '1',
+  `deleted` tinyint(4) NOT NULL DEFAULT '0',
+  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_appr_page_view` (`template_id`,`view`,`deleted`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='审批页面配置';
+/*!40101 SET character_set_client = @saved_cs_client */;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE IF NOT EXISTS `cfg_approval_step` (
+  `id` bigint(20) NOT NULL COMMENT '雪花ID',
+  `template_id` bigint(20) NOT NULL COMMENT '所属模板',
+  `seq` int(11) NOT NULL COMMENT '步骤序号，从1连续',
+  `name` varchar(64) NOT NULL COMMENT '如「用人部门审批」',
+  `condition_expr` varchar(500) DEFAULT '' COMMENT '步骤级条件，空=总执行；为假整步跳过',
+  `condition_desc` varchar(255) DEFAULT '' COMMENT '条件的人读文案',
+  `reject_action` varchar(16) NOT NULL DEFAULT 'END' COMMENT 'END退回发起人 PREV退回上一步 NODE仅本步重走',
+  `deleted` tinyint(4) NOT NULL DEFAULT '0',
+  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `parent_node_id` bigint(20) DEFAULT NULL COMMENT '所属条件分支节点ID；NULL=主干/普通步骤',
+  `branch_path` varchar(256) NOT NULL DEFAULT '' COMMENT '路径键：主干=空；分支子链=n/<nodeId>，多段用 / 连接，最多 3 层',
+  `depth` int(11) NOT NULL DEFAULT '0' COMMENT '嵌套深度：主干=0，第 N 层分支子链=N；上限 3',
+  `ui_kind` varchar(32) NOT NULL DEFAULT 'APPROVER' COMMENT '编辑器提示：APPROVER/GATEWAY/PARALLEL/END；引擎不读',
+  `sla_hours` int(11) DEFAULT NULL COMMENT '时效：在当前步骤停留超过该小时数触发超时提醒，NULL=不提醒',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_appr_step_seq` (`template_id`,`seq`,`deleted`),
+  KEY `idx_appr_step_parent` (`template_id`,`parent_node_id`,`seq`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='审批步骤（串行单元）';
+/*!40101 SET character_set_client = @saved_cs_client */;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE IF NOT EXISTS `cfg_approval_template` (
+  `id` bigint(20) NOT NULL COMMENT '雪花ID',
+  `code` varchar(64) NOT NULL COMMENT '模板编码，如 ehr_onboard_default',
+  `name` varchar(64) NOT NULL COMMENT '模板名称',
+  `app_code` varchar(32) NOT NULL COMMENT '归属应用 ehr / cms',
+  `biz_type` varchar(64) NOT NULL COMMENT '业务场景，如 ehr.onboard',
+  `biz_name` varchar(64) NOT NULL COMMENT '场景名快照',
+  `enabled` tinyint(4) NOT NULL DEFAULT '1' COMMENT '1启用 0停用',
+  `version` int(11) NOT NULL DEFAULT '1' COMMENT '每次保存+1；实例按快照跑不受影响',
+  `remark` varchar(255) DEFAULT '' COMMENT '备注',
+  `deleted` tinyint(4) NOT NULL DEFAULT '0' COMMENT '逻辑删除',
+  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_appr_tpl_code` (`code`,`deleted`),
+  UNIQUE KEY `uk_appr_tpl_biz` (`app_code`,`biz_type`,`deleted`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='审批模板';
+/*!40101 SET character_set_client = @saved_cs_client */;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE IF NOT EXISTS `cfg_biz_scene` (
+  `id` bigint(20) NOT NULL COMMENT '雪花ID',
+  `app_code` varchar(32) NOT NULL,
+  `biz_type` varchar(64) NOT NULL COMMENT '如 ehr.leave',
+  `biz_name` varchar(64) NOT NULL,
+  `form_schema` text COMMENT '条件变量字典JSON：条件表达式可引用的字段',
+  `field_schema` text COMMENT '页面字段池JSON：可展示字段（FORM/ENTITY/DERIVED/SYSTEM）',
+  `table_bindings` text COMMENT '数据表绑定JSON（审批页面真绑定用）',
+  `perm_hint` varchar(64) DEFAULT '' COMMENT '发起权限提示',
+  `source` varchar(16) NOT NULL DEFAULT 'REGISTER' COMMENT 'REGISTER业务注册 MANUAL手工',
+  `sort` int(11) NOT NULL DEFAULT '0',
+  `deleted` tinyint(4) NOT NULL DEFAULT '0',
+  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `subject_field` varchar(64) DEFAULT NULL COMMENT 'formData 里业务主体ID的键名，如 employeeId / orgId',
+  `biz_id_kind` varchar(16) DEFAULT NULL COMMENT 'SUBJECT / DOC：新单 bizId 的语义',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_appr_scene` (`app_code`,`biz_type`,`deleted`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='审批业务场景';
+/*!40101 SET character_set_client = @saved_cs_client */;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE IF NOT EXISTS `cfg_code_rule` (
+  `id` bigint(20) NOT NULL COMMENT '雪花ID',
+  `app_code` varchar(64) NOT NULL DEFAULT '' COMMENT '归属应用编码，仅用于分组展示',
+  `table_name` varchar(64) NOT NULL COMMENT '业务库表名，如 appr_instance',
+  `prefix` varchar(32) NOT NULL DEFAULT '' COMMENT '单号前缀',
+  `separator_char` varchar(8) NOT NULL DEFAULT '' COMMENT '各段之间的分隔符，如 -',
+  `seq_length` int(11) NOT NULL DEFAULT '4' COMMENT '流水号位数',
+  `pad_zero` tinyint(4) NOT NULL DEFAULT '1' COMMENT '1不足位数补0 0不补',
+  `reset_monthly` tinyint(4) NOT NULL DEFAULT '0' COMMENT '1按月重置流水号 0不重置',
+  `start_no` int(11) NOT NULL DEFAULT '1' COMMENT '起始流水号',
+  `date_format` varchar(32) NOT NULL DEFAULT 'yyyyMMdd' COMMENT '日期格式',
+  `expr_format` varchar(64) NOT NULL DEFAULT '{prefix}{date}{seq}' COMMENT '表达式格式，支持 {prefix}/{date}/{seq}/{period}',
+  `last_no` int(11) NOT NULL DEFAULT '0' COMMENT '最近生成的流水号',
+  `last_period` varchar(16) NOT NULL DEFAULT '' COMMENT '最近生成周期 yyyyMM，用于按月重置判断',
+  `deleted` tinyint(4) NOT NULL DEFAULT '0',
+  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_code_rule_target` (`table_name`,`deleted`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='业务单号规则';
+/*!40101 SET character_set_client = @saved_cs_client */;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE IF NOT EXISTS `cfg_dict_item` (
+  `id` bigint(20) NOT NULL COMMENT '雪花ID',
+  `type_code` varchar(64) NOT NULL COMMENT '所属类型编码（冗余，免联表）',
+  `value` varchar(64) NOT NULL COMMENT '取值；业务表里存的就是它',
+  `label` varchar(64) NOT NULL COMMENT '展示名',
+  `sort` int(11) NOT NULL DEFAULT '0' COMMENT '同级排序，小的在前',
+  `status` tinyint(4) NOT NULL DEFAULT '1' COMMENT '1启用 0停用',
+  `remark` varchar(255) DEFAULT '' COMMENT '备注/扩展说明',
+  `built_in` tinyint(4) NOT NULL DEFAULT '0' COMMENT '1内置(种子,禁删) 0自定义',
+  `deleted` tinyint(4) NOT NULL DEFAULT '0' COMMENT '逻辑删除',
+  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_dict_item_value` (`type_code`,`value`,`deleted`),
+  KEY `idx_dict_item_type` (`type_code`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='字典项';
+/*!40101 SET character_set_client = @saved_cs_client */;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE IF NOT EXISTS `cfg_dict_type` (
+  `id` bigint(20) NOT NULL COMMENT '雪花ID（种子数据用固定小ID）',
+  `code` varchar(64) NOT NULL COMMENT '类型编码，唯一；如 ehr.leave_type',
+  `name` varchar(64) NOT NULL COMMENT '展示名，如「请假类型」',
+  `app_code` varchar(32) DEFAULT NULL COMMENT '归属应用 code；NULL=全局字典',
+  `remark` varchar(255) DEFAULT '' COMMENT '备注',
+  `built_in` tinyint(4) NOT NULL DEFAULT '0' COMMENT '1内置(种子,禁删) 0自定义',
+  `status` tinyint(4) NOT NULL DEFAULT '1' COMMENT '1启用 0停用',
+  `deleted` tinyint(4) NOT NULL DEFAULT '0' COMMENT '逻辑删除',
+  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_dict_type_code` (`code`,`deleted`),
+  KEY `idx_dict_type_app` (`app_code`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='字典类型';
+/*!40101 SET character_set_client = @saved_cs_client */;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE IF NOT EXISTS `cfg_embed_point` (
+  `id` bigint(20) NOT NULL COMMENT '雪花ID',
+  `code` varchar(128) NOT NULL COMMENT '埋点 key',
+  `app_code` varchar(64) NOT NULL DEFAULT '' COMMENT '所属应用编码，空=通用',
+  `module` varchar(32) NOT NULL DEFAULT '' COMMENT '模块（左侧树分组）',
+  `name` varchar(128) NOT NULL COMMENT '描述',
+  `value` text NOT NULL COMMENT '埋点值（JSON 文本）',
+  `built_in` tinyint(4) NOT NULL DEFAULT '0' COMMENT '1内置（种子数据）',
+  `sort` int(11) NOT NULL DEFAULT '0',
+  `deleted` tinyint(4) NOT NULL DEFAULT '0',
+  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_embed_point_code` (`code`,`deleted`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='埋点配置';
+/*!40101 SET character_set_client = @saved_cs_client */;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE IF NOT EXISTS `cfg_embed_point_history` (
+  `id` bigint(20) NOT NULL,
+  `point_id` bigint(20) NOT NULL COMMENT '埋点ID',
+  `code` varchar(128) NOT NULL,
+  `app_code` varchar(64) NOT NULL DEFAULT '',
+  `module` varchar(32) NOT NULL DEFAULT '',
+  `name` varchar(128) NOT NULL DEFAULT '',
+  `value` text NOT NULL COMMENT '本次保存后的 value 快照',
+  `operated_by` bigint(20) DEFAULT NULL COMMENT '操作人账号ID',
+  `operated_name` varchar(64) NOT NULL DEFAULT '' COMMENT '操作人名称',
+  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_embed_history_point` (`point_id`,`created_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='埋点配置历史';
+/*!40101 SET character_set_client = @saved_cs_client */;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE IF NOT EXISTS `cfg_notice_rule` (
+  `id` bigint(20) NOT NULL COMMENT '雪花ID',
+  `code` varchar(64) NOT NULL COMMENT '事件编码',
+  `app_code` varchar(64) NOT NULL DEFAULT '' COMMENT '归属应用编码，空=通用',
+  `module` varchar(32) NOT NULL DEFAULT '' COMMENT '模块',
+  `name` varchar(64) NOT NULL COMMENT '配置描述',
+  `title_tpl` varchar(200) NOT NULL DEFAULT '' COMMENT '标题模板',
+  `content_tpl` varchar(500) NOT NULL DEFAULT '' COMMENT '内容模板',
+  `channel` tinyint(4) NOT NULL DEFAULT '2' COMMENT '站内方式：1待办 2消息',
+  `email` tinyint(4) NOT NULL DEFAULT '0' COMMENT '1同时发邮件',
+  `enabled` tinyint(4) NOT NULL DEFAULT '1' COMMENT '1启用 0停用',
+  `built_in` tinyint(4) NOT NULL DEFAULT '0' COMMENT '内置规则不可删除',
+  `sort` int(11) NOT NULL DEFAULT '0',
+  `receiver_account_ids` varchar(1024) NOT NULL DEFAULT '' COMMENT '指定接收账号ID（逗号分隔），空=由业务方决定',
+  `receiver_org_ids` varchar(1024) NOT NULL DEFAULT '' COMMENT '指定接收部门（业务侧组织节点ID，逗号分隔，含下级）',
+  `deleted` tinyint(4) NOT NULL DEFAULT '0',
+  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_notice_rule_code` (`code`,`deleted`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='待办/消息推送配置';
+/*!40101 SET character_set_client = @saved_cs_client */;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE IF NOT EXISTS `cfg_security_config` (
+  `id` bigint(20) NOT NULL COMMENT '固定 1（单行配置）',
+  `initial_password_mode` varchar(16) NOT NULL DEFAULT 'FIXED' COMMENT '初始密码规则 RANDOM 随机 / FIXED 固定',
+  `default_password` varchar(64) NOT NULL DEFAULT 'G#191975' COMMENT '固定初始密码',
+  `password_rules` varchar(64) NOT NULL DEFAULT 'DIGIT,UPPER,LOWER,SPECIAL' COMMENT '密码必须包含的字符类型，逗号分隔：DIGIT 数字 / UPPER 大写 / LOWER 小写 / SPECIAL 特殊字符',
+  `password_min_length` int(11) NOT NULL DEFAULT '6' COMMENT '密码最小长度',
+  `password_max_length` int(11) NOT NULL DEFAULT '15' COMMENT '密码最大长度',
+  `password_lock_mode` varchar(16) NOT NULL DEFAULT 'EMAIL' COMMENT '修改密码验证方式 ACCOUNT 账号密码锁 / EMAIL 邮箱验证锁',
+  `login_fail_limit` int(11) NOT NULL DEFAULT '3' COMMENT '登录密码输入失败次数',
+  `login_fail_lock_minutes` int(11) NOT NULL DEFAULT '15' COMMENT '登录失败锁定时间（分钟）',
+  `login_fail_detect_count` int(11) NOT NULL DEFAULT '5' COMMENT '连续登录检测次数',
+  `force_change_password` tinyint(4) NOT NULL DEFAULT '0' COMMENT '首次登录强制修改密码 1 启用 / 0 不启用',
+  `session_timeout_minutes` int(11) NOT NULL DEFAULT '420' COMMENT '登录过期时间（分钟）',
+  `max_login_error_count` int(11) NOT NULL DEFAULT '5' COMMENT '最大登录错误次数',
+  `user_lock_minutes` int(11) NOT NULL DEFAULT '10' COMMENT '用户锁定时长（分钟）',
+  `email_code_digits` int(11) NOT NULL DEFAULT '6' COMMENT '邮箱验证码位数',
+  `verify_code_expire_minutes` int(11) NOT NULL DEFAULT '10' COMMENT '验证码过期时间（分钟）',
+  `updated_by` varchar(64) DEFAULT NULL COMMENT '最后修改人',
+  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='安全配置（单行，id=1）';
+/*!40101 SET character_set_client = @saved_cs_client */;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE IF NOT EXISTS `notice_message` (
+  `id` bigint(20) NOT NULL COMMENT '雪花ID',
+  `account_id` bigint(20) NOT NULL COMMENT '接收人账号ID',
+  `rule_code` varchar(64) NOT NULL DEFAULT '',
+  `kind` tinyint(4) NOT NULL DEFAULT '2' COMMENT '1待办 2消息',
+  `module` varchar(32) NOT NULL DEFAULT '',
+  `title` varchar(200) NOT NULL DEFAULT '',
+  `content` varchar(1000) NOT NULL DEFAULT '',
+  `biz_type` varchar(64) NOT NULL DEFAULT '',
+  `biz_id` varchar(64) NOT NULL DEFAULT '',
+  `biz_no` varchar(64) NOT NULL DEFAULT '' COMMENT '业务编码，如审批单号',
+  `applicant_name` varchar(64) NOT NULL DEFAULT '' COMMENT '发起人：待办为申请人，审批结果消息为实际操作人',
+  `link` varchar(255) NOT NULL DEFAULT '',
+  `read_at` datetime DEFAULT NULL,
+  `deleted` tinyint(4) NOT NULL DEFAULT '0',
+  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_notice_acc` (`account_id`,`read_at`,`created_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='站内待办/消息';
+/*!40101 SET character_set_client = @saved_cs_client */;

@@ -1,0 +1,95 @@
+server:
+  # 对外唯一入口。8080 在本机已被其他 Java 进程占用，故模板用 9080
+  port: ${SSO_GATEWAY_PORT:9080}
+
+spring:
+  application:
+    name: sso-gateway
+  config:
+    # 关键：optional: 前缀。没有 Nacos 时自动回退到本文件，服务照常启动
+    import: "optional:nacos:sso-gateway.yaml?group=${SSO_NACOS_GROUP:SSO}&refreshEnabled=true"
+  cloud:
+    nacos:
+      # 地址/账号两级环境变量：SSO_NACOS_* 优先，其次复用本机已有的 NACOS_*（与博客后端同一套）
+      server-addr: ${SSO_NACOS_ADDR:${NACOS_SERVER_ADDR:127.0.0.1:8848}}
+      username: ${SSO_NACOS_USER:${NACOS_USERNAME:nacos}}
+      password: ${SSO_NACOS_PASSWORD:${NACOS_PASSWORD:}}
+      config:
+        enabled: ${SSO_NACOS_ENABLED:false}
+        # 环境靠命名空间隔离：local → sso-ms-local，prod → sso-ms-prod，dataId 两边同名
+        namespace: ${SSO_NACOS_NAMESPACE:sso-ms-local}
+        group: ${SSO_NACOS_GROUP:SSO}
+        file-extension: yaml
+        refresh-enabled: true
+      discovery:
+        enabled: ${SSO_NACOS_DISCOVERY:false}
+        group: ${SSO_NACOS_GROUP:SSO}
+        namespace: ${SSO_NACOS_NAMESPACE:sso-ms-local}
+    gateway:
+      routes:
+        - id: sso-auth
+          # 直连默认；接服务发现时设 SSO_AUTH_ROUTE=lb://sso-auth（需 SSO_NACOS_DISCOVERY=true）
+          uri: ${SSO_AUTH_ROUTE:http://127.0.0.1:9001}
+          predicates:
+            - Path=/api/auth/**
+        - id: sso-account
+          uri: ${SSO_ACCOUNT_ROUTE:http://127.0.0.1:9002}
+          predicates:
+            - Path=/api/accounts/**,/api/roles/**,/api/permissions/**,/api/applications/**
+        # 接口开放平台：第三方进出 + 管理端（管理端由网关注入 X-Account-* 头，openapi 服务按 @Permit 校验）
+        - id: openapi
+          uri: ${OPENAPI_ROUTE:http://127.0.0.1:9010}
+          predicates:
+            - Path=/api/open/**
+        # 业务应用：CMS 内容管理端
+        - id: cms
+          uri: ${CMS_ROUTE:http://127.0.0.1:9004}
+          predicates:
+            - Path=/api/cms/**
+        # 业务应用：内容门户
+        - id: portal
+          uri: ${PORTAL_ROUTE:http://127.0.0.1:9005}
+          predicates:
+            - Path=/api/portal/**
+        # 业务应用：EHR 人力（组织架构/人员/请假）
+        - id: ehr
+          uri: ${EHR_ROUTE:http://127.0.0.1:9006}
+          predicates:
+            - Path=/api/ehr/**
+        # 业务应用：配置中心（枚举型基础信息）
+        - id: settings
+          uri: ${SETTINGS_ROUTE:http://127.0.0.1:9007}
+          predicates:
+            - Path=/api/settings/**
+        # 业务应用：调度中心（P6，定时任务管理台）
+        - id: job
+          uri: ${JOB_ROUTE:http://127.0.0.1:9008}
+          predicates:
+            - Path=/api/jobs/**
+        # 独立社区论坛：公开内容、登录互动与积分交易
+        - id: forum
+          uri: ${FORUM_ROUTE:http://127.0.0.1:9009}
+          predicates:
+            - Path=/api/forum/**
+
+sso:
+  gateway:
+    issuer: sso-auth
+    public-key: ${SSO_JWT_PUBLIC_KEY:classpath:keys/jwt-public.pem}
+    auth-base-url: ${SSO_AUTH_URL:http://127.0.0.1:9001}
+    # 登出后最长多少毫秒内失效；越小越及时，越大对 auth 压力越小
+    revocation-sync-millis: 5000
+
+# 调度中心：本应用上报 JobHandler 清单并接收中心触发（不再使用本地 @Scheduled）
+job:
+  client:
+    center-url: ${JOB_CENTER_URL:http://127.0.0.1:9008}
+    internal-token: ${SSO_INTERNAL_TOKEN:}
+  executor:
+    app-code: gateway
+    # 中心派发时带的 X-Job-Token，需与中心 job.executor.token 一致
+    token: ${SSO_INTERNAL_TOKEN:}
+
+logging:
+  level:
+    com.laimengchao.sso: INFO

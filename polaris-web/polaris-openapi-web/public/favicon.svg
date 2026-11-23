@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="接口开放平台">
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="64" y2="64" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#2f54eb"/><stop offset="1" stop-color="#722ed1"/>
+    </linearGradient>
+  </defs>
+  <rect width="64" height="64" rx="14" fill="url(#g)"/>
+  <g fill="none" stroke="#fff" stroke-width="4.2" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M24.5 23 15 32l9.5 9"/>
+    <path d="M39.5 23 49 32l-9.5 9"/>
+    <path d="M36.5 20 27.5 44"/>
+  </g>
+</svg>

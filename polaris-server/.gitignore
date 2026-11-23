@@ -1,0 +1,31 @@
+# 构建产物
+target/
+*.class
+
+# 运行期日志与 PID
+logs/
+*.log
+
+# 密钥材料：绝不入库（JWT 私钥、app-secret、内部 token、配置主密钥、管理口令备份）
+**/.secrets/
+**/.env
+*.pem
+!**/src/main/resources/keys/jwt-public.pem
+
+# 上传文件
+uploads/
+uploads-*/
+polaris-uploads/
+# 运行期附件存储（data/attachments/<业务分类>/，EHR 简历等，随服务运行生成）
+data/
+
+# 线上配置不入库（只保留 local）
+
+
+# IDE（仅共享 Spring Boot 启动配置，其他本机 IDEA 文件仍忽略）
+.idea/*
+!.idea/runConfigurations/
+.idea/runConfigurations/*
+!.idea/runConfigurations/*.xml
+*.iml
+.vscode/

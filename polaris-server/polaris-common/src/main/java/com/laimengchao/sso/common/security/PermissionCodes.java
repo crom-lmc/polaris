@@ -1,0 +1,479 @@
+package com.laimengchao.sso.common.security;
+
+/**
+ * 全局唯一的权限码常量。
+ *
+ * <p>**必须与统一账号中心 sso_permission 表里的 code 完全一致**。
+ * 前端路由 meta.perm、菜单显隐、后端 @Permit 三处都读这里的同一份字符串。
+ * 新增 / 改名 / 删除权限码时，先改这里 → 再改 data.sql 种子 → 最后在 DB 执行。
+ *
+ * <p>按 app_code 分组，每组上方注释标明归属应用。
+ * 常量命名风格：{GROUP}_{ACTION}，全大写 + 下划线。
+ */
+public final class PermissionCodes {
+
+    private PermissionCodes() {
+    }
+
+    /* ============================================================
+     * 应用编码（sso_application.code）
+     * ============================================================ */
+    /** 平台自身（账号/角色/权限/应用管理） */
+    public static final String APP_SSO = "sso";
+    public static final String APP_EHR = "ehr";
+    public static final String APP_JOB = "job";
+    public static final String APP_SETTINGS = "settings";
+    public static final String APP_CMS = "cms";
+    /** 北极星空（社区论坛前台） */
+    public static final String APP_FORUM = "forum";
+    /** 北极星核（社区论坛管理端） */
+    public static final String APP_FORUM_ADMIN = "forum-admin";
+
+    /* ============================================================
+     * SSO 账号中心（app_code = sso）
+     * ============================================================ */
+    /* 菜单 */
+    public static final String SSO_MENU_DASHBOARD = "dashboard";
+    public static final String SSO_MENU_ACCOUNT = "account";
+    public static final String SSO_MENU_ROLE = "role";
+    public static final String SSO_MENU_PERMISSION = "permission";
+    public static final String SSO_MENU_APP = "app";
+    public static final String SSO_MENU_LOG = "log";
+    public static final String SSO_MENU_NOTICE = "notice";
+
+    /* 账户按钮 */
+    public static final String ACCOUNT_LIST = "account:list";
+    public static final String ACCOUNT_LOG_VIEW = "account:log:view";
+    public static final String ACCOUNT_CREATE = "account:create";
+    public static final String ACCOUNT_EDIT = "account:edit";
+    public static final String ACCOUNT_DELETE = "account:delete";
+    public static final String ACCOUNT_ENABLE = "account:enable";
+    public static final String ACCOUNT_DISABLE = "account:disable";
+    public static final String ACCOUNT_UNLOCK = "account:unlock";
+    public static final String ACCOUNT_RESET_PWD = "account:resetPassword";
+    public static final String ACCOUNT_APP_ASSIGN = "account:app:assign";
+
+    /* 角色按钮 */
+    public static final String ROLE_LIST = "role:list";
+    public static final String ROLE_CREATE = "role:create";
+    public static final String ROLE_EDIT = "role:edit";
+    public static final String ROLE_DELETE = "role:delete";
+    public static final String ROLE_ASSIGN = "role:assign";
+
+    /* 权限点按钮 */
+    public static final String PERMISSION_LIST = "permission:list";
+    public static final String PERMISSION_CREATE = "permission:create";
+    public static final String PERMISSION_EDIT = "permission:edit";
+    public static final String PERMISSION_DELETE = "permission:delete";
+
+    /* 应用注册按钮 */
+    public static final String APP_LIST = "app:list";
+    public static final String APP_CREATE = "app:create";
+    public static final String APP_EDIT = "app:edit";
+    public static final String APP_DELETE = "app:delete";
+    public static final String APP_SECRET_RESET = "app:secret:reset";
+
+    /* 通知中心（账号中心展示人力中心发布的内部通知） */
+    public static final String NOTICE_VIEW = "notice:view";
+
+    /* ============================================================
+     * EHR 人力中心（app_code = ehr）
+     * ============================================================ */
+    /* 菜单 */
+    public static final String ORG_MENU = "org";
+    public static final String EMPLOYEE_MENU = "employee";
+    public static final String LEAVE_MENU = "leave";
+    public static final String APPROVAL_MENU = "approval";
+    public static final String ANNOUNCEMENT_MENU = "announcement";
+    public static final String LEDGER_MENU = "ledger";
+
+    /* 组织架构 */
+    public static final String ORG_VIEW = "org:view";
+    public static final String ORG_MANAGE = "org:manage";
+
+    /* 人员 */
+    public static final String EMPLOYEE_VIEW = "employee:view";
+    public static final String EMPLOYEE_CREATE = "employee:create";
+    public static final String EMPLOYEE_EDIT = "employee:edit";
+    public static final String EMPLOYEE_DELETE = "employee:delete";
+    public static final String EMPLOYEE_ACCOUNT = "employee:account";
+    public static final String EMPLOYEE_RESIGN = "employee:resign";
+    public static final String EMPLOYEE_IMPORT = "employee:import";
+    public static final String EMPLOYEE_EXPORT = "employee:export";
+
+    /* 招聘：页签 */
+    public static final String RECRUIT_MENU = "recruit";
+    public static final String RECRUIT_BOARD = "recruit:board";
+    public static final String RECRUIT_OFFERS = "recruit:offers";
+    public static final String RECRUIT_JOBS = "recruit:jobs";
+    public static final String RECRUIT_INTERVIEWS = "recruit:interviews";
+    /* 招聘：候选人看板按钮 */
+    public static final String RECRUIT_BOARD_CANDIDATE_CREATE = "recruit:board:candidate:create";
+    public static final String RECRUIT_BOARD_CANDIDATE_EDIT = "recruit:board:candidate:edit";
+    public static final String RECRUIT_BOARD_CANDIDATE_ELIMINATE = "recruit:board:candidate:eliminate";
+    public static final String RECRUIT_BOARD_CANDIDATE_RESTORE = "recruit:board:candidate:restore";
+    public static final String RECRUIT_BOARD_INTERVIEW_SCHEDULE = "recruit:board:interview:schedule";
+    public static final String RECRUIT_BOARD_INTERVIEW_CANCEL = "recruit:board:interview:cancel";
+    public static final String RECRUIT_BOARD_COMMUNICATION_ADD = "recruit:board:communication:add";
+    public static final String RECRUIT_BOARD_OFFER_CREATE = "recruit:board:offer:create";
+    public static final String RECRUIT_BOARD_RESUME_DOWNLOAD = "recruit:board:resume:download";
+    /* 招聘：Offer 按钮 */
+    public static final String RECRUIT_OFFERS_CREATE = "recruit:offers:create";
+    public static final String RECRUIT_OFFERS_CANCEL = "recruit:offers:cancel";
+    public static final String RECRUIT_OFFERS_CONFIRM = "recruit:offers:confirm";
+    public static final String RECRUIT_OFFERS_DECLINE = "recruit:offers:decline";
+    public static final String RECRUIT_OFFERS_ONBOARD = "recruit:offers:onboard";
+    /* 招聘：职位按钮 */
+    public static final String RECRUIT_JOBS_CREATE = "recruit:jobs:create";
+    public static final String RECRUIT_JOBS_UPDATE = "recruit:jobs:update";
+    public static final String RECRUIT_JOBS_PUBLISH = "recruit:jobs:publish";
+    public static final String RECRUIT_JOBS_CLOSE = "recruit:jobs:close";
+    public static final String RECRUIT_JOBS_DELETE = "recruit:jobs:delete";
+    /* 招聘：我的面试按钮 */
+    public static final String RECRUIT_INTERVIEWS_FEEDBACK = "recruit:interviews:feedback";
+
+    /* 请假：页签 */
+    public static final String LEAVE_MINE = "leave:mine";
+    public static final String LEAVE_ALL = "leave:all";
+    public static final String LEAVE_TEAM = "leave:team";
+    /* 请假：我的请假按钮 */
+    public static final String LEAVE_MINE_APPLY = "leave:mine:apply";
+    public static final String LEAVE_MINE_CANCEL = "leave:mine:cancel";
+    public static final String LEAVE_MINE_EARLY_RETURN = "leave:mine:early-return";
+    public static final String LEAVE_MINE_WAIVE_CARRYOVER = "leave:mine:waive-carryover";
+    public static final String LEAVE_QUOTA_VIEW = "leave:quota:view";
+    public static final String LEAVE_QUOTA_ADJUST = "leave:quota:adjust";
+    public static final String LEAVE_QUOTA_MANAGE = "leave:quota:manage";
+    public static final String LEAVE_RULE_MANAGE = "leave:rule:manage";
+
+    /* 合同 */
+    public static final String CONTRACT_VIEW = "contract:view";
+    public static final String CONTRACT_MANAGE = "contract:manage";
+
+    /* 人力台账：页签 */
+    public static final String LEDGER_CONTRACT = "ledger:contract";
+    public static final String LEDGER_MOVEMENT = "ledger:movement";
+    public static final String LEDGER_ATTENDANCE = "ledger:attendance";
+    public static final String LEDGER_WORKFORCE = "ledger:workforce";
+    public static final String LEDGER_REGULARIZATION = "ledger:regularization";
+    public static final String LEDGER_RECRUITMENT = "ledger:recruitment";
+    public static final String LEDGER_LEAVES = "ledger:leaves";
+    public static final String LEDGER_OVERTIMES = "ledger:overtimes";
+
+    /* 考勤：页签及数据视图 */
+    public static final String ATTENDANCE_MENU = "attendance";
+    public static final String ATTENDANCE_OVERTIME = "attendance:overtime";
+    public static final String ATTENDANCE_OVERTIME_MINE = "attendance:overtime:mine";
+    public static final String ATTENDANCE_OVERTIME_TEAM = "attendance:overtime:team";
+    public static final String ATTENDANCE_OVERTIME_ALL = "attendance:overtime:all";
+    public static final String ATTENDANCE_MONTHLY = "attendance:monthly";
+    public static final String ATTENDANCE_MY = "attendance:my";
+    public static final String ATTENDANCE_DAILY = "attendance:daily";
+    public static final String ATTENDANCE_PUNCHES = "attendance:punches";
+    public static final String ATTENDANCE_CORRECTIONS = "attendance:corrections";
+    public static final String ATTENDANCE_RULES = "attendance:rules";
+    public static final String ATTENDANCE_CALENDAR = "attendance:calendar";
+    public static final String ATTENDANCE_ANNUAL = "attendance:annual";
+    /* 考勤：加班按钮 */
+    public static final String ATTENDANCE_OVERTIME_PREVIEW = "attendance:overtime:preview";
+    public static final String ATTENDANCE_OVERTIME_SUBMIT = "attendance:overtime:submit";
+    public static final String ATTENDANCE_OVERTIME_CANCEL = "attendance:overtime:cancel";
+    /* 考勤：员工考勤汇总按钮 */
+    public static final String ATTENDANCE_MONTH_CONFIRM = "attendance:monthly:confirm";
+    public static final String ATTENDANCE_MONTH_UNLOCK = "attendance:monthly:unlock";
+    public static final String ATTENDANCE_MONTH_EXPORT = "attendance:monthly:export";
+    /* 考勤：我的考勤按钮 */
+    public static final String ATTENDANCE_MY_CORRECTION_APPLY = "attendance:my:correction:apply";
+    public static final String ATTENDANCE_MY_CORRECTION_CANCEL = "attendance:my:correction:cancel";
+    /* 考勤：日结果、打卡、补卡审批按钮 */
+    public static final String ATTENDANCE_DAILY_GENERATE = "attendance:daily:generate";
+    public static final String ATTENDANCE_DAILY_MOCK = "attendance:daily:mock";
+    public static final String ATTENDANCE_PUNCHES_CREATE = "attendance:punches:create";
+    public static final String ATTENDANCE_CORRECTIONS_APPROVE = "attendance:corrections:approve";
+    public static final String ATTENDANCE_CORRECTIONS_REJECT = "attendance:corrections:reject";
+    /* 考勤：规则按钮 */
+    public static final String ATTENDANCE_RULES_CREATE = "attendance:rules:create";
+    public static final String ATTENDANCE_RULES_UPDATE = "attendance:rules:update";
+    public static final String ATTENDANCE_RULES_DELETE = "attendance:rules:delete";
+    public static final String ATTENDANCE_RULES_TOGGLE = "attendance:rules:toggle";
+    /* 考勤：工作日历按钮 */
+    public static final String ATTENDANCE_CALENDAR_SAVE = "attendance:calendar:save";
+    public static final String ATTENDANCE_CALENDAR_IMPORT = "attendance:calendar:import";
+    public static final String ATTENDANCE_CALENDAR_APPLY_NEXT_YEAR = "attendance:calendar:apply-next-year";
+    /* 考勤：年假策略按钮 */
+    public static final String ATTENDANCE_ANNUAL_CREATE = "attendance:annual:create";
+    public static final String ATTENDANCE_ANNUAL_UPDATE = "attendance:annual:update";
+    public static final String ATTENDANCE_ANNUAL_ENABLE = "attendance:annual:enable";
+    public static final String ATTENDANCE_ANNUAL_GENERATE = "attendance:annual:generate";
+    public static final String ATTENDANCE_ANNUAL_RECALCULATE = "attendance:annual:recalculate";
+
+    /* 人员数据范围 */
+    public static final String EMPLOYEE_DATA_ALL = "employee:data:all";
+    public static final String EMPLOYEE_DATA_ORG_TREE = "employee:data:org_tree";
+    public static final String EMPLOYEE_DATA_ORG = "employee:data:org";
+    public static final String EMPLOYEE_SENSITIVE_VIEW = "employee:sensitive:view";
+
+    /* 审计日志 */
+    public static final String AUDIT_VIEW = "audit:view";
+
+    /* 审批运营 */
+    public static final String APPROVAL_OPS = "approval:ops";
+
+    /* 离职/转正自助 */
+    public static final String RESIGN_APPLY = "resign:apply";
+    public static final String REGULARIZE_APPLY = "regularize:apply";
+
+    /* 审批中心：页签 */
+    public static final String APPROVAL_TODO = "approval:todo";
+    public static final String APPROVAL_APPROVED = "approval:approved";
+    public static final String APPROVAL_STARTED = "approval:started";
+    public static final String APPROVAL_CC = "approval:cc";
+    public static final String APPROVAL_DELEGATED = "approval:delegated";
+    public static final String APPROVAL_HANDOVER = "approval:handover";
+    public static final String APPROVAL_RESIGN = "approval:resign";
+    /* 审批中心：按钮 */
+    public static final String APPROVAL_TODO_APPROVE = "approval:todo:approve";
+    public static final String APPROVAL_TODO_REJECT = "approval:todo:reject";
+    public static final String APPROVAL_TODO_TRANSFER = "approval:todo:transfer";
+    public static final String APPROVAL_TODO_ADD_SIGN = "approval:todo:add-sign";
+    public static final String APPROVAL_STARTED_WITHDRAW = "approval:started:withdraw";
+    public static final String APPROVAL_HANDOVER_CONFIRM = "approval:handover:confirm";
+    public static final String APPROVAL_RESIGN_APPLY = "approval:resign:apply";
+    public static final String APPROVAL_RESIGN_CANCEL = "approval:resign:cancel";
+    public static final String APPROVAL_RESIGN_VIEW_ALL = "approval:resign:view-all";
+
+    /* 通知管理（人力中心） */
+    public static final String ANNOUNCEMENT_MANAGE = "announcement:manage";
+
+    /* ============================================================
+     * JOB 调度中心（app_code = job）
+     * ============================================================ */
+    public static final String JOB_MENU = "job";
+    public static final String JOB_VIEW = "job:view";
+    public static final String JOB_MANAGE = "job:manage";
+    public static final String JOB_RUN = "job:run";
+    public static final String LOG_VIEW = "log:view";
+
+    /* ============================================================
+     * SETTINGS 配置中心（app_code = settings）
+     * ============================================================ */
+    /* 菜单 */
+    public static final String DICT_MENU = "dict";
+    public static final String BIZ_MENU = "biz";
+    /* APPROVAL_MENU 已在 EHR 组定义 */
+    public static final String SECURITY_MENU = "security";
+    public static final String NOTICE_MENU = "notice";
+    public static final String CODE_MENU = "code";
+    public static final String EMBED_MENU = "embed";
+
+    /* 埋点 */
+    public static final String EMBED_VIEW = "embed:view";
+    public static final String EMBED_MANAGE = "embed:manage";
+
+    /* 单号规则 */
+    public static final String CODE_VIEW = "code:view";
+    public static final String CODE_MANAGE = "code:manage";
+
+    /* 消息配置（NOTICE_VIEW 已在 SSO 组定义，值相同） */
+    public static final String NOTICE_MANAGE = "notice:manage";
+
+    /* 安全配置 */
+    public static final String SECURITY_VIEW = "security:view";
+    public static final String SECURITY_MANAGE = "security:manage";
+
+    /* 审批模板（配置中心独立权限，不属于 EHR 审批中心页签） */
+    public static final String APPROVAL_VIEW = "approval:view";
+    public static final String APPROVAL_MANAGE = "approval:manage";
+
+    /* 字典 */
+    public static final String DICT_VIEW = "dict:view";
+    public static final String DICT_TYPE_MANAGE = "dict:type:manage";
+    public static final String DICT_ITEM_MANAGE = "dict:item:manage";
+
+    /* 业务主数据 */
+    public static final String BIZ_VIEW = "biz:view";
+    public static final String BIZ_MANAGE = "biz:manage";
+
+    /* ============================================================
+     * CMS 内容中心（app_code = cms）
+     * ============================================================ */
+    public static final String DASHBOARD_VIEW = "dashboard:view";
+
+    /* 文章 */
+    public static final String ARTICLE_CREATE = "article:create";
+    public static final String ARTICLE_EDIT = "article:edit";
+    public static final String ARTICLE_PUBLISH = "article:publish";
+    public static final String ARTICLE_DELETE = "article:delete";
+    public static final String ARTICLE_VIEW = "article:view";
+    public static final String ARTICLE_AUDIT = "article:audit";
+    public static final String ARTICLE_PIN = "article:pin";
+    public static final String ARTICLE_ROLLBACK = "article:rollback";
+    public static final String ARTICLE_VERSION = "article:version";
+
+    /* 分类 */
+    public static final String CATEGORY_VIEW = "category:view";
+    public static final String CATEGORY_MANAGE = "category:manage";
+
+    /* 标签 */
+    public static final String TAG_VIEW = "tag:view";
+    public static final String TAG_MANAGE = "tag:manage";
+
+    /* 媒体库 */
+    public static final String MEDIA_DELETE = "media:delete";
+    public static final String MEDIA_UPLOAD = "media:upload";
+    public static final String MEDIA_VIEW = "media:view";
+
+    /* Banner */
+    public static final String BANNER_VIEW = "banner:view";
+    public static final String BANNER_MANAGE = "banner:manage";
+
+    /* 友情链接 */
+    public static final String LINK_VIEW = "link:view";
+    public static final String LINK_MANAGE = "link:manage";
+
+    /* 门户布局 */
+    public static final String PORTAL_VIEW = "portal:view";
+    public static final String PORTAL_CONFIG = "portal:config";
+
+    /* ============================================================
+     * FORUM 社区论坛（双应用域：forum 前台 / forum-admin 管理端）
+     * ============================================================ */
+    /* ---------- 管理端 forum-admin（北极星核）：菜单 ---------- */
+    /** 论坛管理总开关，同时作为权限树根节点与「论坛管理员」角色标识 */
+    public static final String FORUM_MENU_ADMIN = "forum:admin";
+    /** 社区概览：管理端首页看板，三个运营角色都可见 */
+    public static final String FORUM_OVERVIEW_MANAGE = "forum:overview";
+    public static final String FORUM_CONTENT_MANAGE = "forum:content";
+    public static final String FORUM_COMMENT_MANAGE = "forum:comment";
+    public static final String FORUM_REPORT_MANAGE = "forum:report";
+    public static final String FORUM_TAXONOMY_MANAGE = "forum:taxonomy";
+    public static final String FORUM_SITE_MANAGE = "forum:site";
+    public static final String FORUM_SENSITIVE_MANAGE = "forum:sensitive";
+    public static final String FORUM_EXCHANGE_MANAGE = "forum:exchange";
+    public static final String FORUM_GIFT_MANAGE = "forum:gift";
+    public static final String FORUM_BADGE_MANAGE = "forum:badge";
+    public static final String FORUM_LEVEL_MANAGE = "forum:level";
+    public static final String FORUM_LOTTERY_MANAGE = "forum:lottery";
+
+    /* 管理端：社区概览按钮 */
+    public static final String FORUM_OVERVIEW_VIEW = "forum:overview:view";
+
+    /* 管理端：内容管理按钮 */
+    public static final String FORUM_CONTENT_VIEW = "forum:content:view";
+    public static final String FORUM_CONTENT_PIN = "forum:content:pin";
+    public static final String FORUM_CONTENT_RECOMMEND = "forum:content:recommend";
+    public static final String FORUM_CONTENT_SOLVE = "forum:content:solve";
+    public static final String FORUM_CONTENT_DELETE = "forum:content:delete";
+
+    /* 管理端：评论管理按钮 */
+    public static final String FORUM_COMMENT_VIEW = "forum:comment:view";
+    public static final String FORUM_COMMENT_DELETE = "forum:comment:delete";
+
+    /* 管理端：举报管理按钮 */
+    public static final String FORUM_REPORT_VIEW = "forum:report:view";
+    public static final String FORUM_REPORT_PROCESS = "forum:report:process";
+
+    /* 管理端：板块与标签按钮 */
+    public static final String FORUM_TAXONOMY_VIEW = "forum:taxonomy:view";
+    public static final String FORUM_TAXONOMY_BOARD_MANAGE = "forum:taxonomy:board:manage";
+    public static final String FORUM_TAXONOMY_TAG_MANAGE = "forum:taxonomy:tag:manage";
+
+    /* 管理端：站点管理按钮 */
+    public static final String FORUM_SITE_VIEW = "forum:site:view";
+    public static final String FORUM_SITE_EDIT = "forum:site:edit";
+    public static final String FORUM_SITE_LINK_MANAGE = "forum:site:link:manage";
+
+    /* 管理端：敏感词管理按钮 */
+    public static final String FORUM_SENSITIVE_VIEW = "forum:sensitive:view";
+    public static final String FORUM_SENSITIVE_ADD = "forum:sensitive:add";
+    public static final String FORUM_SENSITIVE_TOGGLE = "forum:sensitive:toggle";
+    public static final String FORUM_SENSITIVE_DELETE = "forum:sensitive:delete";
+
+    /* 管理端：礼品发放按钮 */
+    public static final String FORUM_EXCHANGE_VIEW = "forum:exchange:view";
+    public static final String FORUM_EXCHANGE_SHIP = "forum:exchange:ship";
+    public static final String FORUM_EXCHANGE_ISSUE = "forum:exchange:issue";
+
+    /* 管理端：礼品管理按钮 */
+    public static final String FORUM_GIFT_VIEW = "forum:gift:view";
+    public static final String FORUM_GIFT_EDIT = "forum:gift:edit";
+
+    /* 管理端：勋章管理按钮 */
+    public static final String FORUM_BADGE_VIEW = "forum:badge:view";
+    public static final String FORUM_BADGE_CREATE = "forum:badge:create";
+    public static final String FORUM_BADGE_EDIT = "forum:badge:edit";
+    public static final String FORUM_BADGE_PUBLISH = "forum:badge:publish";
+    public static final String FORUM_BADGE_OFFLINE = "forum:badge:offline";
+
+    /* 管理端：等级晋升路线按钮 */
+    public static final String FORUM_LEVEL_VIEW = "forum:level:view";
+    public static final String FORUM_LEVEL_CREATE = "forum:level:create";
+    public static final String FORUM_LEVEL_EDIT = "forum:level:edit";
+    public static final String FORUM_LEVEL_DELETE = "forum:level:delete";
+
+    /* 管理端：抽奖配置按钮 */
+    public static final String FORUM_LOTTERY_CONFIG_VIEW = "forum:lottery:config:view";
+    public static final String FORUM_LOTTERY_CONFIG_EDIT = "forum:lottery:config:edit";
+
+    /* ---------- 前台 forum（北极星空）：只控制需要登录才能操作的按钮 ---------- */
+    /** 前台操作权限的分组节点（权限管理里平铺展示，前台没有对应路由） */
+    public static final String FORUM_MENU_OPS = "forum:ops";
+    public static final String FORUM_POST_CREATE = "forum:post:create";
+    public static final String FORUM_COMMENT_CREATE = "forum:comment:create";
+    public static final String FORUM_LIKE = "forum:like";
+    public static final String FORUM_FAVORITE = "forum:favorite";
+    public static final String FORUM_FOLLOW = "forum:follow";
+    public static final String FORUM_REPORT_CREATE = "forum:report:create";
+    public static final String FORUM_VOTE = "forum:vote";
+    public static final String FORUM_DRAFT = "forum:draft";
+    public static final String FORUM_ATTACHMENT_UPLOAD = "forum:attachment:upload";
+    public static final String FORUM_PROFILE_EDIT = "forum:profile:edit";
+    public static final String FORUM_CHECKIN = "forum:checkin";
+    public static final String FORUM_LOTTERY_DRAW = "forum:lottery:draw";
+    public static final String FORUM_GIFT_REDEEM = "forum:gift:redeem";
+
+    /* ============================================================
+     * 接口开放平台（app_code = openapi）
+     * ============================================================ */
+    public static final String APP_OPENAPI = "openapi";
+
+    /* 管理端菜单 */
+    public static final String OPENAPI_MENU_DASHBOARD = "openapi:dashboard";
+    public static final String OPENAPI_MENU_ENDPOINT = "openapi:endpoint";
+    public static final String OPENAPI_MENU_APP = "openapi:app";
+    public static final String OPENAPI_MENU_CHANNEL = "openapi:channel";
+    public static final String OPENAPI_MENU_LOG = "openapi:log";
+    public static final String OPENAPI_MENU_STAT = "openapi:stat";
+    public static final String OPENAPI_MENU_SETTING = "openapi:setting";
+
+    /* 管理端按钮（与 sso-account PermissionConstants 同值，供 openapi 服务 @Permit 使用） */
+    public static final String OPENAPI_ENDPOINT_LIST = "openapi:endpoint:list";
+    public static final String OPENAPI_ENDPOINT_CREATE = "openapi:endpoint:create";
+    public static final String OPENAPI_ENDPOINT_EDIT = "openapi:endpoint:edit";
+    public static final String OPENAPI_ENDPOINT_TOGGLE = "openapi:endpoint:toggle";
+    public static final String OPENAPI_ENDPOINT_DELETE = "openapi:endpoint:delete";
+    public static final String OPENAPI_APP_LIST = "openapi:app:list";
+    public static final String OPENAPI_APP_CREATE = "openapi:app:create";
+    public static final String OPENAPI_APP_EDIT = "openapi:app:edit";
+    public static final String OPENAPI_APP_DELETE = "openapi:app:delete";
+    public static final String OPENAPI_APP_AUTH = "openapi:app:auth";
+    public static final String OPENAPI_APP_SECRET_RESET = "openapi:app:secret:reset";
+    public static final String OPENAPI_APP_TOGGLE = "openapi:app:toggle";
+    public static final String OPENAPI_CHANNEL_LIST = "openapi:channel:list";
+    public static final String OPENAPI_CHANNEL_CREATE = "openapi:channel:create";
+    public static final String OPENAPI_CHANNEL_EDIT = "openapi:channel:edit";
+    public static final String OPENAPI_CHANNEL_CREDENTIAL = "openapi:channel:credential";
+    public static final String OPENAPI_CHANNEL_DELETE = "openapi:channel:delete";
+    public static final String OPENAPI_LOG_LIST = "openapi:log:list";
+    public static final String OPENAPI_LOG_DETAIL = "openapi:log:detail";
+    public static final String OPENAPI_LOG_EXPORT = "openapi:log:export";
+    public static final String OPENAPI_STAT_VIEW = "openapi:stat:view";
+    public static final String OPENAPI_SETTING_EDIT = "openapi:setting:edit";
+
+    /* 开放 API 调用权限码（注册在 openapi 域，授权给第三方应用） */
+    public static final String INBOUND_MASTER_LIST = "inbound:master:list";
+    public static final String INBOUND_DICT_LIST = "inbound:dict:list";
+    public static final String INBOUND_EMPLOYEE_LIST = "inbound:employee:list";
+    public static final String INBOUND_ORG_TREE = "inbound:org:tree";
+    public static final String OUTBOUND_EMAIL_INVOKE = "outbound:email:invoke";
+}

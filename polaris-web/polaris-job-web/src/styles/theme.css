@@ -1,0 +1,438 @@
+/* ===== 调度中心 · 全局外壳与主题变量（明 / 暗） ===== */
+:root,
+:root[data-theme='light'] {
+  --primary: #2f54eb;
+  --success: #52c41a;
+  --warning: #faad14;
+  --danger: #ff4d4f;
+  --text: rgba(0, 0, 0, 0.88);
+  --text-2: rgba(0, 0, 0, 0.65);
+  --text-3: rgba(0, 0, 0, 0.45);
+  --border: #d9d9d9;
+  --border-subtle: #eef0f4;
+  --bg-page: #f5f6f8;
+  --panel-bg: #ffffff;
+  --header-bg: #ffffff;
+  --sider-bg: #ffffff;
+  --header-text: #1f2329;
+  --header-border: #e8e8e8;
+  --header-hover: rgba(0, 0, 0, 0.04);
+  --flow-bg: #fafafa;
+  --code-bg: #fafafa;
+  --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace;
+}
+
+:root[data-theme='dark'] {
+  --primary: #2f54eb;
+  --success: #49aa19;
+  --warning: #d89614;
+  --danger: #d84a4a;
+  --text: rgba(255, 255, 255, 0.85);
+  --text-2: rgba(255, 255, 255, 0.65);
+  --text-3: rgba(255, 255, 255, 0.45);
+  --border: rgba(255, 255, 255, 0.2);
+  --border-subtle: rgba(255, 255, 255, 0.12);
+  --bg-page: #0f1115;
+  --panel-bg: #161a22;
+  --header-bg: #0f1115;
+  --sider-bg: #0f1115;
+  --header-text: rgba(255, 255, 255, 0.85);
+  --header-border: rgba(255, 255, 255, 0.08);
+  --header-hover: rgba(255, 255, 255, 0.12);
+  --flow-bg: rgba(255, 255, 255, 0.04);
+  --code-bg: rgba(255, 255, 255, 0.06);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#app {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  font-size: 14px;
+  color: var(--text);
+  background: var(--bg-page);
+  overflow: hidden;
+}
+
+/* ===== 外壳：顶栏 + 侧栏 + 内容区 ===== */
+.shell {
+  height: 100vh;
+  overflow: hidden;
+}
+
+.body {
+  min-height: 0;
+}
+
+/* antd 的 .ant-layout-header 默认深蓝底且样式注入晚于本文件，需提升优先级覆盖 */
+.ant-layout-header.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 64px;
+  padding: 0 16px 0 0;
+  line-height: normal;
+  flex: 0 0 auto;
+  background: var(--header-bg) !important;
+  color: var(--header-text);
+  border-bottom: 1px solid var(--header-border);
+  position: relative;
+  z-index: 10;
+}
+
+.logo {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding-left: 24px;
+  height: 32px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--header-text);
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+.logo.is-collapsed {
+  padding-left: 29px;
+}
+
+.menu-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  font-size: 16px;
+  border-radius: 5px;
+  cursor: pointer;
+  color: var(--header-text);
+  transition: background 0.2s;
+}
+
+.menu-toggle:hover {
+  background: var(--header-hover);
+}
+
+.right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.right .theme-toggle {
+  color: var(--header-text);
+  /* 关键：用 flex 精确居中内联 SVG。SVG 默认按文本基线排版，会让图标比用户名高 2~3px */
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  min-width: 32px;
+  padding: 0;
+  line-height: 1;
+}
+
+.right .theme-toggle svg {
+  display: block;
+}
+
+.right .who {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  height: 32px;
+  padding: 0 10px;
+  border-radius: 6px;
+  font-size: 13px;
+  color: var(--header-text);
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.right .who:hover {
+  background: var(--header-hover);
+}
+
+.right .caret {
+  font-size: 11px;
+  opacity: 0.7;
+}
+
+.sider.ant-layout-sider {
+  background: var(--sider-bg) !important;
+  border-right: 1px solid var(--border-subtle);
+}
+
+.sider .ant-menu {
+  background: transparent !important;
+}
+
+.sider .ant-layout-sider-children {
+  height: 100%;
+  overflow-y: auto;
+}
+
+.content {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  background: var(--bg-page) !important;
+}
+
+/* 任务页：整屏固定高度，内容不产生页面级滚动条，行数按可视高度自适应 */
+.content.is-fixed {
+  overflow: hidden;
+}
+
+.content.is-fixed .view {
+  flex: 1;
+  min-height: 0;
+}
+
+.content.is-fixed .view > * {
+  flex: 0 0 auto;
+}
+
+.content.is-fixed .view > .fill-card {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.fill-card > .ant-card-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* 列表在卡片内滚动，滚动条隐藏，页面上不出现可见的垂直滚动条 */
+.fill-card .ant-table-body {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.fill-card .ant-table-body::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+}
+
+.view {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* ===== 统计卡 ===== */
+.stat-row {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.stat-card {
+  border: 1px solid var(--border-subtle);
+}
+
+.stat-unit {
+  font-size: 12px;
+  color: var(--text-3);
+  margin-left: 4px;
+}
+
+.stat-foot {
+  margin-top: 6px;
+  font-size: 12px;
+  color: var(--text-3);
+}
+
+.trend-up {
+  color: var(--success);
+}
+
+.trend-down {
+  color: var(--danger);
+}
+
+/* ===== 调用链路 ===== */
+.flow {
+  display: flex;
+  align-items: stretch;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.flow-step {
+  flex: 1 1 150px;
+  min-width: 140px;
+  padding: 8px 10px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 6px;
+  background: var(--flow-bg);
+}
+
+.flow-step b {
+  display: block;
+  font-size: 13px;
+  font-weight: 500;
+  margin-bottom: 3px;
+  color: var(--text);
+}
+
+.flow-step span {
+  font-size: 12px;
+  color: var(--text-3);
+  font-family: var(--mono);
+  overflow-wrap: anywhere;
+}
+
+.flow-step span.cn {
+  font-family: inherit;
+}
+
+.flow-arrow {
+  align-self: center;
+  color: var(--text-3);
+  font-size: 12px;
+}
+
+/* 必填星号不占布局：必填与选填标签文字左边缘对齐 */
+.ant-form-item-label > label {
+  position: relative;
+  padding-left: 10px;
+}
+.ant-form-item-label > label.ant-form-item-required::before {
+  position: absolute;
+  left: 0;
+  top: 50%;
+  margin: 0;
+  transform: translateY(-50%);
+}
+
+/* ===== 通用文本 ===== */
+.mono {
+  font-family: var(--mono);
+  font-size: 12px;
+}
+
+.text-secondary {
+  color: var(--text-3);
+  font-size: 12px;
+}
+
+.hint {
+  margin-top: 6px;
+  color: var(--text-3);
+  font-size: 12px;
+}
+
+.pre-block {
+  margin: 0;
+  padding: 10px 12px;
+  background: var(--code-bg);
+  border: 1px solid var(--border-subtle);
+  border-radius: 6px;
+  font-family: var(--mono);
+  font-size: 12px;
+  line-height: 1.7;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  max-height: 240px;
+  overflow: auto;
+  color: var(--text);
+}
+
+.muted-dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  margin-right: 6px;
+  vertical-align: middle;
+}
+
+@media (max-width: 1280px) {
+  .stat-row {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+/* 14 寸笔记本及低高度窗口：允许页面纵向滚动，不再强撑一屏 */
+@media (max-height: 820px) {
+  .content {
+    gap: 10px;
+    padding: 12px;
+  }
+
+  .view {
+    gap: 10px;
+  }
+
+  .content.is-fixed {
+    overflow-y: auto;
+  }
+
+  .content.is-fixed .view {
+    flex: 0 0 auto;
+    min-height: auto;
+  }
+
+  .content.is-fixed .view > .fill-card {
+    flex: 0 0 auto;
+  }
+
+  .fill-card > .ant-card-body {
+    flex: 0 0 auto;
+    overflow: visible;
+  }
+
+  .stat-card .ant-card-body {
+    padding: 10px 12px !important;
+  }
+
+  .stat-card .ant-statistic-content {
+    font-size: 24px;
+  }
+
+  .stat-foot {
+    margin-top: 2px;
+  }
+
+  .fill-card .ant-table-body {
+    scrollbar-width: thin;
+  }
+
+  .fill-card .ant-table-body::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+}
+
+@media (max-width: 900px) {
+  .stat-row {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .content {
+    padding: 12px;
+  }
+
+  .right .ant-tag {
+    display: none;
+  }
+}

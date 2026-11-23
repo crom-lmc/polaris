@@ -1,0 +1,97 @@
+package com.laimengchao.sso.gateway.config;
+
+import lombok.Data;
+import org.springframework.boot.context.properties.ConfigurationProperties;
+
+import java.util.ArrayList;
+import java.util.List;
+
+@Data
+@ConfigurationProperties(prefix = "sso.gateway")
+public class GatewayProperties {
+
+    /** 必须与 sso-auth 的 issuer 一致，否则签发的票在网关全被判为无效 */
+    private String issuer = "sso-auth";
+
+    /** 只放公钥：网关能验签但不能签发，私钥泄露风险被限制在 auth 一个服务。
+     *  支持 classpath:/file: 地址或内联 PEM 文本（prod 用独立密钥对时由 Nacos 下发） */
+    private String publicKey = "classpath:keys/jwt-public.pem";
+
+    /**
+     * 免鉴权路径。
+     * <p>
+     * 支持两种写法：精确路径（{@code /api/auth/login}）与前缀通配（{@code /api/cms/public/**}）。
+     * 业务应用的读者端接口天生不需要登录，必须能按前缀放行——否则每加一个公开接口
+     * 都要改一次网关配置，早晚会漏。
+     */
+    private List<String> whitelist = new ArrayList<>(List.of(
+            "/api/auth/login",
+            "/api/auth/refresh",
+            "/api/auth/logout",
+            "/api/auth/email/code",
+            "/api/auth/email/login",
+            "/api/auth/wechat/login",
+            // 忘记密码：无登录态，靠邮箱验证码（scene=reset）识别本人
+            "/api/auth/password/forgot/code",
+            "/api/auth/password/forgot/reset",
+            // 单点相关：/session 与 /ticket 靠 HttpOnly cookie 识别身份（跨应用共享登录态的前提，
+            // 不能要求 Bearer）；/ticket/exchange 靠应用 appSecret 识别调用方，也不带用户 token
+            "/api/auth/session",
+            "/api/auth/session/token",
+            "/api/auth/ticket",
+            "/api/auth/ticket/exchange",
+            // OAuth2 标准端点：/authorize 与 /ticket 一样靠中心会话 cookie 识别身份；
+            // /token 是应用后端到服务器的调用，靠 client_secret/PKCE 准入，不带用户令牌
+            "/api/auth/oauth/authorize",
+            "/api/auth/oauth/token",
+            // 公钥分发：公钥本身是公开信息，业务应用（尤其是没跑在本网关后面的）
+            // 要靠它自校验令牌，不能要求先有令牌才能取
+            "/api/auth/public/jwks",
+            "/api/auth/public/public-key",
+            // 应用名查询：业务应用（含游客态）据此显示浏览器标签标题，只暴露 code/name
+            "/api/applications/public/**",
+            // 业务应用（cms）的读者端与换票端
+            "/api/cms/public/**",
+            "/api/cms/sso/**",
+            // CMS 媒体文件：静态资源，读者端直接加载（经 /api/cms/** 路由转发到 9004）
+            "/api/cms/media/file/**",
+            // 业务应用（portal）的读者端与换票端：同 cms 口径
+            "/api/portal/public/**",
+            "/api/portal/sso/**",
+            // 业务应用（ehr）的换票端：同 cms/portal 口径
+            // 漏了这条 → /callback 拿授权码换令牌时被网关判「未登录」，登录页停在「登录失败」
+            "/api/ehr/sso/**",
+            // 门户招聘：职位列表/详情、投递、进度查询免登录
+            "/api/ehr/public/**",
+            // 业务应用（settings）的换票端：同 ehr 口径（漏了同样会「未登录，请先获取访问令牌」）
+            "/api/settings/sso/**",
+            // 业务应用（调度中心）的换票端：前端从 /callback 回来时还没有令牌，必须免鉴权
+            "/api/jobs/auth/exchange",
+            // 独立论坛：游客查询与 OAuth2 换票匿名可用，互动接口仍需 Bearer
+            "/api/forum/public/**",
+            "/api/forum/sso/**",
+            // 接口开放平台：第三方用平台自有鉴权（client_credentials 令牌 / HMAC 签名），不带 SSO 用户令牌，
+            // 必须放行让网关跳过验签；注意管理端 /api/open/admin/** 不在白名单，仍需网关注入 X-Account-* 头
+            "/api/open/token",
+            "/api/open/v1/**",
+            // 管理端 SSO 换票：靠一次性 ticket / OAuth code + appSecret 准入，不带用户令牌
+            "/api/open/sso/**",
+            // 出站接口：内网服务间调用，走 X-Internal-Token（通常直连 9010；经网关时也放行）
+            "/api/open/outbound/**",
+            // 上传的图片/附件：静态资源，读者端也要能直接加载
+            "/uploads/**",
+            // 调度中心派发入口：中心直连网关 9080 调 /internal/jobs/run，
+            // 本身由 X-Job-Token 校验，不能要求用户令牌
+            "/internal/**",
+            "/actuator/health"
+    ));
+
+    /** 内部接口前缀：由网关直接拒绝，只允许服务间内网直连 */
+    private List<String> internalPrefixes = new ArrayList<>(List.of("/api/auth/internal/"));
+
+    /** sso-auth 基址，用于同步吊销名单 */
+    private String authBaseUrl = "http://127.0.0.1:9001";
+
+    /** 吊销名单同步间隔（毫秒）；越小登出越及时，越大对 auth 压力越小 */
+    private long revocationSyncMillis = 5000L;
+}

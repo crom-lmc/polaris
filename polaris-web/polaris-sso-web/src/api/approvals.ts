@@ -1,0 +1,207 @@
+import request from './request'
+import type { ApprovalContext, ApprovalInstance } from '@/types'
+
+/**
+ * 审批中心接口。全部走统一账号中心 `/api/accounts/approvals/**`——
+ * 审批单存在 settings 库，但「谁在审批」必须由账号中心定，所以由它代理，
+ * 前端不直连 settings（直连会被 settings 的应用边界拦掉，那道墙不该为这个功能破口）。
+ */
+
+/** 五视图：待我审批 / 已审批 / 我发起的 / 抄送我 / 我委托的（运营页签由视图层 TabKey 扩展） */
+export type ApprovalScope = 'pending' | 'approved' | 'mine' | 'cc' | 'delegated'
+
+export function fetchApprovals(scope: ApprovalScope) {
+  return request.get<never, { data: ApprovalInstance[] }>('/api/accounts/approvals', {
+    params: { scope }
+  })
+}
+
+export function fetchApprovalDetail(id: string) {
+  return request.get<never, { data: ApprovalInstance }>(`/api/accounts/approvals/${id}`)
+}
+
+/**
+ * 审批弹窗上下文：版式 + 已算好的字段值 + 我的待办。
+ * 前端只负责画，取值口径与权限判断都在服务端。
+ */
+export function fetchApprovalContext(id: string, view = 'APPROVAL') {
+  return request.get<never, { data: ApprovalContext }>(`/api/accounts/approvals/${id}/context`, {
+    params: { view }
+  })
+}
+
+export function approveTask(taskId: string, pass: boolean, note?: string) {
+  return request.post<never, { data: ApprovalInstance }>(
+    `/api/accounts/approvals/tasks/${taskId}/approve`,
+    { pass, note }
+  )
+}
+
+/** 转办：把待办交给别人（一次性，原任务终结） */
+export function transferTask(taskId: string, targetId: string, note?: string) {
+  return request.post<never, { data: void }>(
+    `/api/accounts/approvals/tasks/${taskId}/transfer`,
+    { targetId, note }
+  )
+}
+
+/** 加签：临时把人插进当前节点（会把节点切成会签，或签节点上加签才有意义） */
+export function addSignTask(taskId: string, targetId: string, position = 'AFTER', note?: string) {
+  return request.post<never, { data: void }>(
+    `/api/accounts/approvals/tasks/${taskId}/add-sign`,
+    { targetId, position, note }
+  )
+}
+
+/** 撤回：仅发起人且流程未结束 */
+export function withdrawApproval(id: string, note?: string) {
+  return request.post<never, { data: ApprovalInstance }>(
+    `/api/accounts/approvals/${id}/withdraw`,
+    { note }
+  )
+}
+
+/* ---------------- 转办 / 加签的按组织选人 ---------------- */
+
+/** 组织节点（扁平列表，前端组树）；id/parentId 均为字符串，防雪花精度丢失 */
+export interface ApprovalOrgNode {
+  id: string
+  parentId: string | null
+  name: string
+  /** 组织编码（如 XC0001），用于数据权限配置 */
+  code?: string
+  /** EHR 下发的是组织类型编码字符串（GROUP/COMPANY/DEPARTMENT/PROJECT/SUB_PROJECT） */
+  type: string
+  /** 组织类型中文名（集团/子公司/部门/项目/子项目），由 EHR 下发，用于树的彩色标签 */
+  typeName?: string
+  status: number
+  /** 直属在职人数（试用 30 + 在职 40，不含下级），与 EHR 组织架构页树一致 */
+  employeeCount?: number
+}
+
+/** 组织直属成员（已开户、未离职），id 为账号 ID（字符串） */
+export interface ApprovalOrgUser {
+  id: string
+  name: string
+  empNo: string
+}
+
+export function fetchApprovalOrgTree() {
+  return request.get<never, { data: ApprovalOrgNode[] }>('/api/accounts/approvals/orgs/tree')
+}
+
+export function fetchApprovalOrgUsers(orgId: string) {
+  return request.get<never, { data: ApprovalOrgUser[] }>(
+    `/api/accounts/approvals/orgs/${orgId}/employees`
+  )
+}
+
+/** 终止：管理员强制结束在途单 */
+export function terminateApproval(id: string, note?: string) {
+  return request.post<never, { data: ApprovalInstance }>(
+    `/api/accounts/approvals/${id}/terminate`,
+    { note }
+  )
+}
+
+/* ---------------- 审批运营（时效统计/积压/催办/导出） ---------------- */
+
+/** 时效统计口径：只统计「已结束」单据的时长；backlog 为在途数 */
+export interface ApprovalStats {
+  total: number
+  approved: number
+  rejected: number
+  withdrawn: number
+  terminated: number
+  backlog: number
+  avgHours: number
+  p90Hours: number
+  /** 驳回率，百分比 0-100 */
+  rejectRate: number
+}
+
+/** 审批人维度：handled=通过的+驳回的任务数 */
+export interface ApprovalApproverStats {
+  approverId: string
+  approverName: string
+  handled: number
+  approved: number
+  rejected: number
+  avgHours: number
+  p90Hours: number
+}
+
+/** 积压单：在途且当前步骤有待办 */
+export interface ApprovalBacklogItem {
+  id: string
+  apprNo: string
+  title: string
+  bizName: string
+  bizType: string
+  applicantName: string
+  orgPath: string
+  currentStep: number
+  totalStep: number
+  stepName: string
+  submittedAt: string
+  waitingSince: string
+  waitingHours: number
+  slaHours: number | null
+  overdue: boolean
+  approverNames: string
+  urgeCount: number
+  lastUrgeAt: string | null
+}
+
+/** 批量审批结果：成功已生效，失败带原因，不整体回滚 */
+export interface BatchApprovalResult {
+  success: Array<string | number>
+  failed: Array<{ taskId: string; reason: string }>
+}
+
+export interface ApprovalOpsQuery {
+  appCode?: string
+  bizType?: string
+  orgId?: string
+  from?: string
+  to?: string
+  limit?: number
+}
+
+export function fetchApprovalStats(params: ApprovalOpsQuery = {}) {
+  return request.get<never, { data: ApprovalStats }>('/api/accounts/approvals/stats', { params })
+}
+
+export function fetchApproverStats(params: ApprovalOpsQuery = {}) {
+  return request.get<never, { data: ApprovalApproverStats[] }>(
+    '/api/accounts/approvals/stats/approver',
+    { params }
+  )
+}
+
+export function fetchApprovalBacklog(params: ApprovalOpsQuery = {}) {
+  return request.get<never, { data: ApprovalBacklogItem[] }>(
+    '/api/accounts/approvals/backlog',
+    { params }
+  )
+}
+
+/** 催办：给当前待办人发提醒，instance.urge_count +1 */
+export function urgeApproval(id: string, note?: string) {
+  return request.post<never, { data: void }>(`/api/accounts/approvals/${id}/urge`, { note })
+}
+
+/** 批量通过/驳回：逐条校验，部分失败不回滚 */
+export function batchApproveTasks(taskIds: string[], pass: boolean, note?: string) {
+  return request.post<never, { data: BatchApprovalResult }>(
+    '/api/accounts/approvals/tasks/batch',
+    { taskIds, pass, note }
+  )
+}
+
+/** 导出 CSV：返回 R 壳里的字符串，前端转 Blob 下载 */
+export function exportApprovals(type: 'pending' | 'instances', params: ApprovalOpsQuery = {}) {
+  return request.get<never, { data: string }>('/api/accounts/approvals/export', {
+    params: { ...params, type }
+  })
+}

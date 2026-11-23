@@ -1,0 +1,82 @@
+package com.laimengchao.sso.ehr.module.attendance.controller;
+
+import com.laimengchao.sso.common.R;
+import com.laimengchao.sso.common.security.PermissionCodes;
+import com.laimengchao.sso.ehr.module.attendance.dto.OvertimeRequest;
+import com.laimengchao.sso.ehr.module.attendance.service.AttendanceService;
+import com.laimengchao.sso.ehr.module.attendance.vo.AttendanceMonthVO;
+import com.laimengchao.sso.ehr.module.attendance.vo.OvertimePreviewVO;
+import com.laimengchao.sso.ehr.module.attendance.vo.OvertimeVO;
+import com.laimengchao.sso.ehr.security.Permit;
+import lombok.RequiredArgsConstructor;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
+
+import java.util.List;
+
+/** 轻量考勤：加班申请 / 我的·团队列表 / 月度汇总与确认。 */
+@RestController
+@RequestMapping("/api/ehr/attendance")
+@RequiredArgsConstructor
+public class AttendanceController {
+
+    private final AttendanceService attendanceService;
+
+    @GetMapping("/overtimes")
+    @Permit({PermissionCodes.ATTENDANCE_OVERTIME_MINE, PermissionCodes.ATTENDANCE_OVERTIME_TEAM,
+            PermissionCodes.ATTENDANCE_OVERTIME_ALL})
+    public R<R.Page<OvertimeVO>> list(@RequestParam(required = false) String scope,
+                                      @RequestParam(required = false) Long employeeId,
+                                      @RequestParam(required = false) String month,
+                                      @RequestParam(defaultValue = "1") int page,
+                                      @RequestParam(defaultValue = "20") int size) {
+        return R.ok(attendanceService.list(scope, employeeId, month, page, size));
+    }
+
+    @PostMapping("/overtimes")
+    @Permit(PermissionCodes.ATTENDANCE_OVERTIME_SUBMIT)
+    public R<OvertimeVO> submit(@RequestBody OvertimeRequest req) {
+        return R.ok(attendanceService.submit(req));
+    }
+
+    /** 加班申请试算（前端实时预览，与 submit 口径完全一致但不入库） */
+    @PostMapping("/overtimes/preview")
+    @Permit(PermissionCodes.ATTENDANCE_OVERTIME_PREVIEW)
+    public R<OvertimePreviewVO> preview(@RequestBody OvertimeRequest req) {
+        return R.ok(attendanceService.preview(req));
+    }
+
+    @PostMapping("/overtimes/{id}/cancel")
+    @Permit(PermissionCodes.ATTENDANCE_OVERTIME_CANCEL)
+    public R<Void> cancel(@PathVariable Long id) {
+        attendanceService.cancel(id);
+        return R.ok();
+    }
+
+    @GetMapping("/monthly")
+    @Permit(PermissionCodes.ATTENDANCE_MONTHLY)
+    public R<List<AttendanceMonthVO>> monthly(@RequestParam String month,
+                                              @RequestParam(required = false) Long employeeId) {
+        return R.ok(attendanceService.monthly(month, employeeId));
+    }
+
+    @PostMapping("/monthly/confirm")
+    @Permit(PermissionCodes.ATTENDANCE_MONTH_CONFIRM)
+    public R<AttendanceMonthVO> confirm(@RequestParam String month, @RequestParam Long employeeId) {
+        return R.ok(attendanceService.confirm(month, employeeId));
+    }
+
+    /** 解锁已确认的月度考勤，必须填写原因 */
+    @PostMapping("/monthly/unlock")
+    @Permit(PermissionCodes.ATTENDANCE_MONTH_UNLOCK)
+    public R<AttendanceMonthVO> unlock(@RequestParam String month,
+                                       @RequestParam Long employeeId,
+                                       @RequestParam String reason) {
+        return R.ok(attendanceService.unlock(month, employeeId, reason));
+    }
+}
