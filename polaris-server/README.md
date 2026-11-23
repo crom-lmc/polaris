@@ -360,6 +360,12 @@ polaris/
 
 独立服务 `polaris-openapi :9010`（11 个 Controller），独立库 `polaris_openapi`，管理端为前端 `polaris-openapi-web`（:5184）。定位：**第三方系统通过标准协议调用平台能力（入站接口），以及平台内部服务调用外部渠道（出站渠道）**。注意这里的入/出站按**数据流向**定义：第三方调我们、平台返回数据给对方 = 出站；我们调第三方、对方返回数据给平台 = 入站。
 
+管理端界面（生产实测截图）：
+
+| 概览 | 应用授权（按接口粒度） | 调用日志 |
+|:---:|:---:|:---:|
+| ![开放平台概览](../docs/screenshots/08-openapi-dashboard.png) | ![应用授权](../docs/screenshots/11-openapi-authz.png) | ![调用日志](../docs/screenshots/13-openapi-logs.png) |
+
 **公开接口（`OpenapiController`）**
 
 - `POST /api/open/token`：第三方用 `app_code + app_secret` 换票。openapi 本地校验应用状态与密钥摘要，再走内部接口请 sso-auth 签发令牌——openapi **不自建签发体系**，全平台只有 auth 持有 RS256 私钥。

@@ -13,6 +13,22 @@ polaris/
     └── README.md        # 前端说明：本地部署、生产部署、应用与端口、FAQ
 ```
 
+## 界面预览
+
+以下截图均来自生产环境（[polaris-sso.laimengchao.site](https://polaris-sso.laimengchao.site/)），更多页面见 [docs/screenshots/](docs/screenshots/)。
+
+| 统一登录 | 账号中心工作台 | 人力中心-组织树 |
+|:---:|:---:|:---:|
+| ![统一登录](docs/screenshots/01-login.png) | ![工作台](docs/screenshots/02-sso-dashboard.png) | ![组织树](docs/screenshots/17-ehr-orgs.png) |
+
+| 接口开放平台-概览 | 应用授权 | 调用日志 |
+|:---:|:---:|:---:|
+| ![开放平台概览](docs/screenshots/08-openapi-dashboard.png) | ![应用授权](docs/screenshots/11-openapi-authz.png) | ![调用日志](docs/screenshots/13-openapi-logs.png) |
+
+| 内容中心-文章 | 北极星空论坛 | 内容门户 |
+|:---:|:---:|:---:|
+| ![文章列表](docs/screenshots/18-cms-articles.png) | ![论坛首页](docs/screenshots/20-forum-home.png) | ![门户首页](docs/screenshots/22-portal-home.png) |
+
 ## 快速开始
 
 ```bash

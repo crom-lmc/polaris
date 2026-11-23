@@ -160,6 +160,16 @@ server {
 
 ## 四、功能模块
 
+各应用界面预览（生产实测，完整截图见 [docs/screenshots/](../docs/screenshots/)）：
+
+| 统一登录 | 账号中心工作台 | 人力中心-组织树 |
+|:---:|:---:|:---:|
+| ![统一登录](../docs/screenshots/01-login.png) | ![账号中心](../docs/screenshots/02-sso-dashboard.png) | ![组织树](../docs/screenshots/17-ehr-orgs.png) |
+
+| 内容中心-文章 | 北极星空论坛 | 内容门户 |
+|:---:|:---:|:---:|
+| ![文章列表](../docs/screenshots/18-cms-articles.png) | ![论坛首页](../docs/screenshots/20-forum-home.png) | ![门户首页](../docs/screenshots/22-portal-home.png) |
+
 ### 4.1 统一账号中心（`polaris-sso-web`）
 
 面向全员与管理员。登录页 `LoginView`、授权页 `AuthorizeView`；登录后的管理后台 `/admin/`（由 `AdminLayout` 承载）包含：
@@ -207,6 +217,14 @@ server {
 ### 4.7 接口开放平台管理端
 
 `polaris-openapi-web`（端口 5184，生产域名 `polaris-openapi.laimengchao.site`）是开放平台的管理控制台，8 个功能页 + 回调落地页，全部通过 SSO 用户登录 + 权限码访问 `/api/open/admin/**`：
+
+| 概览 | API 管理 | 对接应用 | 应用授权 |
+|:---:|:---:|:---:|:---:|
+| ![概览](../docs/screenshots/08-openapi-dashboard.png) | ![API 管理](../docs/screenshots/09-openapi-endpoints.png) | ![对接应用](../docs/screenshots/10-openapi-apps.png) | ![应用授权](../docs/screenshots/11-openapi-authz.png) |
+
+| 出站渠道 | 调用日志 | 统计报表 | 平台设置 |
+|:---:|:---:|:---:|:---:|
+| ![出站渠道](../docs/screenshots/12-openapi-channels.png) | ![调用日志](../docs/screenshots/13-openapi-logs.png) | ![统计报表](../docs/screenshots/14-openapi-stats.png) | ![平台设置](../docs/screenshots/15-openapi-settings.png) |
 
 - **概览 `DashboardView`**：状态指标卡片、调用趋势、失败 TOP、最近异常；表格/详情统一用抽屉展示；方向按数据流向标注（出站=对外提供、入站=调用第三方）。
 - **API 管理 `EndpointView`**：注册/维护开放接口，配置方向、操作类型、权限码、限流、幂等、状态；启用状态的接口不能删除，只能停用。
