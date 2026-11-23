@@ -31,6 +31,10 @@ polaris/
 |:---:|:---:|:---:|
 | ![文章列表](docs/screenshots/18-cms-articles.png) | ![论坛首页](docs/screenshots/20-forum-home.png) | ![门户首页](docs/screenshots/22-portal-home.png) |
 
+| 配置中心-业务点配置 | 论坛管理-抽奖配置 | 人力中心-考勤管理 |
+|:---:|:---:|:---:|
+| ![业务点配置](docs/screenshots/51-settings-bizpoints.png) | ![抽奖配置](docs/screenshots/70-forumadmin-lottery.png) | ![考勤管理](docs/screenshots/41-ehr-attendance.png) |
+
 **完整截图索引（点击展开各应用）**
 
 <details>
