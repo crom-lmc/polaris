@@ -34,6 +34,12 @@ public class StoragePolicy {
     /** 是否强制私有（如 EHR 附件，忽略调用方传入的 PUBLIC） */
     private Boolean forcePrivate;
 
+    /** 业务总配额（GB），0 / 空表示不限 */
+    private Long quotaGb;
+
+    /** 文件生命周期（天），超过后自动移入回收站，0 / 空表示永久 */
+    private Integer ttlDays;
+
     private Boolean enabled;
 
     private String remark;

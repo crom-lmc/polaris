@@ -26,6 +26,12 @@ public class FileProperties {
     /** 对外访问域名（拼接公开 URL 用，如 https://polaris-file.laimengchao.site） */
     private String publicBaseUrl = "";
 
+    /** 分片上传临时目录（合并前暂存分片，重启后由会话过期逻辑清理） */
+    private String multipartTempDir = "./data/files/.multipart";
+
+    /** 分片上传会话有效期（小时），超时未 complete 的会话被清理 */
+    private long multipartTtlHours = 24L;
+
     public String getStorageRoot() {
         return storageRoot;
     }
@@ -64,5 +70,21 @@ public class FileProperties {
 
     public void setPublicBaseUrl(String publicBaseUrl) {
         this.publicBaseUrl = publicBaseUrl;
+    }
+
+    public String getMultipartTempDir() {
+        return multipartTempDir;
+    }
+
+    public void setMultipartTempDir(String multipartTempDir) {
+        this.multipartTempDir = multipartTempDir;
+    }
+
+    public long getMultipartTtlHours() {
+        return multipartTtlHours;
+    }
+
+    public void setMultipartTtlHours(long multipartTtlHours) {
+        this.multipartTtlHours = multipartTtlHours;
     }
 }

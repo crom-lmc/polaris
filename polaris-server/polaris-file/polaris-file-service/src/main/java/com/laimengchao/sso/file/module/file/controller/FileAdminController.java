@@ -1,10 +1,15 @@
 package com.laimengchao.sso.file.module.file.controller;
 
+import com.laimengchao.sso.audit.client.annotation.AuditLog;
 import com.laimengchao.sso.common.R;
 import com.laimengchao.sso.common.security.PermissionCodes;
+import com.laimengchao.sso.file.common.FileErrorCode;
 import com.laimengchao.sso.file.module.file.entity.FileObject;
 import com.laimengchao.sso.file.module.file.entity.StoragePolicy;
 import com.laimengchao.sso.file.module.file.service.FileService;
+import com.laimengchao.sso.file.module.file.service.MultipartUploadService;
+import com.laimengchao.sso.file.module.file.service.ThumbnailService;
+import com.laimengchao.sso.file.module.file.vo.MultipartInitRequest;
 import com.laimengchao.sso.file.module.file.vo.SignRequest;
 import com.laimengchao.sso.file.module.file.vo.UploadRequest;
 import com.laimengchao.sso.file.security.Permit;
@@ -31,6 +36,7 @@ import java.util.Map;
 public class FileAdminController {
 
     private final FileService fileService;
+    private final MultipartUploadService multipartService;
 
     @GetMapping("/overview")
     @Permit(PermissionCodes.FILE_OVERVIEW_VIEW)
@@ -57,8 +63,19 @@ public class FileAdminController {
         return R.ok(fileService.page(page, size, bizType, visibility, keyword));
     }
 
+    /** 回收站：已软删文件分页。 */
+    @GetMapping("/recycle")
+    @Permit(PermissionCodes.FILE_LIST)
+    public R<?> recycle(@RequestParam(value = "page", defaultValue = "1") int page,
+                        @RequestParam(value = "size", defaultValue = "20") int size,
+                        @RequestParam(value = "bizType", required = false) String bizType,
+                        @RequestParam(value = "keyword", required = false) String keyword) {
+        return R.ok(fileService.recycleBin(page, size, bizType, keyword));
+    }
+
     @PostMapping("/files/upload")
     @Permit(PermissionCodes.FILE_UPLOAD)
+    @AuditLog(action = "FILE_UPLOAD", targetType = "FILE")
     public R<FileObject> upload(@RequestBody UploadRequest request) {
         if (request.getUploaderId() == null) {
             request.setUploaderId(AccountContext.getAccountId());
@@ -67,6 +84,69 @@ public class FileAdminController {
         return R.ok(fileService.upload(request.getBizType(), request.getVisibility(),
                 request.getOriginalName(), request.getContentType(), bytes,
                 request.getOwnerType(), request.getOwnerId(), request.getUploaderId()));
+    }
+
+    /**
+     * 预览信息：返回文件该如何内联展示。
+     * mode: IMAGE / PDF / TEXT / UNSUPPORTED；url 为内联预览签名链接（TEXT 需前端文本渲染）。
+     */
+    @GetMapping("/files/{id}/preview")
+    @Permit(PermissionCodes.FILE_DOWNLOAD)
+    public R<Map<String, Object>> preview(@PathVariable("id") String id) {
+        FileObject obj = fileService.meta(id);
+        if (obj == null) {
+            throw new com.laimengchao.sso.common.BizException(FileErrorCode.FILE_NOT_FOUND);
+        }
+        String ct = (obj.getContentType() == null ? "" : obj.getContentType()).toLowerCase();
+        String mode;
+        if (ThumbnailService.isRasterImage(ct) || ct.contains("svg")) {
+            mode = "IMAGE";
+        } else if (ct.contains("pdf")) {
+            mode = "PDF";
+        } else if (ct.startsWith("text/") || ct.contains("json") || ct.contains("csv")
+                || ct.contains("javascript") || ct.contains("xml")) {
+            mode = "TEXT";
+        } else {
+            mode = "UNSUPPORTED";
+        }
+        Map<String, Object> info = new java.util.HashMap<>();
+        info.put("mode", mode);
+        info.put("name", obj.getOriginalName());
+        info.put("contentType", obj.getContentType());
+        info.put("url", obj.getUrl());
+        info.put("thumbUrl", obj.getThumbUrl());
+        return R.ok(info);
+    }
+
+    // ---------------- 分片上传（大文件断点续传） ----------------
+
+    @PostMapping("/multipart/init")
+    @Permit(PermissionCodes.FILE_UPLOAD)
+    public R<Map<String, Object>> multipartInit(@RequestBody MultipartInitRequest request) {
+        return R.ok(multipartService.init(request));
+    }
+
+    @PostMapping("/multipart/{uploadId}/part/{index}")
+    @Permit(PermissionCodes.FILE_UPLOAD)
+    public R<Void> multipartPart(@PathVariable("uploadId") String uploadId,
+                                 @PathVariable("index") int index,
+                                 @RequestBody java.util.Map<String, String> body) {
+        multipartService.part(uploadId, index, body.get("content"));
+        return R.ok();
+    }
+
+    @GetMapping("/multipart/{uploadId}/status")
+    @Permit(PermissionCodes.FILE_UPLOAD)
+    public R<Map<String, Object>> multipartStatus(@PathVariable("uploadId") String uploadId) {
+        return R.ok(multipartService.status(uploadId));
+    }
+
+    @PostMapping("/multipart/{uploadId}/complete")
+    @Permit(PermissionCodes.FILE_UPLOAD)
+    @AuditLog(action = "FILE_MULTIPART_COMPLETE", targetType = "FILE")
+    public R<FileObject> multipartComplete(@PathVariable("uploadId") String uploadId) {
+        Long uploaderId = AccountContext.getAccountId();
+        return R.ok(multipartService.complete(uploadId, uploaderId));
     }
 
     @PostMapping("/files/{id}/sign")
@@ -78,8 +158,27 @@ public class FileAdminController {
 
     @DeleteMapping("/files/{id}")
     @Permit(PermissionCodes.FILE_DELETE)
+    @AuditLog(action = "FILE_DELETE", targetType = "FILE")
     public R<Void> delete(@PathVariable("id") String id) {
         fileService.delete(id);
+        return R.ok();
+    }
+
+    /** 回收站恢复。 */
+    @PostMapping("/files/{id}/restore")
+    @Permit(PermissionCodes.FILE_DELETE)
+    @AuditLog(action = "FILE_RESTORE", targetType = "FILE")
+    public R<Void> restore(@PathVariable("id") String id) {
+        fileService.restore(id);
+        return R.ok();
+    }
+
+    /** 回收站彻底删除（物理删字节，秒传共享时保留字节）。 */
+    @DeleteMapping("/files/{id}/purge")
+    @Permit(PermissionCodes.FILE_DELETE)
+    @AuditLog(action = "FILE_PURGE", targetType = "FILE")
+    public R<Void> purge(@PathVariable("id") String id) {
+        fileService.purge(id);
         return R.ok();
     }
 
@@ -91,6 +190,7 @@ public class FileAdminController {
 
     @PutMapping("/policies")
     @Permit(PermissionCodes.FILE_POLICY_EDIT)
+    @AuditLog(action = "FILE_POLICY_SAVE", targetType = "FILE_POLICY")
     public R<Void> savePolicy(@RequestBody StoragePolicy policy) {
         fileService.savePolicy(policy);
         return R.ok();

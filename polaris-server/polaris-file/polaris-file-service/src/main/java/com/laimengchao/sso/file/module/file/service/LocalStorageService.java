@@ -22,7 +22,7 @@ import java.time.format.DateTimeFormatter;
 @Slf4j
 @Service
 @RequiredArgsConstructor
-public class LocalStorageService {
+public class LocalStorageService implements StorageBackend {
 
     private static final DateTimeFormatter DIR = DateTimeFormatter.ofPattern("yyyy/MM/dd");
 
@@ -54,6 +54,19 @@ public class LocalStorageService {
         } catch (IOException e) {
             log.error("读取文件失败 path={}", path, e);
             throw new BizException(FileErrorCode.STORAGE_ERROR);
+        }
+    }
+
+    /** 判断物理字节是否仍存在（回收站恢复前校验用）。 */
+    public boolean exists(String rel) {
+        if (rel == null || rel.isBlank()) {
+            return false;
+        }
+        try {
+            return Files.exists(resolve(rel));
+        } catch (RuntimeException e) {
+            log.warn("检查文件存在性失败 path={} reason={}", rel, e.getMessage());
+            return false;
         }
     }
 

@@ -1,5 +1,6 @@
 package com.laimengchao.sso.file.module.file.controller;
 
+import com.laimengchao.sso.audit.client.annotation.AuditLog;
 import com.laimengchao.sso.common.R;
 import com.laimengchao.sso.file.common.FileErrorCode;
 import com.laimengchao.sso.file.module.file.entity.FileObject;
@@ -35,6 +36,7 @@ public class InternalFileController {
     private final FileAliasService aliasService;
 
     @PostMapping("/upload")
+    @AuditLog(action = "FILE_INTERNAL_UPLOAD", targetType = "FILE")
     public R<FileObject> upload(@RequestBody UploadRequest request) {
         byte[] bytes = decode(request.getContent());
         FileObject obj = fileService.upload(request.getBizType(), request.getVisibility(),
@@ -66,6 +68,7 @@ public class InternalFileController {
     }
 
     @DeleteMapping("/{id}")
+    @AuditLog(action = "FILE_INTERNAL_DELETE", targetType = "FILE")
     public R<Void> delete(@PathVariable("id") String id) {
         fileService.delete(id);
         return R.ok();

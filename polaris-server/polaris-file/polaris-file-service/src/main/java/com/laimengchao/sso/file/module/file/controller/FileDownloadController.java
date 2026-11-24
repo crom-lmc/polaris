@@ -3,6 +3,7 @@ package com.laimengchao.sso.file.module.file.controller;
 import com.laimengchao.sso.file.module.file.entity.FileObject;
 import com.laimengchao.sso.file.module.file.service.FileService;
 import com.laimengchao.sso.file.module.file.service.SignUrlService;
+import com.laimengchao.sso.file.module.file.service.ThumbnailService;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpHeaders;
@@ -31,12 +32,14 @@ public class FileDownloadController {
 
     private final FileService fileService;
     private final SignUrlService signer;
+    private final ThumbnailService thumbnails;
 
     @GetMapping("/public/view")
     public ResponseEntity<byte[]> view(@RequestParam("id") String id,
                                        @RequestParam("expires") long expires,
                                        @RequestParam("purpose") String purpose,
-                                       @RequestParam("sign") String sign) {
+                                       @RequestParam("sign") String sign,
+                                       @RequestParam(value = "w", required = false) Integer width) {
         // purpose 必须是 VIEW：防止拿 DOWNLOAD 签名访问内联预览端点
         signer.verify(id, "VIEW", expires, sign);
         FileObject obj = fileService.meta(id);
@@ -45,7 +48,12 @@ public class FileDownloadController {
         }
         // 私有文件允许内联预览：签名由管理端权限校验后签发，本身即授权令牌；
         // 列表/上传返回的 url 也走此端点，若这里拒绝 PRIVATE 会导致管理端“查看”一律 404。
-        return inline(fileService.content(id), obj);
+        byte[] bytes = fileService.content(id);
+        if (width != null && ThumbnailService.isRasterImage(obj.getContentType())) {
+            int w = Math.max(32, Math.min(width, 1200)); // 限幅，避免超大图耗尽内存
+            bytes = thumbnails.scale(bytes, w);
+        }
+        return inline(bytes, obj);
     }
 
     @GetMapping("/secure/download")

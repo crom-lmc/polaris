@@ -54,4 +54,12 @@ public class FileObject {
     /** 访问 URL（非持久化，查询时按可见性动态签发） */
     @TableField(exist = false)
     private String url;
+
+    /** 本次上传是否命中秒传去重（非持久化，仅上传响应提示用） */
+    @TableField(exist = false)
+    private Boolean deduplicated;
+
+    /** 图片缩略图 URL（非持久化，带 w 参数按需缩放，复用 view 签名） */
+    @TableField(exist = false)
+    private String thumbUrl;
 }

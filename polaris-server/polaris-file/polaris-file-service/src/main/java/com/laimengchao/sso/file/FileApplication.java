@@ -3,6 +3,7 @@ package com.laimengchao.sso.file;
 import org.mybatis.spring.annotation.MapperScan;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.scheduling.annotation.EnableScheduling;
 
 /**
  * 统一文件服务：CMS/EHR/forum/openapi 的文件存取统一收口。
@@ -12,6 +13,7 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
  */
 @MapperScan("com.laimengchao.sso.file.module.**.mapper")
 @SpringBootApplication(scanBasePackages = {"com.laimengchao.sso.file", "com.laimengchao.sso.common"})
+@EnableScheduling
 public class FileApplication {
 
     public static void main(String[] args) {

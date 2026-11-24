@@ -41,10 +41,10 @@ public class FileService {
 
     private final FileObjectMapper fileMapper;
     private final StoragePolicyMapper policyMapper;
-    private final LocalStorageService storage;
+    private final StorageBackend storage;
     private final SignUrlService signer;
 
-    /** 上传：校验策略 → 落盘 → 写元数据，返回带访问 URL 的元数据。 */
+    /** 上传：校验策略 → 内容去重/落盘 → 写元数据，返回带访问 URL 的元数据。 */
     @Transactional(rollbackFor = Exception.class)
     public FileObject upload(String bizType, String visibility, String originalName, String contentType,
                              byte[] bytes, String ownerType, String ownerId, Long uploaderId) {
@@ -71,7 +71,26 @@ public class FileService {
                 : (visibility == null || visibility.isBlank()
                     ? policy.getDefaultVisibility() : visibility.toUpperCase(Locale.ROOT));
 
-        String path = storage.write(bytes, originalName);
+        // 秒传去重：同摘要 + 同大小的正常文件已存在时，复用其物理字节，只新增元数据。
+        String sha = sha256(bytes);
+        FileObject dup = null;
+        if (!sha.isEmpty()) {
+            dup = fileMapper.selectOne(new LambdaQueryWrapper<FileObject>()
+                    .eq(FileObject::getSha256, sha)
+                    .eq(FileObject::getSize, (long) bytes.length)
+                    .eq(FileObject::getStatus, STATUS_NORMAL)
+                    .last("limit 1"));
+        }
+        boolean deduplicated = dup != null;
+        // 业务配额：仅真实新增字节时占用配额（秒传复用不增加物理占用，跳过校验）
+        if (!deduplicated) {
+            checkQuota(policy, bizType, bytes.length);
+        }
+        String path = deduplicated ? dup.getStoragePath() : storage.write(bytes, originalName);
+        if (deduplicated) {
+            log.info("秒传命中：复用字节 path={} 来源 fileId={} bizType={} sha={}",
+                    path, dup.getId(), bizType, sha);
+        }
         try {
             FileObject obj = new FileObject();
             obj.setId(IdUtils.nextId());
@@ -80,22 +99,28 @@ public class FileService {
             obj.setOriginalName(originalName);
             obj.setContentType(contentType);
             obj.setSize((long) bytes.length);
-            obj.setSha256(sha256(bytes));
+            obj.setSha256(sha);
             obj.setStoragePath(path);
             obj.setOwnerType(ownerType);
             obj.setOwnerId(ownerId);
             obj.setUploaderId(uploaderId == null ? 0L : uploaderId);
             obj.setStatus(STATUS_NORMAL);
             obj.setCreatedAt(LocalDateTime.now());
+            obj.setDeduplicated(deduplicated);
             fileMapper.insert(obj);
-            log.info("文件上传成功：fileId={} bizType={} visibility={} size={} path={}",
-                    obj.getId(), bizType, finalVisibility, bytes.length, path);
+            log.info("文件上传成功：fileId={} bizType={} visibility={} size={} path={} dedup={}",
+                    obj.getId(), bizType, finalVisibility, bytes.length, path, deduplicated);
             return withUrl(obj, null);
         } catch (RuntimeException e) {
-            // 元数据写库失败，补偿删除已落盘字节，避免产生孤儿文件
-            log.error("文件上传写元数据失败，已回滚落盘文件：bizType={} name={} path={}",
-                    bizType, originalName, path, e);
-            storage.delete(path);
+            // 元数据写库失败：仅当本次确实落盘新字节时才补偿删除，避免删掉被秒传复用的共享字节
+            if (!deduplicated) {
+                log.error("文件上传写元数据失败，已回滚落盘文件：bizType={} name={} path={}",
+                        bizType, originalName, path, e);
+                storage.delete(path);
+            } else {
+                log.error("文件上传写元数据失败（秒传复用字节，保留共享文件）：bizType={} name={} path={}",
+                        bizType, originalName, path, e);
+            }
             throw e;
         }
     }
@@ -145,13 +170,101 @@ public class FileService {
         return signer.sign(String.valueOf(obj.getId()), normalizedPurpose, expiresSeconds);
     }
 
-    /** 软删除：仅改元数据状态，字节由孤儿清理任务延后物理删除。 */
+    /** 软删除：仅改元数据状态，字节保留（秒传可能共享，物理删除走 purge 并做引用检查）。 */
     @Transactional(rollbackFor = Exception.class)
     public void delete(String id) {
         FileObject obj = require(id);
         obj.setStatus(STATUS_DELETED);
         obj.setDeletedAt(LocalDateTime.now());
         fileMapper.updateById(obj);
+    }
+
+    /** 回收站分页：查询已软删的文件。 */
+    public PageResult<FileObject> recycleBin(int page, int size, String bizType, String keyword) {
+        LambdaQueryWrapper<FileObject> w = new LambdaQueryWrapper<>();
+        w.eq(FileObject::getStatus, STATUS_DELETED);
+        if (bizType != null && !bizType.isBlank()) {
+            w.eq(FileObject::getBizType, bizType.trim());
+        }
+        if (keyword != null && !keyword.isBlank()) {
+            w.like(FileObject::getOriginalName, keyword.trim());
+        }
+        w.orderByDesc(FileObject::getDeletedAt);
+        IPage<FileObject> p = fileMapper.selectPage(new Page<>(page, size), w);
+        return PageResult.of(p.getRecords().stream().map(o -> withUrl(o, null)).toList(),
+                p.getTotal(), page, size);
+    }
+
+    /** 从回收站恢复：校验处于 DELETED 且物理字节仍在。 */
+    @Transactional(rollbackFor = Exception.class)
+    public void restore(String id) {
+        Long lid = parseId(id);
+        FileObject obj = lid == null ? null : fileMapper.selectById(lid);
+        if (obj == null || !STATUS_DELETED.equals(obj.getStatus())) {
+            throw new BizException(FileErrorCode.FILE_NOT_DELETED);
+        }
+        if (!storage.exists(obj.getStoragePath())) {
+            log.error("恢复失败：物理字节已丢失 fileId={} path={}", id, obj.getStoragePath());
+            throw new BizException(FileErrorCode.FILE_RESTORE_PATH_LOST);
+        }
+        obj.setStatus(STATUS_NORMAL);
+        obj.setDeletedAt(null);
+        fileMapper.updateById(obj);
+        log.info("文件已从回收站恢复：fileId={} path={}", id, obj.getStoragePath());
+    }
+
+    /**
+     * 彻底删除：物理删字节 + 删元数据。秒传场景下多个元数据可能共享同一字节，
+     * 若仍有其它记录（正常或回收站）引用该 path，则只删本条元数据，保留物理文件。
+     */
+    @Transactional(rollbackFor = Exception.class)
+    public void purge(String id) {
+        Long lid = parseId(id);
+        FileObject obj = lid == null ? null : fileMapper.selectById(lid);
+        if (obj == null || !STATUS_DELETED.equals(obj.getStatus())) {
+            throw new BizException(FileErrorCode.FILE_NOT_DELETED);
+        }
+        String path = obj.getStoragePath();
+        boolean referenced = fileMapper.selectCount(new LambdaQueryWrapper<FileObject>()
+                .eq(FileObject::getStoragePath, path)
+                .ne(FileObject::getId, lid)) > 0;
+        if (referenced) {
+            log.info("彻底删除：物理字节仍被其它记录引用，仅删元数据 fileId={} path={}", id, path);
+        } else if (!storage.delete(path)) {
+            log.warn("彻底删除：物理字节不存在或删除失败 fileId={} path={}", id, path);
+        }
+        fileMapper.deleteById(lid);
+        log.info("文件已彻底删除：fileId={} path={} physicalDeleted={}", id, path, !referenced);
+    }
+
+    /**
+     * 生命周期清理：按各业务策略 ttlDays，把超期的 NORMAL 文件移入回收站（软删，可恢复）。
+     * 由定时任务调用；返回本轮处理条数。
+     */
+    @Transactional(rollbackFor = Exception.class)
+    public int expireByTtl() {
+        List<StoragePolicy> policies = policies().stream()
+                .filter(p -> p.getTtlDays() != null && p.getTtlDays() > 0).toList();
+        int total = 0;
+        LocalDateTime now = LocalDateTime.now();
+        for (StoragePolicy p : policies) {
+            LocalDateTime cutoff = now.minusDays(p.getTtlDays());
+            List<FileObject> expired = fileMapper.selectList(new LambdaQueryWrapper<FileObject>()
+                    .eq(FileObject::getStatus, STATUS_NORMAL)
+                    .eq(FileObject::getBizType, p.getBizType())
+                    .lt(FileObject::getCreatedAt, cutoff));
+            for (FileObject obj : expired) {
+                obj.setStatus(STATUS_DELETED);
+                obj.setDeletedAt(now);
+                fileMapper.updateById(obj);
+                total++;
+            }
+            if (!expired.isEmpty()) {
+                log.info("生命周期清理：bizType={} ttlDays={} 移入回收站 {} 条",
+                        p.getBizType(), p.getTtlDays(), expired.size());
+            }
+        }
+        return total;
     }
 
     /** 管理端分页。 */
@@ -302,6 +415,27 @@ public class FileService {
         return result;
     }
 
+    /** 业务总配额校验：按 bizType 汇总 NORMAL 文件字节，超过 quotaGb 拒绝新增。 */
+    private void checkQuota(StoragePolicy policy, String bizType, int incomingBytes) {
+        Long quotaGb = policy.getQuotaGb();
+        if (quotaGb == null || quotaGb <= 0) {
+            return;
+        }
+        Long used = fileMapper.selectList(new LambdaQueryWrapper<FileObject>()
+                        .eq(FileObject::getStatus, STATUS_NORMAL)
+                        .eq(FileObject::getBizType, bizType)
+                        .select(FileObject::getSize)).stream()
+                .map(FileObject::getSize).filter(java.util.Objects::nonNull)
+                .mapToLong(Long::longValue).sum();
+        long limit = quotaGb * 1024L * 1024L * 1024L;
+        if (used + incomingBytes > limit) {
+            log.warn("上传被拒：业务配额超限 bizType={} used={} incoming={} limit={}",
+                    bizType, used, incomingBytes, limit);
+            throw new BizException(FileErrorCode.QUOTA_EXCEEDED,
+                    "业务「" + bizType + "」存储配额已用尽（上限 " + quotaGb + "GB）");
+        }
+    }
+
     private StoragePolicy policy(String bizType) {
         StoragePolicy p = policyMapper.selectOne(new LambdaQueryWrapper<StoragePolicy>()
                 .eq(StoragePolicy::getBizType, bizType)
@@ -337,6 +471,10 @@ public class FileService {
         String[] signed = signer.sign(String.valueOf(obj.getId()),
                 purpose == null ? "VIEW" : purpose, null);
         obj.setUrl(signed[0]);
+        // 位图图片额外给一个缩略图 URL：签名串不覆盖 w 参数，追加后校验仍通过
+        if (ThumbnailService.isRasterImage(obj.getContentType())) {
+            obj.setThumbUrl(signed[0] + "&w=240");
+        }
         return obj;
     }
 
