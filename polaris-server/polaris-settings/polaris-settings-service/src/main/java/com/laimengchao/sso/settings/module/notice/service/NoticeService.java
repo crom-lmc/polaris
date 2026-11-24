@@ -11,6 +11,7 @@ import com.laimengchao.sso.settings.module.notice.entity.NoticeMessage;
 import com.laimengchao.sso.settings.module.notice.entity.NoticeRule;
 import com.laimengchao.sso.settings.module.notice.mapper.NoticeMessageMapper;
 import com.laimengchao.sso.settings.module.notice.mapper.NoticeRuleMapper;
+import com.laimengchao.sso.settings.module.notice.vo.NoticeAttachmentVO;
 import com.laimengchao.sso.settings.module.notice.vo.NoticeMessageVO;
 import com.laimengchao.sso.settings.module.notice.vo.NoticeRuleVO;
 import lombok.extern.slf4j.Slf4j;
@@ -45,13 +46,16 @@ public class NoticeService {
     private final NoticeMessageMapper messageMapper;
     private final NoticeMailSender mailSender;
     private final ApprovalTemplateMapper templateMapper;
+    private final NoticeAttachmentService attachmentService;
 
     public NoticeService(NoticeRuleMapper ruleMapper, NoticeMessageMapper messageMapper,
-                         NoticeMailSender mailSender, ApprovalTemplateMapper templateMapper) {
+                         NoticeMailSender mailSender, ApprovalTemplateMapper templateMapper,
+                         NoticeAttachmentService attachmentService) {
         this.ruleMapper = ruleMapper;
         this.messageMapper = messageMapper;
         this.mailSender = mailSender;
         this.templateMapper = templateMapper;
+        this.attachmentService = attachmentService;
     }
 
     /* ---------------- 发送 ---------------- */
@@ -109,6 +113,14 @@ public class NoticeService {
         msg.setApplicantName(safe(req.getApplicantName()));
         msg.setLink(safe(req.getLink()));
         messageMapper.insert(msg);
+        // 附件只是已上传文件的关联，单独失败不影响消息本身送达
+        if (req.getAttachments() != null && !req.getAttachments().isEmpty()) {
+            try {
+                attachmentService.bind(msg.getId(), req.getAttachments(), req.getAccountId());
+            } catch (Exception e) {
+                log.error("站内消息附件绑定失败：noticeId={} accountId={}", msg.getId(), req.getAccountId(), e);
+            }
+        }
 
         boolean sendMail = req.getEmail() != null
                 ? Boolean.TRUE.equals(req.getEmail())
@@ -262,8 +274,11 @@ public class NoticeService {
         List<NoticeMessage> list = messageMapper.selectList(qw);
         // 左侧树按「业务应用 → 业务类型」分组，名称从审批模板取；非审批消息退回模块名
         Map<String, ApprovalTemplate> tplMap = resolveTemplates(list);
+        Map<Long, List<NoticeAttachmentVO>> attMap = attachmentService.listByNoticeIds(
+                list.stream().map(NoticeMessage::getId).toList());
         return list.stream()
-                .map(m -> toMessageVO(m, m.getBizType() == null ? null : tplMap.get(m.getBizType())))
+                .map(m -> toMessageVO(m, m.getBizType() == null ? null : tplMap.get(m.getBizType()),
+                        attMap.getOrDefault(m.getId(), List.of())))
                 .toList();
     }
 
@@ -416,7 +431,7 @@ public class NoticeService {
                         ApprovalTemplate::getBizType, t -> t, (a, b) -> a));
     }
 
-    private NoticeMessageVO toMessageVO(NoticeMessage m, ApprovalTemplate tpl) {
+    private NoticeMessageVO toMessageVO(NoticeMessage m, ApprovalTemplate tpl, List<NoticeAttachmentVO> attachments) {
         NoticeMessageVO vo = new NoticeMessageVO();
         vo.setId(m.getId());
         vo.setModule(m.getModule());
@@ -430,6 +445,7 @@ public class NoticeService {
         vo.setLink(m.getLink());
         vo.setReadAt(m.getReadAt());
         vo.setCreatedAt(m.getCreatedAt());
+        vo.setAttachments(attachments == null ? List.of() : attachments);
         if (tpl != null) {
             vo.setGroupApp(tpl.getAppCode());
             vo.setGroupName(tpl.getBizName());

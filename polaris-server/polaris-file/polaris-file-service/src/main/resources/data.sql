@@ -9,4 +9,8 @@ VALUES
   (9200000000000000003,'forum_post','论坛帖子附件',10,
    'jpg,jpeg,png,gif,webp,pdf,svg','PUBLIC',0,1,'帖子图片与附件；历史封面含 svg',NOW()),
   (9200000000000000004,'openapi_export','开放平台导出文件',30,
-   'csv,xlsx,zip','PRIVATE',1,1,'开放平台数据导出，私有',NOW());
+   'csv,xlsx,zip','PRIVATE',1,1,'开放平台数据导出，私有',NOW()),
+  (9200000000000000005,'notice_attachment','站内消息附件',20,
+   'jpg,jpeg,png,gif,webp,pdf,doc,docx,xls,xlsx,zip','PRIVATE',1,1,'站内信附件强制私有，仅消息接收人可下载',NOW()),
+  (9200000000000000006,'announcement_attachment','内部通知附件',20,
+   'jpg,jpeg,png,gif,webp,pdf,doc,docx,xls,xlsx,zip','PRIVATE',1,1,'公告正文插图与附件强制私有，按公告可见范围下载',NOW());

@@ -36,4 +36,6 @@ public class AnnouncementVO {
     private LocalDateTime updatedAt;
     /** 当前登录人是否已读（账号中心列表用） */
     private Boolean read;
+    /** 附件列表：列表接口也带上，让「有附件」标记能显示 */
+    private List<AnnouncementAttachmentVO> attachments = new ArrayList<>();
 }

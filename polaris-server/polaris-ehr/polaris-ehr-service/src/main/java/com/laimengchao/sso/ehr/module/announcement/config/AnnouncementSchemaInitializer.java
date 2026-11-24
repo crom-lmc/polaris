@@ -68,10 +68,26 @@ public class AnnouncementSchemaInitializer implements ApplicationRunner {
                         KEY idx_ann_read_account (account_id)
                     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='内部通知阅读记录'
                     """);
+            jdbcTemplate.execute("""
+                    CREATE TABLE IF NOT EXISTS announcement_attachment (
+                        id              BIGINT        NOT NULL COMMENT '雪花ID',
+                        announcement_id BIGINT        NOT NULL DEFAULT 0 COMMENT '所属通知ID，0表示编辑中的临时附件',
+                        file_id         BIGINT        NOT NULL COMMENT '统一文件服务文件ID（file_object.id）',
+                        file_name       VARCHAR(255)  NOT NULL DEFAULT '',
+                        size            BIGINT        NOT NULL DEFAULT 0,
+                        mime            VARCHAR(128)  NOT NULL DEFAULT '',
+                        uploaded_by     BIGINT        DEFAULT NULL,
+                        deleted         TINYINT       NOT NULL DEFAULT 0,
+                        created_at      DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                        updated_at      DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                        PRIMARY KEY (id),
+                        KEY idx_ann_attach (announcement_id, deleted)
+                    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='内部通知附件（统一文件服务）'
+                    """);
             // 已存在的旧表没有业务编号列，补一列（幂等）
             addColumnIfMissing("ehr_announcement", "announcement_no",
                     "VARCHAR(64) NOT NULL DEFAULT '' COMMENT '业务编号，按 settings 单号规则生成（前缀 NOTICE）' AFTER id");
-            log.info("通知表检查完成：ehr_announcement / ehr_announcement_read 均已存在");
+            log.info("通知表检查完成：ehr_announcement / ehr_announcement_read / announcement_attachment 均已存在");
         } catch (Exception e) {
             log.error("通知表初始化失败（通知管理 / 通知中心将不可用，请手工执行 schema.sql 末尾的建表语句）：{}",
                     e.getMessage(), e);

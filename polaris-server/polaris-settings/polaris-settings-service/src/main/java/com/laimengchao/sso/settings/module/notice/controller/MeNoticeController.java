@@ -3,18 +3,25 @@ package com.laimengchao.sso.settings.module.notice.controller;
 import com.laimengchao.sso.common.BizException;
 import com.laimengchao.sso.common.ErrorCode;
 import com.laimengchao.sso.common.R;
+import com.laimengchao.sso.settings.module.notice.service.NoticeAttachmentService;
 import com.laimengchao.sso.settings.module.notice.service.NoticeService;
 import com.laimengchao.sso.settings.module.notice.vo.NoticeMessageVO;
 import com.laimengchao.sso.common.security.SecurityUser;
 import com.laimengchao.sso.common.security.SecurityUtils;
 import lombok.Data;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 
 /**
@@ -26,9 +33,11 @@ import java.util.List;
 public class MeNoticeController {
 
     private final NoticeService noticeService;
+    private final NoticeAttachmentService attachmentService;
 
-    public MeNoticeController(NoticeService noticeService) {
+    public MeNoticeController(NoticeService noticeService, NoticeAttachmentService attachmentService) {
         this.noticeService = noticeService;
+        this.attachmentService = attachmentService;
     }
 
     @GetMapping("/my")
@@ -52,6 +61,22 @@ public class MeNoticeController {
     @PostMapping("/my/read-all")
     public R<Integer> markAllRead() {
         return R.ok(noticeService.markAllRead(currentAccountId()));
+    }
+
+    /**
+     * 下载消息附件：账号ID 只取当前登录身份，Service 内再校验「该消息确实发给这个人」。
+     */
+    @GetMapping("/attachments/{id}/download")
+    public ResponseEntity<byte[]> download(@PathVariable Long id) {
+        NoticeAttachmentService.AttachmentFile file = attachmentService.download(id, currentAccountId());
+        String name = file.getFileName() == null || file.getFileName().isBlank() ? "attachment" : file.getFileName();
+        String encoded = URLEncoder.encode(name, StandardCharsets.UTF_8).replace("+", "%20");
+        return ResponseEntity.ok()
+                .contentType(file.getMime() == null || file.getMime().isBlank()
+                        ? MediaType.APPLICATION_OCTET_STREAM : MediaType.parseMediaType(file.getMime()))
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + encoded
+                        + "\"; filename*=UTF-8''" + encoded)
+                .body(file.getBytes());
     }
 
     private Long currentAccountId() {

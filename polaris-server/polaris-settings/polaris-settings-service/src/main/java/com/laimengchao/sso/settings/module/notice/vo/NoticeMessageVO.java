@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ser.std.ToStringSerializer;
 import lombok.Data;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 /** 站内待办/消息 */
 @Data
@@ -30,4 +31,6 @@ public class NoticeMessageVO {
     private String groupName;
     private LocalDateTime readAt;
     private LocalDateTime createdAt;
+    /** 消息附件（统一文件服务），无附件时为空数组 */
+    private List<NoticeAttachmentVO> attachments = List.of();
 }

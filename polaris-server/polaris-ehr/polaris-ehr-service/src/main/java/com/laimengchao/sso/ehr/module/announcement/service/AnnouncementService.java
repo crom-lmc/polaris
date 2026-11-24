@@ -13,6 +13,8 @@ import com.laimengchao.sso.ehr.module.announcement.entity.Announcement;
 import com.laimengchao.sso.ehr.module.announcement.entity.AnnouncementRead;
 import com.laimengchao.sso.ehr.module.announcement.mapper.AnnouncementMapper;
 import com.laimengchao.sso.ehr.module.announcement.mapper.AnnouncementReadMapper;
+import com.laimengchao.sso.ehr.module.announcement.service.AnnouncementAttachmentService;
+import com.laimengchao.sso.ehr.module.announcement.vo.AnnouncementAttachmentVO;
 import com.laimengchao.sso.ehr.module.announcement.vo.AnnouncementVO;
 import com.laimengchao.sso.ehr.module.employee.constant.EmployeeStatus;
 import com.laimengchao.sso.ehr.module.employee.entity.Employee;
@@ -76,6 +78,7 @@ public class AnnouncementService {
     private final OrgNodeMapper orgMapper;
     private final CodeRuleApi codeRuleApi;
     private final SettingsClient settingsClient;
+    private final AnnouncementAttachmentService attachmentService;
 
     /* ======================= 管理端 ======================= */
 
@@ -94,12 +97,17 @@ public class AnnouncementService {
         }
         w.orderByDesc(Announcement::getPinned).orderByDesc(Announcement::getCreatedAt);
         IPage<Announcement> ip = announcementMapper.selectPage(new Page<>(page, size), w);
-        List<AnnouncementVO> rows = ip.getRecords().stream().map(a -> toVO(a, false)).toList();
+        List<Announcement> records = ip.getRecords();
+        Map<Long, List<AnnouncementAttachmentVO>> attMap = attachmentService.listByAnnouncementIds(
+                records.stream().map(Announcement::getId).toList());
+        List<AnnouncementVO> rows = records.stream()
+                .map(a -> toVO(a, false, attMap.getOrDefault(a.getId(), List.of())))
+                .toList();
         return R.Page.of(rows, ip.getTotal());
     }
 
     public AnnouncementVO detail(Long id) {
-        return toVO(require(id), true);
+        return toVO(require(id), true, attachmentsOf(id));
     }
 
     public AnnouncementVO create(AnnouncementSaveRequest req) {
@@ -114,7 +122,10 @@ public class AnnouncementService {
         applySave(a, req);
         a.setAnnouncementNo(nextAnnouncementNo());
         announcementMapper.insert(a);
-        return toVO(a, true);
+        if (req.getAttachmentIds() != null) {
+            attachmentService.bind(a.getId(), req.getAttachmentIds());
+        }
+        return toVO(a, true, attachmentsOf(a.getId()));
     }
 
     /** 已发布的通知必须先下架才能编辑，避免线上内容被半截改写 */
@@ -125,13 +136,17 @@ public class AnnouncementService {
         }
         applySave(a, req);
         announcementMapper.updateById(a);
-        return toVO(a, true);
+        // null=本次不改动附件；空数组=清空附件
+        if (req.getAttachmentIds() != null) {
+            attachmentService.bind(a.getId(), req.getAttachmentIds());
+        }
+        return toVO(a, true, attachmentsOf(a.getId()));
     }
 
     public AnnouncementVO publish(Long id) {
         Announcement a = require(id);
         if (a.getStatus() != null && a.getStatus() == 1) {
-            return toVO(a, true);
+            return toVO(a, true, attachmentsOf(a.getId()));
         }
         int targetCount = computeTargetCount(a);
         announcementMapper.update(null, new LambdaUpdateWrapper<Announcement>()
@@ -140,7 +155,7 @@ public class AnnouncementService {
                 .set(Announcement::getPublishAt, LocalDateTime.now())
                 .set(Announcement::getOfflineAt, null)
                 .set(Announcement::getTargetCount, targetCount));
-        return toVO(require(id), true);
+        return toVO(require(id), true, attachmentsOf(id));
     }
 
     public AnnouncementVO offline(Long id) {
@@ -152,7 +167,7 @@ public class AnnouncementService {
                 .eq(Announcement::getId, id)
                 .set(Announcement::getStatus, 2)
                 .set(Announcement::getOfflineAt, LocalDateTime.now()));
-        return toVO(require(id), true);
+        return toVO(require(id), true, attachmentsOf(id));
     }
 
     public void delete(Long id) {
@@ -160,6 +175,7 @@ public class AnnouncementService {
         if (a.getStatus() != null && a.getStatus() == 1) {
             throw new BizException(ErrorCode.PARAM_ERROR, "已发布的通知请先下架再删除");
         }
+        attachmentService.deleteByAnnouncementIds(List.of(id));
         announcementMapper.deleteById(id);
     }
 
@@ -198,9 +214,11 @@ public class AnnouncementService {
         int to = Math.min(from + size, visible.size());
         List<Announcement> slice = visible.subList(from, to);
         Set<Long> readIds = readIds(user.getAccountId(), slice);
+        Map<Long, List<AnnouncementAttachmentVO>> attMap = attachmentService.listByAnnouncementIds(
+                slice.stream().map(Announcement::getId).toList());
         List<AnnouncementVO> rows = slice.stream()
                 .map(a -> {
-                    AnnouncementVO vo = toVO(a, false);
+                    AnnouncementVO vo = toVO(a, false, attMap.getOrDefault(a.getId(), List.of()));
                     vo.setRead(readIds.contains(a.getId()));
                     return vo;
                 })
@@ -222,9 +240,23 @@ public class AnnouncementService {
                     .eq(Announcement::getId, id)
                     .setSql("read_count = read_count + 1"));
         }
-        AnnouncementVO vo = toVO(require(id), true);
+        AnnouncementVO vo = toVO(require(id), true, attachmentsOf(id));
         vo.setRead(true);
         return vo;
+    }
+
+    /**
+     * 附件下载的可见性入口：供附件 Controller 调用，避免把 myOrgScope/visibleTo 暴露成通用工具。
+     * 只有「已发布 + 在当前用户可见范围内」的公告附件才允许读取。
+     */
+    public boolean canAccessAttachment(Long attachmentId, Long accountId) {
+        var att = attachmentService.find(attachmentId);
+        if (att == null || att.getAnnouncementId() == null || att.getAnnouncementId() == 0L) {
+            return false;
+        }
+        Announcement a = announcementMapper.selectById(att.getAnnouncementId());
+        return a != null && a.getStatus() != null && a.getStatus() == 1
+                && visibleTo(a, myOrgScope(accountId));
     }
 
     public long myUnreadCount() {
@@ -417,7 +449,15 @@ public class AnnouncementService {
         return dict.isEmpty() ? CATEGORY_FALLBACK : dict;
     }
 
-    private AnnouncementVO toVO(Announcement a, boolean withContent) {
+    private List<AnnouncementAttachmentVO> attachmentsOf(Long announcementId) {
+        if (announcementId == null) {
+            return List.of();
+        }
+        return attachmentService.listByAnnouncementIds(List.of(announcementId))
+                .getOrDefault(announcementId, List.of());
+    }
+
+    private AnnouncementVO toVO(Announcement a, boolean withContent, List<AnnouncementAttachmentVO> attachments) {
         AnnouncementVO vo = new AnnouncementVO();
         vo.setId(a.getId() == null ? null : String.valueOf(a.getId()));
         vo.setAnnouncementNo(nvl(a.getAnnouncementNo()));
@@ -442,6 +482,7 @@ public class AnnouncementService {
         vo.setRemark(nvl(a.getRemark()));
         vo.setCreatedAt(a.getCreatedAt());
         vo.setUpdatedAt(a.getUpdatedAt());
+        vo.setAttachments(attachments == null ? List.of() : attachments);
         return vo;
     }
 

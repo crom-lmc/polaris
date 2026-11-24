@@ -39,4 +39,6 @@ public class NoticeSendDTO {
     private String module;
     /** 点击跳转的前端路由 */
     private String link;
+    /** 附件元信息：调用方先上传到统一文件服务，这里只传 file_id 与展示信息 */
+    private List<NoticeAttachmentDTO> attachments;
 }

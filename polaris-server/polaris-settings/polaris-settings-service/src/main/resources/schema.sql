@@ -524,3 +524,20 @@ CREATE TABLE IF NOT EXISTS `notice_message` (
   KEY `idx_notice_acc` (`account_id`,`read_at`,`created_at`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='站内待办/消息';
 /*!40101 SET character_set_client = @saved_cs_client */;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE IF NOT EXISTS `notice_attachment` (
+  `id` bigint(20) NOT NULL COMMENT '雪花ID',
+  `notice_id` bigint(20) NOT NULL COMMENT '所属站内消息ID（notice_message.id）',
+  `file_id` bigint(20) NOT NULL COMMENT '统一文件服务文件ID（file_object.id）',
+  `file_name` varchar(255) NOT NULL DEFAULT '',
+  `size` bigint(20) NOT NULL DEFAULT '0',
+  `mime` varchar(128) NOT NULL DEFAULT '',
+  `uploaded_by` bigint(20) DEFAULT NULL COMMENT '上传账号ID，系统生成的消息可为0',
+  `deleted` tinyint(4) NOT NULL DEFAULT '0',
+  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_notice_attach` (`notice_id`,`deleted`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='站内消息附件（统一文件服务）';
+/*!40101 SET character_set_client = @saved_cs_client */;

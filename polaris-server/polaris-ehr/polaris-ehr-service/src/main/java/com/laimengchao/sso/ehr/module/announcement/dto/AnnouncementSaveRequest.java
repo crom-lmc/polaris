@@ -36,4 +36,7 @@ public class AnnouncementSaveRequest {
 
     @Size(max = 255, message = "备注不能超过 255 字")
     private String remark;
+
+    /** 附件ID列表：前端先调附件上传接口拿到 ID，保存通知时一并绑定 */
+    private List<Long> attachmentIds;
 }
