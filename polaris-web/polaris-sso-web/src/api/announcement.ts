@@ -1,5 +1,14 @@
 import request from './request'
 
+/** 内部通知附件（本体在统一文件服务，下载走受控接口） */
+export interface AnnouncementAttachment {
+  id: string
+  fileName: string
+  size?: number
+  mime?: string
+  downloadUrl?: string
+}
+
 /**
  * 通知中心：数据在 EHR 服务（人力中心发布的内部通知），网关按 /api/ehr/** 转发。
  * 身份由网关注入的令牌决定，接口不接收账号 / 部门参数；后端按员工档案的部门祖先链过滤可见范围。
@@ -24,6 +33,7 @@ export interface NoticeItem {
   readCount?: number
   /** 当前登录人是否已读 */
   read?: boolean
+  attachments?: AnnouncementAttachment[]
 }
 
 export interface NoticePage {
@@ -43,6 +53,22 @@ export function fetchNoticeDetail(id: string) {
 
 export function fetchNoticeUnreadCount() {
   return request.get<never, { data: number }>('/api/ehr/announcements/unread-count')
+}
+
+/** 下载公告附件：服务端先按公告可见范围校验，前端只负责存文件 */
+export async function downloadAnnouncementAttachment(id: string, fileName?: string) {
+  const res = await request.get<Blob>(`/api/ehr/announcements/attachments/${id}/download`, {
+    responseType: 'blob'
+  })
+  const blob = res.data
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = fileName || 'attachment'
+  document.body.appendChild(a)
+  a.click()
+  a.remove()
+  URL.revokeObjectURL(url)
 }
 
 export interface DictOption {

@@ -48,6 +48,7 @@
               <a class="tt" :class="{ unread: !record.read }">{{ record.title }}</a>
               <span v-if="!record.read" class="dot" />
               <span v-if="record.summary" class="sub">{{ record.summary }}</span>
+              <span v-if="record.attachments?.length" class="att-flag">附件 {{ record.attachments.length }}</span>
             </div>
           </template>
           <template v-else-if="column.key === 'category'">
@@ -74,6 +75,14 @@
         <span class="muted">发布：{{ fmtTime(detail.publishAt) }} · {{ detail.publisherName }}</span>
       </div>
       <div v-if="detail" class="detail-content" v-html="sanitizeHtml(detail.content)" />
+      <div v-if="detail?.attachments?.length" class="att-list">
+        <div class="att-head">附件</div>
+        <div v-for="f in detail.attachments" :key="f.id" class="att-row">
+          <span class="att-name" :title="f.fileName">{{ f.fileName }}</span>
+          <span class="att-size">{{ fmtSize(f.size) }}</span>
+          <a-button type="link" size="small" @click="downloadAttachment(f)">下载</a-button>
+        </div>
+      </div>
     </a-modal>
   </div>
 </template>
@@ -81,7 +90,15 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { message } from 'ant-design-vue'
-import { type NoticeItem, dictOptions, fetchNoticeDetail, fetchNoticeUnreadCount, pageNotices } from '@/api/announcement'
+import {
+  downloadAnnouncementAttachment,
+  type AnnouncementAttachment,
+  type NoticeItem,
+  dictOptions,
+  fetchNoticeDetail,
+  fetchNoticeUnreadCount,
+  pageNotices
+} from '@/api/announcement'
 import { sanitizeHtml } from '@/utils/html'
 
 const columns = [
@@ -190,6 +207,19 @@ function onTableChange(p: { current?: number; pageSize?: number }) {
 function fmtTime(value?: string) {
   if (!value) return '—'
   return value.replace('T', ' ').slice(0, 16)
+}
+
+function fmtSize(n?: number) {
+  if (!n) return '—'
+  return n < 1024 ? `${n} B` : n < 1024 * 1024 ? `${(n / 1024).toFixed(1)} KB` : `${(n / 1024 / 1024).toFixed(1)} MB`
+}
+
+async function downloadAttachment(f: AnnouncementAttachment) {
+  try {
+    await downloadAnnouncementAttachment(f.id, f.fileName)
+  } catch (e: any) {
+    message.error(e?.message || '下载失败')
+  }
 }
 
 /* ---------------- 详情：打开即记读 ---------------- */
@@ -317,6 +347,44 @@ onMounted(() => {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.att-flag {
+  font-size: 11px;
+  color: #1677ff;
+}
+
+.att-list {
+  margin-top: 16px;
+  border-top: 1px solid var(--border-color, #f0f0f0);
+  padding-top: 12px;
+}
+
+.att-head {
+  margin-bottom: 8px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.att-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 4px 0;
+  font-size: 13px;
+}
+
+.att-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.att-size {
+  color: #8c8c8c;
+  font-size: 12px;
 }
 
 .detail-meta {

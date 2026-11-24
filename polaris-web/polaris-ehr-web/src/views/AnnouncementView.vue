@@ -65,6 +65,7 @@
                 <span>{{ record.title }}</span>
               </div>
               <div v-if="record.summary" class="muted cell-sub">{{ record.summary }}</div>
+              <div v-if="record.attachments?.length" class="muted cell-sub">附件 {{ record.attachments.length }}</div>
             </template>
             <template v-else-if="column.key === 'category'">
               <a-tag color="blue">{{ record.categoryName }}</a-tag>
@@ -193,6 +194,24 @@
           <rich-text-editor v-model="form.content" placeholder="请输入通知正文（支持加粗、标题、列表、对齐、链接等排版）" />
         </a-form-item>
 
+        <a-form-item label="附件">
+          <div class="att-upload">
+            <a-upload :before-upload="handleAttachmentPick" :show-upload-list="false">
+              <a-button :loading="uploading">
+                <template #icon><upload-outlined /></template>
+                上传附件
+              </a-button>
+            </a-upload>
+            <span class="muted">单个不超过 20MB，支持图片 / PDF / Office / 压缩包</span>
+          </div>
+          <div v-if="form.attachments.length" class="att-list">
+            <div v-for="f in form.attachments" :key="f.id" class="att-row">
+              <span class="att-name" :title="f.fileName">{{ f.fileName }}</span>
+              <a-button type="link" size="small" danger @click="removeAttachment(f.id)">移除</a-button>
+            </div>
+          </div>
+        </a-form-item>
+
         <a-form-item label="备注">
           <a-input v-model:value="form.remark" :maxlength="255" placeholder="内部备注，不会展示给员工" />
         </a-form-item>
@@ -216,6 +235,13 @@
         <span class="muted">发布：{{ viewItem.publishAt || '—' }} · {{ viewItem.publisherName }}</span>
       </div>
       <div v-if="viewItem" class="view-content" v-html="DOMPurify.sanitize(viewItem.content || '')" />
+      <div v-if="viewItem?.attachments?.length" class="att-list">
+        <div class="att-head">附件</div>
+        <div v-for="f in viewItem.attachments" :key="f.id" class="att-row">
+          <span class="att-name" :title="f.fileName">{{ f.fileName }}</span>
+          <a-button type="link" size="small" @click="downloadAttachment(f)">下载</a-button>
+        </div>
+      </div>
     </a-modal>
   </div>
 </template>
@@ -224,19 +250,22 @@
 import { computed, onMounted, reactive, ref } from 'vue'
 import DOMPurify from 'dompurify'
 import { message } from 'ant-design-vue'
-import { PlusOutlined, ReloadOutlined } from '@ant-design/icons-vue'
+import { PlusOutlined, ReloadOutlined, UploadOutlined } from '@ant-design/icons-vue'
 import {
+  type AnnouncementAttachment,
   type AnnouncementItem,
   type AnnouncementSaveBody,
   type OrgNode,
   announcementOrgTree,
   createAnnouncement,
   deleteAnnouncement,
+  downloadAnnouncementAttachment,
   getAnnouncement,
   offlineAnnouncement,
   pageAnnouncements,
   publishAnnouncement,
   updateAnnouncement,
+  uploadAnnouncementAttachment,
   dictOptions
 } from '@/api/ehr'
 import RichTextEditor from '@/components/RichTextEditor.vue'
@@ -353,6 +382,7 @@ function statusColor(status: number) {
 
 const editorOpen = ref(false)
 const saving = ref(false)
+const uploading = ref(false)
 const editingId = ref('')
 const form = reactive({
   title: '',
@@ -362,7 +392,8 @@ const form = reactive({
   targetType: 0,
   targetOrgIds: [] as string[],
   pinned: false,
-  remark: ''
+  remark: '',
+  attachments: [] as AnnouncementAttachment[]
 })
 
 function resetForm() {
@@ -375,6 +406,7 @@ function resetForm() {
   form.targetOrgIds = []
   form.pinned = false
   form.remark = ''
+  form.attachments = []
 }
 
 function openCreate() {
@@ -401,6 +433,7 @@ async function openEdit(row: AnnouncementItem) {
     form.targetOrgIds = [...(detail.targetOrgIds || [])]
     form.pinned = detail.pinned === 1
     form.remark = detail.remark || ''
+    form.attachments = [...(detail.attachments || [])]
     editorOpen.value = true
   } catch (e: any) {
     message.error(e?.message || '通知详情加载失败')
@@ -412,6 +445,37 @@ function plainText(html: string) {
     .replace(/<[^>]*>/g, '')
     .replace(/&nbsp;/g, ' ')
     .trim()
+}
+
+/** before-upload 返回 false 阻止组件默认提交，改为自己调接口并维护表单中的附件列表 */
+async function handleAttachmentPick(file: File) {
+  if (file.size > 20 * 1024 * 1024) {
+    message.warning('单个附件不能超过 20MB')
+    return false
+  }
+  uploading.value = true
+  try {
+    const att = await uploadAnnouncementAttachment(file)
+    form.attachments.push(att)
+    message.success(`已上传：${att.fileName}`)
+  } catch (e: any) {
+    message.error(e?.message || '附件上传失败')
+  } finally {
+    uploading.value = false
+  }
+  return false
+}
+
+function removeAttachment(id: string) {
+  form.attachments = form.attachments.filter((f) => f.id !== id)
+}
+
+async function downloadAttachment(f: AnnouncementAttachment) {
+  try {
+    await downloadAnnouncementAttachment(f.id, f.fileName)
+  } catch (e: any) {
+    message.error(e?.message || '下载失败')
+  }
 }
 
 async function submit() {
@@ -435,7 +499,8 @@ async function submit() {
     targetType: form.targetType,
     targetOrgIds: form.targetType === 1 ? form.targetOrgIds : [],
     pinned: form.pinned,
-    remark: form.remark.trim()
+    remark: form.remark.trim(),
+    attachmentIds: form.attachments.map((f) => f.id)
   }
   saving.value = true
   try {
@@ -646,5 +711,41 @@ onMounted(() => {
 .view-content :deep(a) {
   color: #1677ff;
   text-decoration: underline;
+}
+.att-upload {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.att-list {
+  margin-top: 10px;
+  padding: 8px 12px;
+  border: 1px solid var(--border-color, #f0f0f0);
+  border-radius: 6px;
+}
+
+.att-head {
+  margin-bottom: 6px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.att-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 3px 0;
+  font-size: 13px;
+}
+
+.att-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 </style>

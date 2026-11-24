@@ -27,6 +27,17 @@ export interface NoticeMessage {
   groupName?: string
   readAt?: string
   createdAt?: string
+  attachments?: NoticeAttachment[]
+}
+
+/** 站内消息附件（本体在统一文件服务，这里只拿展示信息与受控下载路径） */
+export interface NoticeAttachment {
+  id: string
+  fileName: string
+  size?: number
+  mime?: string
+  downloadUrl?: string
+  createdAt?: string
 }
 
 /** 风格与 apps.ts 保持一致：TS 泛型声明 { data: X }，运行时拦截器解包后 .data 即数据本体 */
@@ -45,4 +56,20 @@ export function markNoticesRead(ids: string[]) {
 
 export function markAllNoticesRead() {
   return request.post<never, { data: number }>('/api/settings/notices/my/read-all')
+}
+
+/** 下载消息附件：服务端校验「该消息确实发给当前账号」，前端只负责把字节存成文件 */
+export async function downloadNoticeAttachment(id: string, fileName?: string) {
+  const res = await request.get<Blob>(`/api/settings/notices/attachments/${id}/download`, {
+    responseType: 'blob'
+  })
+  const blob = res.data
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = fileName || 'attachment'
+  document.body.appendChild(a)
+  a.click()
+  a.remove()
+  URL.revokeObjectURL(url)
 }

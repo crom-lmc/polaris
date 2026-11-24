@@ -64,6 +64,7 @@
             <div class="title-cell">
               <a class="tt" :class="{ unread: !record.readAt }">{{ record.title }}</a>
               <span v-if="record.content" class="sub">{{ record.content }}</span>
+              <span v-if="record.attachments?.length" class="att-flag">附件 {{ record.attachments.length }}</span>
             </div>
           </template>
           <template v-else-if="column.key === 'createdAt'">
@@ -94,6 +95,14 @@
           <span v-if="activeMsg?.createdAt">时间：{{ fmtTime(activeMsg.createdAt) }}</span>
         </div>
         <div class="msg-body">{{ activeMsg?.content || '暂无消息内容' }}</div>
+        <div v-if="activeMsg?.attachments?.length" class="att-list">
+          <div class="att-head">附件</div>
+          <div v-for="f in activeMsg.attachments" :key="f.id" class="att-row">
+            <span class="att-name" :title="f.fileName">{{ f.fileName }}</span>
+            <span class="att-size">{{ fmtSize(f.size) }}</span>
+            <a-button type="link" size="small" @click="downloadAttachment(f)">下载</a-button>
+          </div>
+        </div>
       </div>
     </a-modal>
 
@@ -167,8 +176,10 @@ import { message } from 'ant-design-vue'
 import { fetchEnabledApplications } from '@/api/apps'
 import { fetchApprovals } from '@/api/approvals'
 import {
+  downloadNoticeAttachment,
   fetchMyNotices,
   markNoticesRead,
+  type NoticeAttachment,
   type NoticeMessage
 } from '@/api/notice'
 import ApprovalDetailDrawer from './components/ApprovalDetailDrawer.vue'
@@ -473,6 +484,19 @@ function fmtTime(v?: string) {
   return v ? v.replace('T', ' ').slice(0, 16) : ''
 }
 
+function fmtSize(n?: number) {
+  if (!n) return '—'
+  return n < 1024 ? `${n} B` : n < 1024 * 1024 ? `${(n / 1024).toFixed(1)} KB` : `${(n / 1024 / 1024).toFixed(1)} MB`
+}
+
+async function downloadAttachment(f: NoticeAttachment) {
+  try {
+    await downloadNoticeAttachment(f.id, f.fileName)
+  } catch (e: any) {
+    message.error(e?.message || '下载失败')
+  }
+}
+
 /** 消息 tab：全部消息（含已读），与待办共用同一套列和筛选 */
 const msgRows = computed(() => filterByQuery(rows.value.filter((m) => m.kind === 2)))
 
@@ -638,6 +662,45 @@ async function markRead(m: MsgItem) {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.att-flag {
+  align-self: flex-start;
+  font-size: 11px;
+  color: #1677ff;
+}
+
+.att-list {
+  margin-top: 16px;
+  border-top: 1px solid var(--border-color, #f0f0f0);
+  padding-top: 12px;
+}
+
+.att-head {
+  margin-bottom: 8px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.att-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 4px 0;
+  font-size: 13px;
+}
+
+.att-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.att-size {
+  color: #8c8c8c;
+  font-size: 12px;
 }
 
 .muted {

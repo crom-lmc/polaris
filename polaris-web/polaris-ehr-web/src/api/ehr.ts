@@ -1249,6 +1249,15 @@ export function leavePreview(params: {
 
 /* ---------------- 通知管理（人力中心发布 → 账号中心通知中心展示） ---------------- */
 
+/** 内部通知附件：本体在统一文件服务，前端只拿展示信息 */
+export interface AnnouncementAttachment {
+  id: string
+  fileName: string
+  size?: number
+  mime?: string
+  downloadUrl?: string
+}
+
 export interface AnnouncementItem {
   id: string
   /** 业务编号，如 NOTICE-20261108-0001 */
@@ -1278,6 +1287,7 @@ export interface AnnouncementItem {
   createdAt?: string
   updatedAt?: string
   read?: boolean
+  attachments?: AnnouncementAttachment[]
 }
 
 export interface AnnouncementSaveBody {
@@ -1289,6 +1299,17 @@ export interface AnnouncementSaveBody {
   targetOrgIds?: Array<string | number>
   pinned?: boolean
   remark?: string
+  /** 附件ID列表：先调 uploadAnnouncementAttachment 上传，保存时一并提交 */
+  attachmentIds?: string[]
+}
+
+/** 上传通知附件：服务端以 PRIVATE 存统一文件服务，返回临时附件ID，保存通知时绑定 */
+export function uploadAnnouncementAttachment(file: File) {
+  const form = new FormData()
+  form.append('file', file)
+  return request.post<never, AnnouncementAttachment>('/api/ehr/announcements/attachments/upload', form, {
+    headers: { 'Content-Type': 'multipart/form-data' }
+  })
 }
 
 export function pageAnnouncements(params: Record<string, unknown>) {
@@ -1302,6 +1323,22 @@ export function announcementOrgTree() {
 
 export function getAnnouncement(id: string) {
   return request.get<never, AnnouncementItem>(`/api/ehr/announcements/manage/${id}`)
+}
+
+/** 下载通知附件（管理端同样受公告可见范围校验） */
+export async function downloadAnnouncementAttachment(id: string, fileName?: string) {
+  const res = await request.get<Blob>(`/api/ehr/announcements/attachments/${id}/download`, {
+    responseType: 'blob'
+  })
+  const blob = res.data
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = fileName || 'attachment'
+  document.body.appendChild(a)
+  a.click()
+  a.remove()
+  URL.revokeObjectURL(url)
 }
 
 /* ---------------- 合同与档案附件（P1-1） ---------------- */
