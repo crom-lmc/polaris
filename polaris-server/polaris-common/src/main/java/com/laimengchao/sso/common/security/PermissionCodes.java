@@ -38,12 +38,10 @@ public final class PermissionCodes {
     public static final String SSO_MENU_ROLE = "role";
     public static final String SSO_MENU_PERMISSION = "permission";
     public static final String SSO_MENU_APP = "app";
-    public static final String SSO_MENU_LOG = "log";
     public static final String SSO_MENU_NOTICE = "notice";
 
     /* 账户按钮 */
     public static final String ACCOUNT_LIST = "account:list";
-    public static final String ACCOUNT_LOG_VIEW = "account:log:view";
     public static final String ACCOUNT_CREATE = "account:create";
     public static final String ACCOUNT_EDIT = "account:edit";
     public static final String ACCOUNT_DELETE = "account:delete";
@@ -212,9 +210,6 @@ public final class PermissionCodes {
     public static final String EMPLOYEE_DATA_ORG_TREE = "employee:data:org_tree";
     public static final String EMPLOYEE_DATA_ORG = "employee:data:org";
     public static final String EMPLOYEE_SENSITIVE_VIEW = "employee:sensitive:view";
-
-    /* 审计日志 */
-    public static final String AUDIT_VIEW = "audit:view";
 
     /* 审批运营 */
     public static final String APPROVAL_OPS = "approval:ops";
@@ -476,4 +471,45 @@ public final class PermissionCodes {
     public static final String INBOUND_EMPLOYEE_LIST = "inbound:employee:list";
     public static final String INBOUND_ORG_TREE = "inbound:org:tree";
     public static final String OUTBOUND_EMAIL_INVOKE = "outbound:email:invoke";
+    /* 文件服务对外开放 API 调用权限码（注册在 openapi 域，授权给第三方应用） */
+    public static final String INBOUND_FILE_UPLOAD = "inbound:file:upload";
+    public static final String INBOUND_FILE_META = "inbound:file:meta";
+    public static final String INBOUND_FILE_DOWNLOAD = "inbound:file:download";
+    public static final String INBOUND_FILE_DELETE = "inbound:file:delete";
+
+    /* ============================================================
+     * 统一文件服务（app_code = file）
+     * ============================================================ */
+    public static final String APP_FILE = "file";
+
+    /* 管理端菜单 */
+    public static final String FILE_MENU_OVERVIEW = "file:overview";
+    public static final String FILE_MENU_FILES = "file:files";
+    public static final String FILE_MENU_POLICY = "file:policy";
+
+    /* 管理端按钮 */
+    public static final String FILE_OVERVIEW_VIEW = "file:overview:view";
+    public static final String FILE_LIST = "file:list";
+    public static final String FILE_UPLOAD = "file:upload";
+    public static final String FILE_DOWNLOAD = "file:download";
+    public static final String FILE_DELETE = "file:delete";
+    public static final String FILE_POLICY_LIST = "file:policy:list";
+    public static final String FILE_POLICY_EDIT = "file:policy:edit";
+
+    /* ============================================================
+     * 统一审计中心（app_code = audit）
+     * ============================================================ */
+    public static final String APP_AUDIT = "audit";
+
+    /* 管理端菜单 */
+    public static final String AUDIT_MENU_OVERVIEW = "audit:overview";
+    public static final String AUDIT_MENU_EVENTS = "audit:events";
+    public static final String AUDIT_MENU_LOGIN = "audit:login";
+    public static final String AUDIT_MENU_SYSTEM_LOG = "audit:system-log";
+
+    /* 管理端按钮 */
+    public static final String AUDIT_OVERVIEW_VIEW = "audit:overview:view";
+    public static final String AUDIT_EVENTS_LIST = "audit:events:list";
+    public static final String AUDIT_LOGIN_LIST = "audit:login:list";
+    public static final String AUDIT_SYSTEM_LOG_LIST = "audit:system-log:list";
 }

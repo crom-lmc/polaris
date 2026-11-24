@@ -41,6 +41,13 @@ spring:
           uri: ${OPENAPI_ROUTE:http://127.0.0.1:9010}
           predicates:
             - Path=/api/open/**
+        # CMS 历史静态直链（正文内嵌的旧路径）：统一切到 file-service 的 legacy 端点，
+        # 由 file_alias 映射到迁移后的文件；必须排在 cms 路由之前，否则会被 /api/cms/** 先匹配。
+        - id: cms-file-legacy
+          order: -1
+          uri: ${FILE_ROUTE:http://127.0.0.1:9011}
+          predicates:
+            - Path=/api/cms/media/file/**
         # 业务应用：CMS 内容管理端
         - id: cms
           uri: ${CMS_ROUTE:http://127.0.0.1:9004}
@@ -66,11 +73,28 @@ spring:
           uri: ${JOB_ROUTE:http://127.0.0.1:9008}
           predicates:
             - Path=/api/jobs/**
+        # 论坛正文插图稳定直链（编辑器/正文内嵌）：统一切到 file-service 的 legacy 端点，
+        # 由 file_alias 按路径读回；必须排在 forum 路由之前，否则会被 /api/forum/** 先匹配。
+        - id: forum-file-legacy
+          order: -1
+          uri: ${FILE_ROUTE:http://127.0.0.1:9011}
+          predicates:
+            - Path=/api/forum/media/file/**
         # 独立社区论坛：公开内容、登录互动与积分交易
         - id: forum
           uri: ${FORUM_ROUTE:http://127.0.0.1:9009}
           predicates:
             - Path=/api/forum/**
+        # 统一文件服务：管理端 + 公开/私有文件读取（管理端由网关注入 X-Account-* 头）
+        - id: file
+          uri: ${FILE_ROUTE:http://127.0.0.1:9011}
+          predicates:
+            - Path=/api/file/**
+        # 统一审计中心：管理端接口（网关注入 X-Account-* 头，audit-server 按 audit:* 鉴权）
+        - id: audit
+          uri: ${AUDIT_ROUTE:http://127.0.0.1:9012}
+          predicates:
+            - Path=/api/audit/**
 
 sso:
   gateway:
@@ -79,6 +103,11 @@ sso:
     auth-base-url: ${SSO_AUTH_URL:http://127.0.0.1:9001}
     # 登出后最长多少毫秒内失效；越小越及时，越大对 auth 压力越小
     revocation-sync-millis: 5000
+    # 统一审计兜底：验签通过的请求全部经 WebClient 异步上报 audit-server 的 /internal/audit/event
+    audit:
+      enabled: ${SSO_AUDIT_ENABLED:true}
+      audit-url: ${AUDIT_SERVICE_URL:http://127.0.0.1:9012}
+      internal-token: ${SSO_INTERNAL_TOKEN:}
 
 # 调度中心：本应用上报 JobHandler 清单并接收中心触发（不再使用本地 @Scheduled）
 job:
@@ -89,6 +118,12 @@ job:
     app-code: gateway
     # 中心派发时带的 X-Job-Token，需与中心 job.executor.token 一致
     token: ${SSO_INTERNAL_TOKEN:}
+
+# 系统日志采集（polaris-common 自动装配）：网关排查价值最高，单独放开 INFO；其他服务默认 WARN。
+# 地址与内部令牌从 AUDIT_SERVICE_URL / SSO_INTERNAL_TOKEN 环境变量兜底读取。
+polaris:
+  system-log:
+    min-level: INFO
 
 logging:
   level:

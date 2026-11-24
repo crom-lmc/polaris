@@ -121,6 +121,7 @@ CREATE TABLE IF NOT EXISTS `cms_media` (
   `filename` varchar(128) NOT NULL COMMENT '存储文件名（重命名防穿越）',
   `original_name` varchar(255) NOT NULL COMMENT '原始文件名',
   `url` varchar(255) NOT NULL COMMENT '访问 URL（/api/cms/media/file/...）',
+  `file_id` bigint(20) DEFAULT NULL COMMENT '统一文件服务文件ID；为空表示仍用旧的本地存储文件',
   `content_type` varchar(128) DEFAULT '',
   `size` bigint(20) NOT NULL DEFAULT '0',
   `uploaded_by` bigint(20) NOT NULL COMMENT 'SSO 账户 ID',

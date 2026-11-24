@@ -24,6 +24,16 @@
             <groupId>com.laimengchao.sso</groupId>
             <artifactId>polaris-common</artifactId>
         </dependency>
+        <!-- 统一审计中心客户端：敏感操作审计统一上报，不再写 ehr_audit_log -->
+        <dependency>
+            <groupId>com.laimengchao.sso</groupId>
+            <artifactId>polaris-audit-client</artifactId>
+        </dependency>
+        <!-- 统一文件服务客户端：附件上传/读取/删除统一收敛到 file-service（私有文件强制 PRIVATE） -->
+        <dependency>
+            <groupId>com.laimengchao.sso</groupId>
+            <artifactId>polaris-file-client</artifactId>
+        </dependency>
         <!-- 通知富文本复用 common 的 HtmlSanitizer 白名单清洗 -->
         <dependency>
             <groupId>org.jsoup</groupId>

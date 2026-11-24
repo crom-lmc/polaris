@@ -4,8 +4,13 @@ import com.laimengchao.sso.account.dto.response.OverviewVO;
 import com.laimengchao.sso.account.integration.EhrOrgClient;
 import com.laimengchao.sso.account.mapper.OverviewMapper;
 import com.laimengchao.sso.account.service.OverviewService;
+import com.laimengchao.sso.audit.client.api.AuditApi;
+import com.laimengchao.sso.audit.client.dto.LoginStatsQuery;
+import com.laimengchao.sso.audit.client.dto.LoginStatsResult;
+import com.laimengchao.sso.audit.client.dto.R;
 import com.laimengchao.sso.utils.AccountContext;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
@@ -18,8 +23,9 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * 账号中心概览统计实现：把聚合查询结果补齐为前端可直接渲染的结构。
+ * 账号中心概览统计实现：账号自身数字走本库，登录相关数字走 audit-server。
  */
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class OverviewServiceImpl implements OverviewService {
@@ -44,6 +50,7 @@ public class OverviewServiceImpl implements OverviewService {
 
     private final OverviewMapper mapper;
     private final EhrOrgClient ehrOrgClient;
+    private final AuditApi auditApi;
 
     @Override
     public OverviewVO overview() {
@@ -73,11 +80,12 @@ public class OverviewServiceImpl implements OverviewService {
         vo.setAppCount(mapper.countApps());
         vo.setRoleCount(mapper.countRoles());
         vo.setPermissionCount(mapper.countPermissions());
-        vo.setTodayLoginCount(mapper.countTodayLogins());
+        LoginStatsResult stats = loginStats(null, null);
+        vo.setTodayLoginCount(stats.getTodayCount());
         vo.setMonthNewAccountCount(mapper.countMonthNewAccounts());
-        vo.setLoginTrend(buildTrend(mapper.loginTrend(TREND_DAYS)));
+        vo.setLoginTrend(buildTrend(stats.getTrend()));
         vo.setAccountStatus(buildDistribution(mapper.accountStatus(), STATUS_NAMES));
-        vo.setLoginTypes(buildDistribution(mapper.loginTypes(), LOGIN_TYPE_NAMES));
+        vo.setLoginTypes(buildTypeDistribution(stats.getTypes()));
         return vo;
     }
 
@@ -91,12 +99,28 @@ public class OverviewServiceImpl implements OverviewService {
         vo.setAppCount(mapper.countScopedApps(accountIds));
         vo.setRoleCount(mapper.countScopedRoles(accountIds));
         vo.setPermissionCount(mapper.countScopedPermissions(accountIds));
-        vo.setTodayLoginCount(mapper.countScopedTodayLogins(accountIds, usernames));
+        LoginStatsResult stats = loginStats(accountIds, usernames);
+        vo.setTodayLoginCount(stats.getTodayCount());
         vo.setMonthNewAccountCount(mapper.countScopedMonthNewAccounts(accountIds));
-        vo.setLoginTrend(buildTrend(mapper.scopedLoginTrend(TREND_DAYS, accountIds, usernames)));
+        vo.setLoginTrend(buildTrend(stats.getTrend()));
         vo.setAccountStatus(buildDistribution(mapper.scopedAccountStatus(accountIds), STATUS_NAMES));
-        vo.setLoginTypes(buildDistribution(mapper.scopedLoginTypes(accountIds, usernames), LOGIN_TYPE_NAMES));
+        vo.setLoginTypes(buildTypeDistribution(stats.getTypes()));
         return vo;
+    }
+
+    /** 登录统计是旁路数据：审计中心不可用时展示 0，不让账号概览整页失败。 */
+    private LoginStatsResult loginStats(List<Long> accountIds, List<String> usernames) {
+        try {
+            LoginStatsQuery query = new LoginStatsQuery();
+            query.setDays(TREND_DAYS);
+            query.setAccountIds(accountIds);
+            query.setUsernames(usernames);
+            R<LoginStatsResult> res = auditApi.loginStats(query);
+            return res != null && res.getData() != null ? res.getData() : new LoginStatsResult();
+        } catch (Exception e) {
+            log.warn("获取登录统计失败（已降级为 0）: {}", e.getMessage());
+            return new LoginStatsResult();
+        }
     }
 
     /** 空结果也要给前端空数组，避免图表计算拿到 null */
@@ -109,24 +133,22 @@ public class OverviewServiceImpl implements OverviewService {
     }
 
     /** 近 14 天按日期升序，缺勤日补 0 */
-    private List<OverviewVO.LoginTrendItem> buildTrend(List<Map<String, Object>> rows) {
-        // 日期 -> [success, fail]
-        Map<String, long[]> byDay = new LinkedHashMap<>();
-        for (Map<String, Object> row : rows) {
-            String day = String.valueOf(row.get("day"));
-            long success = number(row.get("success"));
-            long fail = number(row.get("fail"));
-            byDay.put(day, new long[]{success, fail});
+    private List<OverviewVO.LoginTrendItem> buildTrend(List<LoginStatsResult.DayStat> rows) {
+        Map<String, LoginStatsResult.DayStat> byDay = new LinkedHashMap<>();
+        if (rows != null) {
+            for (LoginStatsResult.DayStat row : rows) {
+                byDay.put(row.getDay(), row);
+            }
         }
         List<OverviewVO.LoginTrendItem> items = new ArrayList<>();
         LocalDate today = LocalDate.now();
         for (int i = TREND_DAYS - 1; i >= 0; i--) {
             String day = today.minusDays(i).format(DAY_FORMAT);
-            long[] value = byDay.get(day);
+            LoginStatsResult.DayStat value = byDay.get(day);
             items.add(new OverviewVO.LoginTrendItem(
                     day,
-                    value == null ? 0 : value[0],
-                    value == null ? 0 : value[1]));
+                    value == null ? 0 : value.getSuccess(),
+                    value == null ? 0 : value.getFail()));
         }
         return items;
     }
@@ -139,8 +161,18 @@ public class OverviewServiceImpl implements OverviewService {
             String key = String.valueOf(row.get("key"));
             long cnt = number(row.get("cnt"));
             if (cnt <= 0) continue;
-            String name = nameOf(key, nameDict);
-            items.add(new OverviewVO.DistributionItem(name, cnt));
+            items.add(new OverviewVO.DistributionItem(nameOf(key, nameDict), cnt));
+        }
+        return items;
+    }
+
+    private List<OverviewVO.DistributionItem> buildTypeDistribution(List<LoginStatsResult.TypeStat> rows) {
+        List<OverviewVO.DistributionItem> items = new ArrayList<>();
+        if (rows == null) return items;
+        for (LoginStatsResult.TypeStat row : rows) {
+            if (row.getCnt() <= 0) continue;
+            String key = row.getKey() == null ? "" : row.getKey();
+            items.add(new OverviewVO.DistributionItem(nameOf(key, LOGIN_TYPE_NAMES), row.getCnt()));
         }
         return items;
     }

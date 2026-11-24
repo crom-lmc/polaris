@@ -28,6 +28,11 @@
             <groupId>com.laimengchao.sso</groupId>
             <artifactId>polaris-common</artifactId>
         </dependency>
+        <!-- 统一审计客户端：controller 写方法自动留痕（AOP），上报 audit-server -->
+        <dependency>
+            <groupId>com.laimengchao.sso</groupId>
+            <artifactId>polaris-audit-client</artifactId>
+        </dependency>
         <!-- 调度中心客户端：上报 JobHandler 清单并接收中心触发 -->
         <dependency>
             <groupId>com.laimengchao.sso</groupId>
@@ -38,6 +43,12 @@
         <dependency>
             <groupId>com.laimengchao.sso</groupId>
             <artifactId>polaris-sso-client</artifactId>
+        </dependency>
+
+        <!-- 统一文件服务客户端：媒体上传/读取/删除统一收敛到 file-service -->
+        <dependency>
+            <groupId>com.laimengchao.sso</groupId>
+            <artifactId>polaris-file-client</artifactId>
         </dependency>
 
         <!-- 审批中心客户端：内容提审发起 cms.article_publish 实例，终审由 settings 回调 -->

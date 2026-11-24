@@ -42,6 +42,8 @@ public class PortalTodoController {
         try {
             var res = approvalApi.pending(user.getAccountId(), "pending");
             if (res == null || !res.ok()) {
+                log.warn("门户待办聚合：审批中心返回失败 accountId={} message={}",
+                        user.getAccountId(), res == null ? "空响应" : res.getMessage());
                 throw new BizException(ErrorCode.SYSTEM_ERROR,
                         res == null ? "审批中心暂不可用" : res.getMessage());
             }
@@ -80,6 +82,7 @@ public class PortalTodoController {
             return c;
         }).toList());
         summary.setItems(items);
+        log.info("门户待办聚合成功：accountId={} total={} categories={}", user.getAccountId(), items.size(), counts.size());
         return R.ok(summary);
     }
 

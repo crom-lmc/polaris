@@ -24,6 +24,11 @@
             <groupId>com.laimengchao.sso</groupId>
             <artifactId>polaris-common</artifactId>
         </dependency>
+        <!-- 统一审计客户端：controller 写方法自动留痕（AOP），上报 audit-server -->
+        <dependency>
+            <groupId>com.laimengchao.sso</groupId>
+            <artifactId>polaris-audit-client</artifactId>
+        </dependency>
 
         <!-- 统一账号平台跨服客户端（AuthApi：单点换票） -->
         <dependency>

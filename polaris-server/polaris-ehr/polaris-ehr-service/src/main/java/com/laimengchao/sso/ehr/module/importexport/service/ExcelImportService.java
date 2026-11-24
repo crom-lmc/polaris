@@ -152,8 +152,11 @@ public class ExcelImportService {
                 .eq(ImportTask::getStatus, "PREVIEW")
                 .set(ImportTask::getStatus, "IMPORTING")) > 0;
         if (!locked) {
+            // CAS 抢锁失败：重复确认或并发确认，属可预期的拒绝
+            log.warn("员工导入确认抢锁失败（可能重复确认）：taskId={} accountId={}", taskId, accountId);
             throw new BizException(ErrorCode.PARAM_ERROR, "该任务已确认过，请重新上传文件");
         }
+        log.info("员工导入开始执行：taskId={} accountId={}", taskId, accountId);
 
         Parsed parsed;
         try {
@@ -176,6 +179,7 @@ public class ExcelImportService {
             try {
                 Long employeeId = importOne(row);
                 if (employeeId == null) {
+                    log.warn("员工导入建档失败：taskId={} row={} name={}", taskId, row.rowNum, row.name);
                     failures.add(error(SHEET_BASE, row.rowNum, row.name, "建档失败"));
                     failed++;
                 } else {
@@ -204,6 +208,8 @@ public class ExcelImportService {
 
         auditLogService.record(AuditLogService.ACTION_IMPORT, AuditLogService.TARGET_IMPORT, taskId,
                 "success=" + success + ",failed=" + failed);
+        log.info("员工导入执行完成：taskId={} total={} success={} failed={} errorFileId={}",
+                taskId, parsed.employees.size(), success, failed, errorFileId);
         ImportVos.Result result = new ImportVos.Result();
         result.setTaskId(taskId);
         result.setStatus("DONE");

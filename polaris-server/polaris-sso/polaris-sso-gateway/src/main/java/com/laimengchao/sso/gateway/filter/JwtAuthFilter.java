@@ -4,6 +4,7 @@ import com.laimengchao.sso.common.ErrorCode;
 import com.laimengchao.sso.common.R;
 import com.laimengchao.sso.common.security.JwtClaims;
 import com.laimengchao.sso.gateway.config.GatewayProperties;
+import com.laimengchao.sso.gateway.support.AuditReporter;
 import com.laimengchao.sso.gateway.support.JwtVerifier;
 import com.laimengchao.sso.gateway.support.RevocationCache;
 import com.laimengchao.sso.utils.JsonUtils;
@@ -56,9 +57,11 @@ public class JwtAuthFilter implements GlobalFilter, Ordered {
     private final GatewayProperties props;
     private final JwtVerifier verifier;
     private final RevocationCache revocationCache;
+    private final AuditReporter auditReporter;
 
     @Override
     public Mono<Void> filter(ServerWebExchange exchange, GatewayFilterChain chain) {
+        long startNanos = System.nanoTime();
         String path = exchange.getRequest().getURI().getPath();
 
         // 1) 先清掉不可信的身份头。
@@ -68,8 +71,12 @@ public class JwtAuthFilter implements GlobalFilter, Ordered {
                 && !path.startsWith("/api/open/admin/");
         ServerWebExchange clean = stripTrustedHeaders(exchange, openapiThirdParty);
 
-        // 2) 内部接口只允许服务间内网直连，外部一律 403
+        // 2) 内部接口只允许服务间内网直连，外部一律 403（补记失败审计，便于发现探测）
         if (props.getInternalPrefixes().stream().anyMatch(path::startsWith)) {
+            // 外部探测内部接口的防护拒绝，留痕便于发现扫描行为（客户端 IP 见审计事件）
+            log.warn("拒绝外部访问内部接口：path={} method={}", path, clean.getRequest().getMethod());
+            auditReporter.reportDenied(clean, null, path, clean.getRequest().getMethod(),
+                    HttpStatus.FORBIDDEN.value(), "internal-forbidden", startNanos);
             return deny(clean, HttpStatus.FORBIDDEN, ErrorCode.FORBIDDEN, "内部接口不对外开放");
         }
 
@@ -78,6 +85,8 @@ public class JwtAuthFilter implements GlobalFilter, Ordered {
         String token = bearer(clean.getRequest().getHeaders().getFirst(AUTHORIZATION));
         if (token == null || token.isBlank()) {
             if (whitelisted) return chain.filter(clean);
+            auditReporter.reportDenied(clean, null, path, clean.getRequest().getMethod(),
+                    HttpStatus.UNAUTHORIZED.value(), "no-token", startNanos);
             return deny(clean, HttpStatus.UNAUTHORIZED, ErrorCode.UNAUTHORIZED, "未登录，请先获取访问令牌");
         }
 
@@ -85,19 +94,31 @@ public class JwtAuthFilter implements GlobalFilter, Ordered {
         try {
             claims = verifier.verify(token);
         } catch (JwtException | IllegalArgumentException e) {
-            log.debug("JWT 验签失败 path={} reason={}", path, e.getMessage());
+            // 验签失败属安全相关拒绝，升级为 WARN（令牌伪造/过期/篡改的信号）
+            log.warn("JWT 验签失败 path={} reason={}", path, e.getMessage());
             if (whitelisted) return chain.filter(clean);
+            auditReporter.reportDenied(clean, null, path, clean.getRequest().getMethod(),
+                    HttpStatus.UNAUTHORIZED.value(), "invalid-token", startNanos);
             return deny(clean, HttpStatus.UNAUTHORIZED, ErrorCode.UNAUTHORIZED, "令牌无效或已过期");
         }
 
         if (!JwtClaims.TYPE_ACCESS.equals(claims.get(JwtClaims.TOKEN_TYPE, String.class))) {
             if (whitelisted) return chain.filter(clean);
+            auditReporter.reportDenied(clean, claims, path, clean.getRequest().getMethod(),
+                    HttpStatus.UNAUTHORIZED.value(), "wrong-token-type", startNanos);
             return deny(clean, HttpStatus.UNAUTHORIZED, ErrorCode.UNAUTHORIZED, "该接口需要 access token");
         }
         if (revocationCache.isRevoked(claims.getId()) || isSessionRevoked(claims)) {
             if (whitelisted) return chain.filter(clean);
+            auditReporter.reportDenied(clean, claims, path, clean.getRequest().getMethod(),
+                    HttpStatus.UNAUTHORIZED.value(), "revoked", startNanos);
             return deny(clean, HttpStatus.UNAUTHORIZED, ErrorCode.UNAUTHORIZED, "登录状态已失效，请重新登录");
         }
+
+        // 4.2) 统一审计兜底：验签通过、确认未吊销后，对这次请求记一条 ACCESS。
+        // GET 也算动作（用户 2026-11-23 明确），因此这里不区分读写方法。
+        // 上报延迟到响应完成后，回填真实状态码/结果/耗时；入参在此刻（下游读取前）采集。
+        String requestParams = auditReporter.captureParams(clean);
 
         // 4.1) 演示账户只读：验签通过后，对非白名单的写操作一律拒绝。
         // 白名单路径（登录/刷新/登出/换票等）必须放行，否则演示账号根本登不进来、也拿不到令牌。
@@ -105,6 +126,8 @@ public class JwtAuthFilter implements GlobalFilter, Ordered {
         // 用户点击任何新增/编辑/删除按钮时都会看到「演示账户不能进行操作」。
         if (DEMO_ACCOUNT_USERNAME.equals(claims.get(JwtClaims.USERNAME, String.class))
                 && !whitelisted && isWriteMethod(clean.getRequest().getMethod())) {
+            auditReporter.reportDenied(clean, claims, path, clean.getRequest().getMethod(),
+                    DEMO_READONLY_CODE, "demo-readonly", startNanos);
             return denyDemo(clean);
         }
 
@@ -120,7 +143,14 @@ public class JwtAuthFilter implements GlobalFilter, Ordered {
                 .header(JwtClaims.Headers.PERMISSIONS, nvl(claims.get(JwtClaims.PERMISSIONS, String.class)))
                 .header(JwtClaims.Headers.APPS, nvl(claims.get(JwtClaims.APPS, String.class)))
                 .build();
-        return chain.filter(clean.mutate().request(enriched).build());
+        Mono<Void> downstream = chain.filter(clean.mutate().request(enriched).build());
+        String app = nvl(claims.get(JwtClaims.APP, String.class));
+        String username = nvl(claims.get(JwtClaims.USERNAME, String.class));
+        // INFO 挂在响应式链上，确保是「响应完成后」打印，而非 filter 装配期就打印
+        return auditReporter.reportAfterComplete(downstream, clean, claims, path,
+                        clean.getRequest().getMethod(), requestParams, startNanos)
+                .doOnSuccess(v -> log.info("网关鉴权放行：path={} method={} app={} username={}",
+                        path, clean.getRequest().getMethod(), app, username));
     }
 
     /**

@@ -398,6 +398,7 @@ public class AdminService {
         view.setThreadId(base.getThreadId());
         view.setAuthorAccountId(base.getAuthorAccountId());
         view.setContent(text(row.getContent()));
+        view.setPlainContent(base.getPlainContent());
         view.setParentCommentId(base.getParentCommentId());
         view.setLikes(base.getLikes());
         view.setDeleted(intValue(row.getDeleted()) == 1);

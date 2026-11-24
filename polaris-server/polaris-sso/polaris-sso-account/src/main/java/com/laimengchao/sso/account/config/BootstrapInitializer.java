@@ -208,6 +208,10 @@ public class BootstrapInitializer implements ApplicationRunner {
         seedPermissions(PermissionConstants.FORUM_ADMIN_APP, PermissionConstants.FORUM_ADMIN_BUILTIN);
         // 接口开放平台：管理端权限树 + 四类开放 API 调用码 + 邮件出站码
         seedPermissions(PermissionConstants.OPENAPI_APP, PermissionConstants.OPENAPI_BUILTIN);
+        // 统一文件服务：管理端权限树（概览/文件/策略）
+        seedPermissions(PermissionConstants.FILE_APP, PermissionConstants.FILE_BUILTIN);
+        // 统一审计中心：管理端权限树（概览/审计事件/登录审计）
+        seedPermissions(PermissionConstants.AUDIT_APP, PermissionConstants.AUDIT_BUILTIN);
     }
 
     /** 按应用补权限码；父级菜单的 id 只在同应用内找，避免业务应用同名码把 parentId 指错 */

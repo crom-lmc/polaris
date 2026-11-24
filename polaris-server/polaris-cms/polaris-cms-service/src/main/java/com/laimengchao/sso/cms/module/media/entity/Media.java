@@ -19,6 +19,8 @@ public class Media {
     private String filename;
     private String originalName;
     private String url;
+    /** 统一文件服务文件ID；为空表示仍用旧的本地存储文件 */
+    private Long fileId;
     private String contentType;
     private Long size;
     private Long uploadedBy;

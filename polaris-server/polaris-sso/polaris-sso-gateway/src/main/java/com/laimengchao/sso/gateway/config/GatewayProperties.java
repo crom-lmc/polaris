@@ -80,6 +80,16 @@ public class GatewayProperties {
             "/api/open/outbound/**",
             // 上传的图片/附件：静态资源，读者端也要能直接加载
             "/uploads/**",
+            // 统一文件服务：公开文件直链与签名下载靠短时效签名鉴权（非用户令牌），网关放行；
+            // 管理端 SSO 换票端点匿名可用；/api/file/admin/** 不在白名单，仍需网关注入 X-Account-* 头
+            "/api/file/public/**",
+            "/api/file/secure/**",
+            "/api/file/legacy/**",
+            "/api/file/sso/**",
+            // 统一审计中心换票端：前端 /callback 拿 OAuth code 换令牌时还没有用户令牌，必须免鉴权
+            "/api/audit/sso/**",
+            // 论坛正文插图：走 file-service legacy 端点按别名读取（公开图片，非用户令牌鉴权）
+            "/api/forum/media/file/**",
             // 调度中心派发入口：中心直连网关 9080 调 /internal/jobs/run，
             // 本身由 X-Job-Token 校验，不能要求用户令牌
             "/internal/**",

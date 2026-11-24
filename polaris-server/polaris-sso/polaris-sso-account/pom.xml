@@ -20,6 +20,11 @@
             <groupId>com.laimengchao.sso</groupId>
             <artifactId>polaris-common</artifactId>
         </dependency>
+        <!-- 统一审计中心客户端：登录审计与敏感操作统一上报，不再写本地审计表 -->
+        <dependency>
+            <groupId>com.laimengchao.sso</groupId>
+            <artifactId>polaris-audit-client</artifactId>
+        </dependency>
         <!-- EHR 跨服客户端（EhrOrgApi：按组织取账号 ID） -->
         <dependency>
             <groupId>com.laimengchao.sso</groupId>

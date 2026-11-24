@@ -28,10 +28,13 @@ polaris-server/.idea/runConfigurations/*
 node_modules/
 dist/
 dist_bak_*/
+dist_old_*/
 .env.local
 .env.*.local
 
 # ============ 通用 ============
+__pycache__/
+*.pyc
 .idea/
 .vscode/
 .DS_Store

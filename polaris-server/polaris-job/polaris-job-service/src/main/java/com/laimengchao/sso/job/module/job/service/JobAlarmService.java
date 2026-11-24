@@ -311,6 +311,11 @@ public class JobAlarmService {
             dto.setBizType("job_alarm");
             dto.setBizId(String.valueOf(job.getId()));
             dto.setBizNo(job.getName());
+            // 消息模板（cfg_notice_rule.job.alarm）用占位符渲染正文，模板引擎只从 vars 取变量；
+            // 只设置 bizNo 专属字段不会替换 {bizNo}/{jobName}，导致通知里任务名为空
+            String jobName = job.getName() == null ? "" : job.getName();
+            dto.getVars().put("bizNo", jobName);
+            dto.getVars().put("jobName", jobName);
             dto.setApplicantName("调度中心");
             dto.setModule("调度中心");
             dto.setLink("/alarms");

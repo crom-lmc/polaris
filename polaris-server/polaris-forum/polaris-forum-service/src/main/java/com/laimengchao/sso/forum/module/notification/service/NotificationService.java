@@ -16,6 +16,7 @@ import com.laimengchao.sso.forum.module.notification.vo.NotificationCountVO;
 import com.laimengchao.sso.forum.module.notification.vo.NotificationReadAllVO;
 import com.laimengchao.sso.forum.module.notification.vo.NotificationVO;
 import com.laimengchao.sso.forum.module.report.entity.Report;
+import com.laimengchao.sso.forum.service.ForumContentService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
@@ -31,13 +32,15 @@ public class NotificationService {
     private static final Set<String> TYPES = Set.of("THREAD_COMMENT", "COMMENT_REPLY", "THREAD_LIKE", "BADGE_AWARDED", "REPORT_RESULT");
 
     private final NotificationMapper mapper;
+    private final ForumContentService forumContentService;
 
     public void onComment(ForumThread thread, ForumComment parent, ForumComment comment) {
         long threadId = thread.getId();
         long actorId = longValue(comment.getAuthorAccountId());
         long threadAuthorId = longValue(thread.getAuthorAccountId());
         long commentId = comment.getId();
-        String summary = abbreviate(text(comment.getContent()));
+        // 评论已富文本化，通知摘要只取纯文本，避免把 <p>/<img> 等标签带进消息列表
+        String summary = abbreviate(forumContentService.plainText(comment.getContent()));
         if (parent != null) {
             long parentAuthorId = longValue(parent.getAuthorAccountId());
             if (parentAuthorId > 0 && parentAuthorId != actorId) {

@@ -69,22 +69,6 @@ CREATE TABLE IF NOT EXISTS `sso_application` (
 /*!40101 SET character_set_client = @saved_cs_client */;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!40101 SET character_set_client = utf8 */;
-CREATE TABLE IF NOT EXISTS `sso_audit_log` (
-  `id` bigint(20) NOT NULL COMMENT '雪花ID',
-  `operator_id` bigint(20) NOT NULL COMMENT '操作人账号ID',
-  `operator_name` varchar(64) NOT NULL DEFAULT '' COMMENT '操作人登录名',
-  `action` varchar(32) NOT NULL COMMENT '操作类型',
-  `target_type` varchar(32) NOT NULL COMMENT '操作对象类型',
-  `target_id` bigint(20) DEFAULT NULL COMMENT '操作对象ID',
-  `fields` varchar(255) NOT NULL DEFAULT '' COMMENT 'result=success/fail及非敏感详情',
-  `ip` varchar(64) NOT NULL DEFAULT '' COMMENT '客户端IP',
-  `ua` varchar(255) NOT NULL DEFAULT '' COMMENT 'User-Agent',
-  `created_at` datetime NOT NULL COMMENT '操作时间',
-  PRIMARY KEY (`id`),
-  KEY `idx_audit_operator_time` (`operator_id`,`created_at`),
-  KEY `idx_audit_target` (`target_type`,`target_id`,`created_at`),
-  KEY `idx_audit_action_time` (`action`,`created_at`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8 COMMENT='SSO敏感操作审计日志';
 /*!40101 SET character_set_client = @saved_cs_client */;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!40101 SET character_set_client = utf8 */;
@@ -105,21 +89,6 @@ CREATE TABLE IF NOT EXISTS `sso_email_code` (
 /*!40101 SET character_set_client = @saved_cs_client */;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!40101 SET character_set_client = utf8 */;
-CREATE TABLE IF NOT EXISTS `sso_login_log` (
-  `id` bigint(20) NOT NULL AUTO_INCREMENT,
-  `account_id` bigint(20) DEFAULT NULL COMMENT '鎴愬姛鏃跺～璐︽埛ID锛岀敤鎴蜂笉瀛樺湪绛夊け璐ュ満鏅负 NULL',
-  `username` varchar(64) NOT NULL COMMENT '灏濊瘯鐧诲綍鐨勭敤鎴峰悕锛堝嵆浣夸笉瀛樺湪涔熻褰曪紝渚夸簬鎺掓煡鎾炲簱锛�',
-  `login_type` varchar(20) NOT NULL DEFAULT 'password' COMMENT 'password/email/wechat',
-  `result` varchar(10) NOT NULL COMMENT 'success / fail',
-  `fail_reason` varchar(100) DEFAULT NULL COMMENT '澶辫触鍘熷洜锛堝瘑鐮侀敊璇�/璐︽埛閿佸畾/鏈厤缃瓑锛�',
-  `client_ip` varchar(45) DEFAULT NULL,
-  `user_agent` varchar(512) DEFAULT NULL,
-  `created_at` datetime DEFAULT NULL,
-  PRIMARY KEY (`id`),
-  KEY `idx_account_time` (`account_id`,`created_at`),
-  KEY `idx_username_time` (`username`,`created_at`),
-  KEY `idx_created` (`created_at`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8 COMMENT='登录审计日志';
 /*!40101 SET character_set_client = @saved_cs_client */;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!40101 SET character_set_client = utf8 */;
@@ -181,4 +150,9 @@ CREATE TABLE IF NOT EXISTS `sso_wechat_bind` (
   KEY `idx_account` (`account_id`),
   KEY `idx_unionid` (`unionid`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8 COMMENT='微信绑定关系';
+/*!40101 SET character_set_client = @saved_cs_client */;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+-- 平台统一审计事件：所有登录后动作（含 GET）由网关兜底 + 业务补语义 + 登录审计合并落此表。
+-- 只追加不修改；按 created_at 180 天保留按天清理。
 /*!40101 SET character_set_client = @saved_cs_client */;

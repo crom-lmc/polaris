@@ -17,6 +17,8 @@ public class CommentVO {
     @JsonSerialize(using = ToStringSerializer.class)
     private Long authorAccountId;
     private String content;
+    /** 纯文本摘要：供后台列表/管理端展示，避免富文本 HTML 以字面标签显示 */
+    private String plainContent;
     @JsonSerialize(using = ToStringSerializer.class)
     private Long parentCommentId;
     private Integer likes;

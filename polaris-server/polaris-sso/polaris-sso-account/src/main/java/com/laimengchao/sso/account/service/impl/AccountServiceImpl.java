@@ -35,6 +35,7 @@ import com.laimengchao.sso.common.enums.AccountStatus;
 import com.laimengchao.sso.utils.AccountContext;
 import com.laimengchao.sso.utils.Asserts;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -47,6 +48,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 @Service
+@Slf4j
 @RequiredArgsConstructor
 public class AccountServiceImpl implements AccountService {
 
@@ -300,6 +302,8 @@ public class AccountServiceImpl implements AccountService {
             a = accountMapper.selectByEmail(username);
         }
         if (a == null) {
+            // 账号不存在，登录失败可预期；记录用户名便于排查撞库（不记录密码）
+            log.warn("登录失败：账号不存在 username={}", username);
             throw new BizException(ErrorCode.UNAUTHORIZED, "用户名或密码错误");
         }
         // 演示账号仅在「演示模式」开启时允许登录。开关在配置中心安全配置维护，
@@ -309,9 +313,11 @@ public class AccountServiceImpl implements AccountService {
         }
         // 锁定判定
         if (a.getStatus() != null && a.getStatus() == AccountStatus.LOCKED.getCode()) {
+            log.warn("登录失败：账户已锁定 username={} accountId={}", username, a.getId());
             throw new BizException(ErrorCode.FORBIDDEN, "账户已锁定，请联系管理员解锁");
         }
         if (a.getStatus() != null && a.getStatus() == AccountStatus.DISABLED.getCode()) {
+            log.warn("登录失败：账户已禁用 username={} accountId={}", username, a.getId());
             throw new BizException(ErrorCode.FORBIDDEN, "账户已被禁用");
         }
         if (!passwordEncoder.matches(password, a.getPasswordHash())) {
@@ -320,6 +326,11 @@ public class AccountServiceImpl implements AccountService {
             if (fails >= maxLoginFail) {
                 a.setStatus(AccountStatus.LOCKED.getCode());
                 a.setLockedUntil(LocalDateTime.now().plusMinutes(lockMinutes));
+                // 密码连续错误触发锁定，属安全事件
+                log.warn("账户因连续登录失败被锁定：username={} accountId={} fails={} lockMinutes={}",
+                        username, a.getId(), fails, lockMinutes);
+            } else {
+                log.warn("登录失败：密码错误 username={} accountId={} fails={}", username, a.getId(), fails);
             }
             accountMapper.updateById(a);
             throw new BizException(ErrorCode.UNAUTHORIZED, "用户名或密码错误");
@@ -332,6 +343,7 @@ public class AccountServiceImpl implements AccountService {
             a.setLockedUntil(null);
         }
         accountMapper.updateById(a);
+        log.info("登录成功：username={} accountId={}", username, a.getId());
         return a;
     }
 

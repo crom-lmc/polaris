@@ -51,9 +51,11 @@ public class SsoExchangeController {
             if (resp == null || !resp.ok()) {
                 String msg = resp == null || resp.getMessage() == null ? "认证服务无响应" : resp.getMessage();
                 // 上游认证拒绝（ticket/code 无效、过期、重放等）：按业务错误返 200 + code!=0，
-                // 不能用 401——前端会把它当「登录过期」触发重新授权死循环
+                // 不能用 401——前端会把它当「登录过期」触发重新授权死循环（不打印 ticket 明文）
+                log.warn("单点换票被拒：app={} reason={}", appCode, msg);
                 throw new BizException(ErrorCode.BIZ_ERROR, msg);
             }
+            log.info("单点换票成功：app={}", appCode);
             return R.ok(resp.getData());
         } catch (BizException e) {
             throw e;

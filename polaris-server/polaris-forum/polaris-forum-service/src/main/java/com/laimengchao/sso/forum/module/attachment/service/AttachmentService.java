@@ -9,9 +9,16 @@ import com.laimengchao.sso.common.security.SecurityUtils;
 import com.laimengchao.sso.forum.module.attachment.entity.Attachment;
 import com.laimengchao.sso.forum.module.attachment.mapper.AttachmentMapper;
 import com.laimengchao.sso.forum.module.attachment.vo.AttachmentVO;
+import com.laimengchao.sso.file.client.api.FileApi;
+import com.laimengchao.sso.file.client.dto.FileAliasRequest;
+import com.laimengchao.sso.file.client.dto.FileMeta;
+import com.laimengchao.sso.file.client.dto.FileUploadRequest;
+import com.laimengchao.sso.file.client.dto.R;
 import com.laimengchao.sso.forum.security.ForumAdminGuard;
 import com.laimengchao.sso.forum.storage.ForumStorageService;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.core.io.ByteArrayResource;
 import org.springframework.core.io.Resource;
 import org.springframework.http.CacheControl;
 import org.springframework.http.ContentDisposition;
@@ -21,29 +28,39 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.io.BufferedInputStream;
+import java.io.ByteArrayInputStream;
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class AttachmentService {
 
     private static final long MAX_ATTACHMENT_SIZE = 50L * 1024 * 1024;
     private static final long MAX_COVER_SIZE = 10L * 1024 * 1024;
+    private static final String FILE_BIZ_TYPE = "forum_post";
+    /** 正文插图上传后写入稳定别名，供编辑器与帖子正文长期匿名读取 */
+    private static final String INLINE_URL_PREFIX = "/api/forum/media/file";
 
     private final AttachmentMapper mapper;
     private final ForumStorageService storage;
     private final ForumAdminGuard adminGuard;
+    private final FileApi fileApi;
 
     public AttachmentVO upload(MultipartFile file, String usageType) {
         SecurityUser user = requireUser();
         String usage = usageType == null ? "ATTACHMENT" : usageType.trim().toUpperCase();
-        if (!Set.of("ATTACHMENT", "COVER", "AVATAR", "PROFILE_COVER").contains(usage)) throw param("不支持的附件用途");
+        if (!Set.of("ATTACHMENT", "COVER", "AVATAR", "PROFILE_COVER", "INLINE").contains(usage)) throw param("不支持的附件用途");
         if (file == null || file.isEmpty()) throw param("请选择要上传的文件");
+        // 正文插图只允许图片，与普通附件不同（普通附件可传 PDF/压缩包等）
         boolean imageOnly = !"ATTACHMENT".equals(usage);
         long maxSize = imageOnly ? MAX_COVER_SIZE : MAX_ATTACHMENT_SIZE;
         if (file.getSize() > maxSize) throw param(imageOnly ? "图片大小不能超过 10MB" : "附件大小不能超过 50MB");
@@ -51,20 +68,93 @@ public class AttachmentService {
         if (originalName.isBlank() || originalName.length() > 255) throw param("原始文件名不正确");
         String extension = ForumStorageService.extension(originalName);
         if (imageOnly && !FileTypeValidator.isImageFilename(originalName)) throw param("该用途仅支持图片文件");
-        ForumStorageService.StoredFile stored = storage.store(file, extension);
+        byte[] bytes;
+        try {
+            bytes = file.getBytes();
+        } catch (IOException e) {
+            throw new BizException(ErrorCode.SYSTEM_ERROR, "附件读取失败");
+        }
+        String contentType;
+        try (BufferedInputStream in = new BufferedInputStream(new ByteArrayInputStream(bytes))) {
+            contentType = FileTypeValidator.validate(in, extension);
+        } catch (IOException e) {
+            throw new BizException(ErrorCode.SYSTEM_ERROR, "附件校验失败");
+        }
+
+        ForumStorageService.StoredFile stored = null;
+        Long fileId = null;
+        try {
+            FileUploadRequest request = new FileUploadRequest();
+            request.setBizType(FILE_BIZ_TYPE);
+            request.setVisibility("PUBLIC");
+            request.setOriginalName(originalName);
+            request.setContentType(contentType);
+            request.setContent(Base64.getEncoder().encodeToString(bytes));
+            request.setOwnerType("FORUM_ATTACHMENT");
+            request.setUploaderId(user.getAccountId());
+            R<FileMeta> result = fileApi.upload(request);
+            FileMeta meta = result == null ? null : result.getData();
+            if (result == null || !result.ok() || meta == null || meta.getId() == null) {
+                throw new IllegalStateException(result == null ? "无响应" : result.getMessage());
+            }
+            fileId = Long.valueOf(meta.getId());
+            if ("INLINE".equals(usage)) {
+                // 正文插图写进帖子 HTML，必须用不依赖登录/绑定状态的稳定路径：
+                // 注册别名 → 走网关 forum-file-legacy 路由 → file-service legacy 端点读取。
+                // 别名路径由 fileId 确定性生成（view() 可原样重建），编辑期与发布后都能匿名访问。
+                FileAliasRequest alias = new FileAliasRequest();
+                alias.setOldPath(inlineUrl(fileId, extension));
+                alias.setFileId(meta.getId());
+                alias.setSourceApp("forum");
+                R<Void> aliasResult = fileApi.registerAlias(alias);
+                if (aliasResult == null || !aliasResult.ok()) {
+                    throw new IllegalStateException(aliasResult == null ? "别名无响应" : aliasResult.getMessage());
+                }
+            }
+        } catch (Exception e) {
+            // 正文插图必须落到统一文件服务并注册别名，本地回退无法生成长期可读的正文 URL，
+            // 因此这里不做降级，直接报错（避免插入帖子后变成裂图）；已上传成功的先清理孤儿。
+            if ("INLINE".equals(usage)) {
+                if (fileId != null) {
+                    try {
+                        fileApi.delete(String.valueOf(fileId));
+                    } catch (Exception ignore) {
+                        log.warn("清理统一文件服务孤儿文件失败：id={}", fileId, ignore);
+                    }
+                }
+                log.error("正文插图上传失败：name={}", originalName, e);
+                throw new BizException(ErrorCode.SYSTEM_ERROR, "图片上传失败，请稍后重试");
+            }
+            log.warn("统一文件服务上传失败，回退本地存储：name={}", originalName, e);
+            try {
+                stored = storage.store(file, extension);
+            } catch (Exception ioe) {
+                throw new BizException(ErrorCode.SYSTEM_ERROR, "附件保存失败");
+            }
+        }
+
         Attachment values = new Attachment();
         values.setId(IdWorker.getId());
         values.setOwnerAccountId(user.getAccountId());
         values.setUsageType(usage);
         values.setOriginalName(originalName);
-        values.setStoragePath(stored.storagePath());
-        values.setMimeType(stored.mimeType());
-        values.setSize(stored.size());
+        values.setStoragePath(stored == null ? "" : stored.storagePath());
+        values.setFileId(fileId);
+        values.setMimeType(stored == null ? contentType : stored.mimeType());
+        values.setSize(stored == null ? bytes.length : stored.size());
         try {
             mapper.insert(values);
             return view(mapper.findById(values.getId()));
         } catch (RuntimeException e) {
-            storage.delete(stored.storagePath());
+            if (stored != null) {
+                storage.delete(stored.storagePath());
+            } else if (fileId != null) {
+                try {
+                    fileApi.delete(String.valueOf(fileId));
+                } catch (Exception ignore) {
+                    log.warn("清理统一文件服务孤儿文件失败：id={}", fileId, ignore);
+                }
+            }
             throw e;
         }
     }
@@ -93,7 +183,23 @@ public class AttachmentService {
             // 显式设置后 Spring Security 的 CacheControlHeadersWriter 不再注入 no-cache。
             builder.cacheControl(CacheControl.maxAge(365, TimeUnit.DAYS).cachePublic().immutable());
         }
-        return builder.body(storage.read(text(row.getStoragePath())));
+        return builder.body(readFile(row));
+    }
+
+    /** 统一文件服务优先；取不到时回退旧本地存储（存量文件 file_id 为空）。 */
+    private Resource readFile(Attachment row) {
+        if (row.getFileId() != null) {
+            try {
+                R<String> result = fileApi.content(String.valueOf(row.getFileId()));
+                if (result != null && result.ok() && result.getData() != null) {
+                    return new ByteArrayResource(Base64.getDecoder().decode(result.getData()));
+                }
+                log.warn("统一文件服务读取为空，回退本地：fileId={}", row.getFileId());
+            } catch (Exception e) {
+                log.warn("统一文件服务读取失败，回退本地：fileId={}", row.getFileId(), e);
+            }
+        }
+        return storage.read(text(row.getStoragePath()));
     }
 
     public List<AttachmentVO> threadAttachments(long threadId) {
@@ -199,9 +305,19 @@ public class AttachmentService {
         view.setMimeType(text(row.getMimeType()));
         view.setSize(longValue(row.getSize()));
         view.setUsageType(text(row.getUsageType()));
+        // 正文插图走稳定别名路径（编辑期/发布后均可匿名读取），其余附件仍按 ID 寻址
+        if ("INLINE".equals(text(row.getUsageType())) && row.getFileId() != null) {
+            view.setUrl(inlineUrl(row.getFileId(), ForumStorageService.extension(text(row.getOriginalName()))));
+            return view;
+        }
         boolean published = longValue(row.getThreadId()) > 0 || longValue(row.getProfileAccountId()) > 0;
         view.setUrl((published ? "/api/forum/public/attachments/" : "/api/forum/attachments/") + row.getId());
         return view;
+    }
+
+    /** 由 fileId 确定性生成正文插图的稳定别名路径，与上传时注册的路径一致。 */
+    private String inlineUrl(long fileId, String extension) {
+        return INLINE_URL_PREFIX + "/" + fileId + (extension.isEmpty() ? "" : "." + extension);
     }
 
     private SecurityUser requireUser() {

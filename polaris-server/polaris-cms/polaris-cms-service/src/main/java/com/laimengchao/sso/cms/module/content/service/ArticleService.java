@@ -90,17 +90,20 @@ public class ArticleService {
             applyTag(article, req.getTagId());
             decideSchedule(article, req);
             articleMapper.insert(article);
+            log.info("内容新建成功：articleId={} title={} status={}", article.getId(), article.getTitle(), article.getStatus());
         } else {
             article = requireArticle(req.getId());
             dataScopeService.assertCanAccessOrg(article.getOrgCode());
             // 已发布内容先快照：改坏了可以一键回滚
             if (article.published()) {
                 snapshot(article, "编辑前自动快照", SecurityUtils.currentUsername().orElse(""));
+                log.info("已发布内容编辑前自动快照：articleId={}", article.getId());
             }
             applyContent(article, req);
             applyTag(article, req.getTagId());
             decideSchedule(article, req);
             articleMapper.updateById(article);
+            log.info("内容编辑成功：articleId={} title={} status={}", article.getId(), article.getTitle(), article.getStatus());
         }
         return detail(article.getId());
     }
@@ -436,10 +439,13 @@ public class ArticleService {
         Article article = requireArticle(id);
         dataScopeService.assertCanAccessOrg(article.getOrgCode());
         if (article.getStatus() != Article.STATUS_SCHEDULED) {
+            // 拦截跳过审核直接发布，属可预期的非法状态，留痕便于追踪
+            log.warn("拒绝非法状态直接发布：articleId={} status={}", id, article.getStatus());
             throw new BizException(CmsErrorCode.ILLEGAL_STATE,
                     "只有审批通过、处于待发布的文章可以发布；请先提交审批");
         }
         publish(article, "审批通过后发布", nvl(article.getAuditNote()));
+        log.info("内容发布成功：articleId={} title={}", id, article.getTitle());
     }
 
     /** 下线：从前台撤下，不进回收站 */

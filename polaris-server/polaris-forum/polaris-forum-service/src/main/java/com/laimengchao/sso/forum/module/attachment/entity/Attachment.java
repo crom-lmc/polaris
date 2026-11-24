@@ -14,6 +14,8 @@ public class Attachment {
     private String usageType;
     private String originalName;
     private String storagePath;
+    /** 统一文件服务文件ID；为空表示仍用旧的本地存储文件 */
+    private Long fileId;
     private String mimeType;
     private Long size;
     @JsonSerialize(using = ToStringSerializer.class)

@@ -1,8 +1,6 @@
 package com.laimengchao.sso.account.controller;
 
 import com.laimengchao.sso.account.constant.PermissionConstants;
-import com.laimengchao.sso.account.domain.entity.SsoAuditLog;
-import com.laimengchao.sso.account.domain.entity.SsoLoginLog;
 import com.laimengchao.sso.account.dto.request.CreateAccountRequest;
 import com.laimengchao.sso.account.dto.request.ResetPasswordRequest;
 import com.laimengchao.sso.account.dto.request.SetAccountAppsRequest;
@@ -12,12 +10,9 @@ import com.laimengchao.sso.account.dto.response.ApplicationVO;
 import com.laimengchao.sso.account.security.Permit;
 import com.laimengchao.sso.account.service.AccountAppService;
 import com.laimengchao.sso.account.service.AccountService;
-import com.laimengchao.sso.account.service.AuditLogService;
-import com.laimengchao.sso.account.service.LoginLogService;
 import com.laimengchao.sso.common.PageResult;
 import com.laimengchao.sso.common.R;
 import lombok.RequiredArgsConstructor;
-import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -28,7 +23,6 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-import java.time.LocalDate;
 import java.util.List;
 
 /**
@@ -40,8 +34,6 @@ import java.util.List;
 public class AccountController {
 
     private final AccountService accountService;
-    private final LoginLogService loginLogService;
-    private final AuditLogService auditLogService;
     private final AccountAppService accountAppService;
 
     @GetMapping
@@ -77,32 +69,6 @@ public class AccountController {
     public R<Void> delete(@PathVariable Long id) {
         accountService.delete(id);
         return R.ok();
-    }
-
-    @GetMapping("/login-logs")
-    @Permit(PermissionConstants.ACCOUNT_LOG_VIEW)
-    public R<PageResult<SsoLoginLog>> loginLogs(
-            @RequestParam(defaultValue = "1") int page,
-            @RequestParam(defaultValue = "10") int size,
-            @RequestParam(required = false) String keyword,
-            @RequestParam(required = false) String loginType) {
-        return R.ok(loginLogService.page(page, size, keyword, loginType));
-    }
-
-    @GetMapping("/audit-logs")
-    @Permit(PermissionConstants.ACCOUNT_LOG_VIEW)
-    public R<PageResult<SsoAuditLog>> auditLogs(
-            @RequestParam(defaultValue = "1") int page,
-            @RequestParam(defaultValue = "10") int size,
-            @RequestParam(required = false) String action,
-            @RequestParam(required = false) String targetType,
-            @RequestParam(required = false) Long targetId,
-            @RequestParam(required = false) String operator,
-            @RequestParam(required = false) String result,
-            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
-            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate) {
-        return R.ok(auditLogService.page(page, size, action, targetType, targetId,
-                operator, result, startDate, endDate));
     }
 
     @PostMapping("/{id}/enable")

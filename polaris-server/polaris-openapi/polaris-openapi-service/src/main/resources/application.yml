@@ -73,6 +73,12 @@ internal:
   ehr-url: ${EHR_URL:http://127.0.0.1:9006}
   token: ${SSO_INTERNAL_TOKEN:}
 
+# 统一文件服务跨服客户端（对外开放的文件 api_code 经此转发）
+file:
+  client:
+    base-url: ${FILE_SERVICE_URL:http://127.0.0.1:9011}
+    internal-token: ${SSO_INTERNAL_TOKEN:}
+
 # 开放平台自身配置
 openapi:
   # 自签短期访问令牌（HS256）的密钥，生产必须走环境变量/Nacos 下发，至少 32 字节

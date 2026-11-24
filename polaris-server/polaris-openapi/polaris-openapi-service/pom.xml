@@ -25,10 +25,20 @@
             <groupId>com.laimengchao.sso</groupId>
             <artifactId>polaris-common</artifactId>
         </dependency>
+        <!-- 统一审计客户端：controller 写方法自动留痕（AOP），上报 audit-server -->
+        <dependency>
+            <groupId>com.laimengchao.sso</groupId>
+            <artifactId>polaris-audit-client</artifactId>
+        </dependency>
         <!-- 统一登录中心跨服客户端：查权限码 / 转发签名验签（X-Internal-Token） -->
         <dependency>
             <groupId>com.laimengchao.sso</groupId>
             <artifactId>polaris-sso-client</artifactId>
+        </dependency>
+        <!-- 统一文件服务跨服客户端：对外文件接口经本契约转发到 file-service /internal/files/** -->
+        <dependency>
+            <groupId>com.laimengchao.sso</groupId>
+            <artifactId>polaris-file-client</artifactId>
         </dependency>
 
         <dependency>

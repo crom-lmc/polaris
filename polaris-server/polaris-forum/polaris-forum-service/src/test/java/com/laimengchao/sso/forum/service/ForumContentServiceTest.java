@@ -42,6 +42,18 @@ class ForumContentServiceTest {
     }
 
     @Test
+    void keepsInlineImageWithRelativeSrc() {
+        String cleaned = service.sanitize("<p><img src=\"/api/forum/media/file/383314035510218752.jpg\" alt=\"插图\"></p><p>正文</p>");
+        assertTrue(cleaned.contains("src=\"/api/forum/media/file/383314035510218752.jpg\""));
+        assertTrue(cleaned.contains("alt=\"插图\""));
+        assertTrue(cleaned.contains("正文"));
+        // 危险协议与站外相对路径的插图仍要拦截
+        assertFalse(service.sanitize("<img src=\"javascript:alert(1)\" alt=\"x\">").contains("<img"));
+        assertFalse(service.sanitize("<img src=\"/etc/passwd\" alt=\"x\">").contains("<img"));
+        assertFalse(service.sanitize("<img src=\"http://evil.example/a.png\" alt=\"x\">").contains("<img"));
+    }
+
+    @Test
     void extractsPlainTextForValidationAndSensitiveWords() {
         assertEquals("赌博", service.plainText("<p>赌<strong></strong>博</p>"));
         assertEquals("第一段 第二段", service.plainText("<p>第一段</p><p>第二段</p>"));

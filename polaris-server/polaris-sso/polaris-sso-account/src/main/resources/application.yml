@@ -5,6 +5,16 @@ server:
 spring:
   application:
     name: sso-account
+  data:
+    redis:
+      # 数据权限 scopeCode 缓存（ScopeCodeCacheImpl 三级链路的第二级）。
+      # 与 sso-auth 共用同一 Redis（db2 隔离）；密码由 Nacos 的 sso-account.yaml 下发，
+      # 未配置时 StringRedisTemplate 会用默认无密码连接导致 NOAUTH，此处补齐 host/port/db。
+      host: ${SSO_REDIS_HOST:127.0.0.1}
+      port: ${SSO_REDIS_PORT:6379}
+      database: ${SSO_REDIS_DB:2}
+      timeout: 3000ms
+      password: ${SSO_REDIS_PASSWORD:}
   config:
     # 关键：optional: 前缀。没有 Nacos 时自动回退到本文件，服务照常启动
     import: "optional:nacos:sso-account.yaml?group=${SSO_NACOS_GROUP:SSO}&refreshEnabled=true"

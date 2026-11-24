@@ -229,6 +229,7 @@ public class JobDispatchService {
             if (result == null) {
                 status = 2;
                 message = "执行器返回空响应";
+                log.warn("任务执行器返回空响应：job={} handler={} target={}", job.getId(), job.getHandler(), baseUrl);
             } else if (result.isSuccess()) {
                 status = 1;
                 message = result.getMessage();
@@ -239,12 +240,16 @@ public class JobDispatchService {
         } catch (RestClientResponseException e) {
             status = 2;
             message = "HTTP " + e.getStatusCode().value() + "：" + abbreviate(e.getResponseBodyAsString());
+            log.warn("任务执行器返回错误状态：job={} handler={} http={}", job.getId(), job.getHandler(), e.getStatusCode().value());
         } catch (ResourceAccessException e) {
             status = 3;
             message = "调用不可达或超时（" + timeoutSec + "s）：" + e.getMessage();
+            log.warn("任务执行器不可达或超时：job={} handler={} target={}", job.getId(), job.getHandler(), baseUrl);
         } catch (Exception e) {
             status = 2;
             message = e.getClass().getSimpleName() + "：" + e.getMessage();
+            // 未知异常，保留堆栈
+            log.error("任务派发未知异常：job={} handler={} target={}", job.getId(), job.getHandler(), baseUrl, e);
         }
 
         int costMs = (int) (System.currentTimeMillis() - start);
@@ -257,6 +262,10 @@ public class JobDispatchService {
             logRow.setErrorMsg(truncate(message));
         }
         jobLogMapper.updateById(logRow);
+        if (status == 1) {
+            log.info("任务派发成功：job={} handler={} target={} costMs={} retry={}",
+                    job.getId(), job.getHandler(), baseUrl, costMs, retryIndex);
+        }
         return status;
     }
 

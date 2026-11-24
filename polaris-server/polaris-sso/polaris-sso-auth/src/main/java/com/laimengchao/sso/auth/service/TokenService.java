@@ -87,15 +87,27 @@ public class TokenService {
             throw new BizException(ErrorCode.UNAUTHORIZED, "登录状态已失效，请重新登录");
         }
         if (expectedApp != null && !expectedApp.equals(claims.get(JwtClaims.APP, String.class))) {
+            // 跨应用越权拦截，属于可预期的拒绝，但值得留痕以便排查撞库/盗用
+            log.warn("刷新令牌与应用不匹配，已拒绝：expected={} actual={} jti={}",
+                    expectedApp, claims.get(JwtClaims.APP, String.class), claims.getId());
             throw new BizException(ErrorCode.FORBIDDEN, "refresh token 与该应用不匹配");
         }
         Long accountId = Long.valueOf(claims.getSubject());
         String app = claims.get(JwtClaims.APP, String.class);
         // 重新拉取权限，保证刷新后拿到的是最新授权，而不是签发时的旧快照
-        AuthUser user = accountClient.principal(accountId, app);
+        AuthUser user;
+        try {
+            user = accountClient.principal(accountId, app);
+        } catch (Exception e) {
+            // 刷新链路拿不到最新权限，不能带旧快照继续放行
+            log.error("刷新令牌时拉取账号权限失败：accountId={} app={} jti={}", accountId, app, claims.getId(), e);
+            throw e;
+        }
         revoke(claims.getId(), claims.getExpiration().toInstant());
         // 刷新换出来的一对令牌继续绑在同一个中心会话上，否则登出联动会断在这里
-        return issuePair(user, sid);
+        TokenResponse response = issuePair(user, sid);
+        log.info("令牌刷新成功：accountId={} app={} sid={}", accountId, app, sid);
+        return response;
     }
 
     /**

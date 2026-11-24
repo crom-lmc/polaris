@@ -24,7 +24,9 @@ server {
         polaris-settings.${DOMAIN}
         polaris-job.${DOMAIN}
         polaris-portal.${DOMAIN}
-        polaris-forum.${DOMAIN};
+        polaris-forum.${DOMAIN}
+        polaris-file.${DOMAIN}
+        polaris-audit.${DOMAIN};
     return 301 https://$host$request_uri;
 }
 
@@ -195,6 +197,47 @@ server {
     location / {
         root /opt/polaris/www/forum;
         index index.html;
+        try_files $uri $uri/ /index.html;
+    }
+}
+
+# ============ 统一文件服务 / 统一审计中心 ============
+server {
+    listen 443 ssl;
+    server_name polaris-file.${DOMAIN};
+    ssl_certificate     /etc/nginx/certs/polaris-file.${DOMAIN}/polaris-file.${DOMAIN}_nginx/polaris-file.${DOMAIN}_bundle.crt;
+    ssl_certificate_key /etc/nginx/certs/polaris-file.${DOMAIN}/polaris-file.${DOMAIN}_nginx/polaris-file.${DOMAIN}.key;
+    ssl_protocols TLSv1.2 TLSv1.3;
+    client_max_body_size 100m;
+    gzip on;
+    gzip_types text/css application/javascript application/json image/svg+xml;
+
+    root /opt/polaris/www/file;
+    index index.html;
+
+    include /etc/nginx/snippets/polaris-api.inc;
+
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+}
+
+server {
+    listen 443 ssl;
+    server_name polaris-audit.${DOMAIN};
+    ssl_certificate     /etc/nginx/certs/polaris-audit.${DOMAIN}/polaris-audit.${DOMAIN}_nginx/polaris-audit.${DOMAIN}_bundle.crt;
+    ssl_certificate_key /etc/nginx/certs/polaris-audit.${DOMAIN}/polaris-audit.${DOMAIN}_nginx/polaris-audit.${DOMAIN}.key;
+    ssl_protocols TLSv1.2 TLSv1.3;
+    client_max_body_size 20m;
+    gzip on;
+    gzip_types text/css application/javascript application/json image/svg+xml;
+
+    root /opt/polaris/www/audit;
+    index index.html;
+
+    include /etc/nginx/snippets/polaris-api.inc;
+
+    location / {
         try_files $uri $uri/ /index.html;
     }
 }

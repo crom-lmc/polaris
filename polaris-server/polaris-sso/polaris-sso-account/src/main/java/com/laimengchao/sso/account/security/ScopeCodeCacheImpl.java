@@ -41,10 +41,18 @@ public class ScopeCodeCacheImpl implements ScopeCodeCache {
         } catch (DataAccessException e) {
             log.warn("读取账号数据权限缓存失败，降级查询本库，accountId={}，原因={}", accountId, e.getMessage());
         }
-        // 3. 兜底查本库 DB
-        SsoAccount acc = accountMapper.selectById(accountId);
+        // 3. 兜底查本库 DB（ThreadLocal/Redis 均未命中，属低频路径，INFO 留痕便于观察缓存命中率）
+        SsoAccount acc;
+        try {
+            acc = accountMapper.selectById(accountId);
+        } catch (Exception e) {
+            // 三级缓存全部失效且本库也查不到数据权限，属于致命失败点
+            log.error("查询账号数据权限兜底失败：accountId={}", accountId, e);
+            throw e;
+        }
         String fresh = acc == null ? null : acc.getDataScopeOrgCode();
         put(accountId, fresh);
+        log.info("数据权限缓存未命中，已从本库回源：accountId={} scopeCode={}", accountId, fresh);
         return fresh;
     }
 

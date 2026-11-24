@@ -52,6 +52,8 @@ public class OutboundService {
         // 1) 定位开放 API 目录（按 api_code，如 outbound.email.send）
         ApiOpenEndpoint ep = endpointMapper.selectByCode(ctx.apiCode());
         if (ep == null || ep.getStatus() == null || ep.getStatus() != 1 || ep.getDirection() != 2) {
+            log.warn("出站接口不存在/停用/方向不符：apiCode={} channel={} traceId={}",
+                    ctx.apiCode(), ctx.channel(), ctx.traceId());
             throw new BizException(OpenapiErrorCode.API_NOT_FOUND);
         }
 
@@ -98,12 +100,16 @@ public class OutboundService {
             int cost = (int) (System.currentTimeMillis() - start);
             if (result.isSuccess()) {
                 writeLog(ctx, 200, 0, toJson(payload), toJson(safeResult(result)), null, cost);
+                log.info("出站接口调用成功：apiCode={} channel={} traceId={} messageId={} costMs={}",
+                        ctx.apiCode(), ctx.channel(), ctx.traceId(), result.getMessageId(), cost);
                 return Map.of("messageId", result.getMessageId() == null ? "" : result.getMessageId(),
                         "detail", result.getDetail() == null ? "" : result.getDetail());
             }
             // 不在这里写日志，统一由下方 catch 写，避免与异常路径重复落库
             throw new BizException(OpenapiErrorCode.SEND_FAILED, result.getDetail());
         } catch (BizException e) {
+            log.warn("出站接口业务失败：apiCode={} channel={} traceId={} bizCode={} reason={}",
+                    ctx.apiCode(), ctx.channel(), ctx.traceId(), e.getCode(), e.getMessage());
             int http = e.getErrorCode() != null && e.getErrorCode().httpStatus() > 0
                     ? e.getErrorCode().httpStatus() : 500;
             writeLog(ctx, http, e.getCode(), toJson(ctx.payload()), null, e.getMessage(),

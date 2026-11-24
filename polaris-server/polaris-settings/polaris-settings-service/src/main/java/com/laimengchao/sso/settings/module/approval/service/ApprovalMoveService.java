@@ -59,6 +59,9 @@ public class ApprovalMoveService {
                 .eq(ApprTask::getStepSeq, task.getStepSeq())
                 .eq(ApprTask::getNodeId, task.getNodeId()));
         if (transferCount > MAX_TRANSFER) {
+            // 防「踢皮球」：同一节点转办次数超上限
+            log.warn("审批转办次数超限已拒绝：instance={} task={} operator={} count={}",
+                    task.getInstanceId(), taskId, req.getOperatorId(), transferCount);
             throw new BizException(SettingsErrorCode.APPROVAL_TRANSFER_LIMIT);
         }
 
@@ -77,6 +80,8 @@ public class ApprovalMoveService {
         engine.logAction(task.getInstanceId(), task.getId(), task.getStepSeq(),
                 req.getOperatorId(), req.getOperatorName(), ActionType.TRANSFER,
                 req.getTargetId(), req.getTargetName(), req.getNote());
+        log.info("审批转办完成：instance={} task={} from={} to={} target={}",
+                task.getInstanceId(), taskId, req.getOperatorId(), req.getTargetId(), req.getTargetName());
     }
 
     // ================================================================ 加签
@@ -112,6 +117,8 @@ public class ApprovalMoveService {
         engine.logAction(task.getInstanceId(), task.getId(), task.getStepSeq(),
                 req.getOperatorId(), req.getOperatorName(), ActionType.ADD_SIGN,
                 req.getTargetId(), req.getTargetName(), req.getNote());
+        log.info("审批加签完成：instance={} task={} target={} position={} 会签人数={}",
+                task.getInstanceId(), taskId, req.getTargetId(), req.getPosition(), pending.size() + 1);
     }
 
     // ================================================================ 抄送

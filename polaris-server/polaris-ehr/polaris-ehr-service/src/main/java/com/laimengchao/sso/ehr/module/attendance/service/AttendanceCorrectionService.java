@@ -127,6 +127,7 @@ public class AttendanceCorrectionService {
     public AttendanceCorrectionVO approve(Long id, AttendanceCorrectionApproveRequest req) {
         AttendanceCorrection row = require(id);
         if (!Integer.valueOf(0).equals(row.getStatus())) {
+            log.warn("拒绝审批非待审批状态的补卡：id={} status={}", id, row.getStatus());
             throw new BizException(EhrErrorCode.APPROVAL_STATE_INVALID, "只有待审批的补卡可以审批");
         }
         LocalDateTime now = LocalDateTime.now();
@@ -138,6 +139,8 @@ public class AttendanceCorrectionService {
                 .set(AttendanceCorrection::getApproveNote, note)
                 .set(AttendanceCorrection::getApprovedAt, now));
         if (updated == 0) {
+            // CAS 并发冲突：另一个审批人已先处理
+            log.warn("补卡审批并发冲突（已被处理）：id={}", id);
             throw new BizException(EhrErrorCode.APPROVAL_STATE_INVALID, "补卡单已被处理");
         }
 
@@ -153,6 +156,8 @@ public class AttendanceCorrectionService {
         punchMapper.insert(punch);
 
         dailyService.generate(row.getWorkDate());
+        log.info("补卡审批通过并生效：id={} employeeId={} workDate={} punchTime={}",
+                id, row.getEmployeeId(), row.getWorkDate(), row.getPunchTime());
         return toVO(correctionMapper.selectById(id), employeeName(row.getEmployeeId()));
     }
 

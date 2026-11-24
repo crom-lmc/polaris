@@ -12,7 +12,11 @@ VALUES
   (202611220000000005,'inbound.employee.active','获取在职人员',1,'QUERY','ehr','GET','/api/open/v1/employees/active','/internal/orgs/employees/active','SIGNATURE','inbound:employee:list',60,3000,0,1,'{"mobile":"mobile","email":"email"}','已开户未离职人员',1,NOW(),NOW(),0),
   (202611220000000006,'inbound.org.tree','获取组织树',1,'QUERY','ehr','GET','/api/open/v1/orgs/tree','/internal/orgs/tree','SIGNATURE','inbound:org:tree',60,3000,0,1,NULL,'全量组织节点（扁平）',1,NOW(),NOW(),0),
   (202611220000000007,'inbound.org.employees','获取组织成员',1,'QUERY','ehr','GET','/api/open/v1/orgs/{id}/employees','/internal/orgs/{id}/employees','SIGNATURE','inbound:employee:list',60,3000,0,1,NULL,'某组织直属已开户成员',1,NOW(),NOW(),0),
-  (202611220000000008,'outbound.email.send','发送邮件',2,'EXECUTE','email','POST','/api/open/v1/outbound/email/send','','INTERNAL','outbound:email:invoke',30,5000,0,0,'{"to":"to","subject":"subject","body":"body"}','邮件出站（SMTP 凭证托管，auth_config 配 host/port/from，credential_ref 存加密账号口令）',1,NOW(),NOW(),0);
+  (202611220000000008,'outbound.email.send','发送邮件',2,'EXECUTE','email','POST','/api/open/v1/outbound/email/send','','INTERNAL','outbound:email:invoke',30,5000,0,0,'{"to":"to","subject":"subject","body":"body"}','邮件出站（SMTP 凭证托管，auth_config 配 host/port/from，credential_ref 存加密账号口令）',1,NOW(),NOW(),0),
+  (202611220000000009,'inbound.file.upload','上传文件',1,'CREATE','file','POST','/api/open/v1/file/upload','/internal/files/upload','SIGNATURE','inbound:file:upload',30,30000,0,0,'{"content":"[base64 omitted]"}','对外上传文件（base64 内联，content 不落调用日志；大文件走直传）',1,NOW(),NOW(),0),
+  (202611220000000010,'inbound.file.meta','查询文件元数据',1,'QUERY','file','GET','/api/open/v1/file/{id}/meta','/internal/files/{id}','SIGNATURE','inbound:file:meta',60,3000,0,1,NULL,'按文件ID查询元数据（不含文件字节）',1,NOW(),NOW(),0),
+  (202611220000000011,'inbound.file.download','获取下载链接',1,'QUERY','file','GET','/api/open/v1/file/{id}/download','/internal/files/{id}/sign','SIGNATURE','inbound:file:download',60,3000,0,1,NULL,'换取短时效签名下载URL（字节不经开放平台，第三方自行下载）',1,NOW(),NOW(),0),
+  (202611220000000012,'inbound.file.delete','删除文件',1,'DELETE','file','POST','/api/open/v1/file/{id}/delete','/internal/files/{id}','SIGNATURE','inbound:file:delete',30,3000,0,0,NULL,'软删除文件（逻辑删除，保留追溯）',1,NOW(),NOW(),0);
 
 -- 已部署老库：新增列默认为 QUERY，这里按已知种子 api_code 幂等回填真实操作类型。
 -- 条件带 operation_type='QUERY' 守卫，用户后续在管理端改过的值不会被重复覆盖。

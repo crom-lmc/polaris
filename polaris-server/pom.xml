@@ -44,6 +44,12 @@
         <module>polaris-forum</module>
         <!-- 接口开放平台：openapi-service(9010，独立库 polaris_openapi)，第三方进出唯一对接点 -->
         <module>polaris-openapi</module>
+
+        <!-- 统一文件服务：file-service(9011，独立库 polaris_file) + file-client（上传/下载跨服客户端） -->
+        <module>polaris-file</module>
+
+        <!-- 统一审计中心：audit-server(9012，独立库 polaris_audit) + audit-client（上报/统计跨服客户端） -->
+        <module>polaris-audit</module>
     </modules>
 
     <dependencyManagement>
@@ -112,10 +118,22 @@
                 <artifactId>polaris-settings-client</artifactId>
                 <version>${project.version}</version>
             </dependency>
-            <!-- 统一账号平台跨服客户端：AccountApi + AuthApi -->
+            <!-- 统一账号平台跨服客户端：AccountApi + AuthApi + AuditApi -->
             <dependency>
                 <groupId>com.laimengchao.sso</groupId>
                 <artifactId>polaris-sso-client</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <!-- 统一文件服务跨服客户端：FileApi（上传/元数据/下载/签名/软删） -->
+            <dependency>
+                <groupId>com.laimengchao.sso</groupId>
+                <artifactId>polaris-file-client</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <!-- 统一审计中心跨服客户端：AuditApi（事件上报/登录统计） -->
+            <dependency>
+                <groupId>com.laimengchao.sso</groupId>
+                <artifactId>polaris-audit-client</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <!-- EHR 跨服客户端：EhrOrgApi -->

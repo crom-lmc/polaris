@@ -53,12 +53,16 @@ public class RevocationCache {
     private void apply(JsonNode body) {
         JsonNode items = body.path("data").path("items");
         if (!items.isObject()) {
+            // 响应结构异常，保留旧副本
+            log.warn("同步吊销名单响应格式异常，保留旧副本（当前 {} 条）", revoked.size());
             return;
         }
         Set<String> fresh = new HashSet<>();
         items.fieldNames().forEachRemaining(fresh::add);
+        int before = revoked.size();
         revoked.retainAll(fresh);
         revoked.addAll(fresh);
+        log.info("吊销名单同步完成：本次 {} 条，旧 {} 条，现 {} 条", fresh.size(), before, revoked.size());
     }
 
     public boolean isRevoked(String jti) {

@@ -17,6 +17,8 @@ public class Attachment extends BaseEntity {
     private Long bizId;
     private String fileName;
     private String fileKey;
+    /** 统一文件服务文件ID；为空表示仍用旧的本地存储文件（不要与业务表的 file_id 混淆） */
+    private Long fileId;
     private Long size;
     private String mime;
     private Long uploadedBy;

@@ -10,7 +10,7 @@ import java.util.Map;
  * 账号中心概览统计聚合查询。
  * <p>
  * 只读统计，集中在同一 Mapper 便于维护口径；数字用 count、趋势/分布用 group by。
- * 时间口径统一用 created_at，与登录日志、账号表一致。
+ * 登录相关统计已迁至 audit-server，本 Mapper 只保留账号域自身的聚合查询。
  */
 public interface OverviewMapper {
 
@@ -30,30 +30,9 @@ public interface OverviewMapper {
     @Select("SELECT COUNT(1) FROM sso_permission WHERE deleted = 0")
     long countPermissions();
 
-    /** 今日登录次数（成功+失败），按服务器当天 00:00 起算 */
-    @Select("SELECT COUNT(1) FROM sso_login_log WHERE created_at >= CURDATE()")
-    long countTodayLogins();
-
     /** 本月新增账号数（本月 1 号 00:00 起算） */
     @Select("SELECT COUNT(1) FROM sso_account WHERE deleted = 0 AND created_at >= DATE_FORMAT(CURDATE(), '%Y-%m-01')")
     long countMonthNewAccounts();
-
-    /**
-     * 近 N 天登录趋势：按日期聚合成功/失败次数。
-     * <p>
-     * 用日期字段范围过滤（走 idx_created），MySQL 端按 DATE(created_at) 分组；
-     * 缺勤日期由 Service 层补 0，保证图表横轴连续。
-     */
-    @Select("""
-            SELECT DATE(created_at) AS day,
-                   SUM(CASE WHEN result = 'success' THEN 1 ELSE 0 END) AS success,
-                   SUM(CASE WHEN result = 'fail' THEN 1 ELSE 0 END) AS fail
-            FROM sso_login_log
-            WHERE created_at >= DATE_SUB(CURDATE(), INTERVAL #{days} - 1 DAY)
-            GROUP BY DATE(created_at)
-            ORDER BY day
-            """)
-    List<Map<String, Object>> loginTrend(@Param("days") int days);
 
     /** 账号状态分布：1正常 2禁用 3锁定 4未激活 */
     @Select("""
@@ -62,18 +41,6 @@ public interface OverviewMapper {
             GROUP BY status ORDER BY status
             """)
     List<Map<String, Object>> accountStatus();
-
-    /**
-     * 登录方式分布（按登录日志实际出现的类型聚合）。
-     * 只统计近 30 天，避免对持续增长的审计表全表 GROUP BY；走 created_at 索引，与 loginTrend 口径一致。
-     */
-    @Select("""
-            SELECT login_type AS `key`, COUNT(1) AS cnt
-            FROM sso_login_log
-            WHERE created_at >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)
-            GROUP BY login_type ORDER BY cnt DESC
-            """)
-    List<Map<String, Object>> loginTypes();
 
     /* ---------------- 数据权限范围：先按 scopeCode 反查账号集合，再按同一集合统计 ---------------- */
 
@@ -138,26 +105,6 @@ public interface OverviewMapper {
             """)
     long countScopedPermissions(@Param("ids") List<Long> ids);
 
-    /** 数据范围内今日登录次数（成功+失败） */
-    @Select("""
-            <script>
-            SELECT COUNT(1) FROM sso_login_log l
-            WHERE l.created_at >= CURDATE()
-              <if test="accountIds != null and accountIds.size() > 0">
-              AND (
-                l.account_id IN
-                <foreach collection="accountIds" item="id" open="(" separator="," close=")">#{id}</foreach>
-                <if test="usernames != null and usernames.size() > 0">
-                OR l.username IN
-                <foreach collection="usernames" item="name" open="(" separator="," close=")">#{name}</foreach>
-                </if>
-              )
-              </if>
-            </script>
-            """)
-    long countScopedTodayLogins(@Param("accountIds") List<Long> accountIds,
-                                @Param("usernames") List<String> usernames);
-
     /** 数据范围内本月新增账号数 */
     @Select("""
             <script>
@@ -169,32 +116,6 @@ public interface OverviewMapper {
             </script>
             """)
     long countScopedMonthNewAccounts(@Param("ids") List<Long> ids);
-
-    /** 数据范围内近 N 天登录趋势 */
-    @Select("""
-            <script>
-            SELECT DATE(l.created_at) AS day,
-                   SUM(CASE WHEN l.result = 'success' THEN 1 ELSE 0 END) AS success,
-                   SUM(CASE WHEN l.result = 'fail' THEN 1 ELSE 0 END) AS fail
-            FROM sso_login_log l
-            WHERE l.created_at >= DATE_SUB(CURDATE(), INTERVAL #{days} - 1 DAY)
-              <if test="accountIds != null and accountIds.size() > 0">
-              AND (
-                l.account_id IN
-                <foreach collection="accountIds" item="id" open="(" separator="," close=")">#{id}</foreach>
-                <if test="usernames != null and usernames.size() > 0">
-                OR l.username IN
-                <foreach collection="usernames" item="name" open="(" separator="," close=")">#{name}</foreach>
-                </if>
-              )
-              </if>
-            GROUP BY DATE(l.created_at)
-            ORDER BY day
-            </script>
-            """)
-    List<Map<String, Object>> scopedLoginTrend(@Param("days") int days,
-                                               @Param("accountIds") List<Long> accountIds,
-                                               @Param("usernames") List<String> usernames);
 
     /** 数据范围内账号状态分布 */
     @Select("""
@@ -208,25 +129,4 @@ public interface OverviewMapper {
             """)
     List<Map<String, Object>> scopedAccountStatus(@Param("ids") List<Long> ids);
 
-    /** 数据范围内登录方式分布 */
-    @Select("""
-            <script>
-            SELECT l.login_type AS `key`, COUNT(1) AS cnt
-            FROM sso_login_log l
-            WHERE l.created_at >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)
-              <if test="accountIds != null and accountIds.size() > 0">
-              AND (
-                l.account_id IN
-                <foreach collection="accountIds" item="id" open="(" separator="," close=")">#{id}</foreach>
-                <if test="usernames != null and usernames.size() > 0">
-                OR l.username IN
-                <foreach collection="usernames" item="name" open="(" separator="," close=")">#{name}</foreach>
-                </if>
-              )
-              </if>
-            GROUP BY l.login_type ORDER BY cnt DESC
-            </script>
-            """)
-    List<Map<String, Object>> scopedLoginTypes(@Param("accountIds") List<Long> accountIds,
-                                               @Param("usernames") List<String> usernames);
 }

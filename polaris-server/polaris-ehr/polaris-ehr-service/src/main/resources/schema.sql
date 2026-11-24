@@ -78,6 +78,7 @@ CREATE TABLE IF NOT EXISTS `ehr_attachment` (
   `biz_id` bigint(20) NOT NULL,
   `file_name` varchar(255) NOT NULL,
   `file_key` varchar(255) NOT NULL COMMENT '存储 key，不暴露真实路径',
+  `file_id` bigint(20) DEFAULT NULL COMMENT '统一文件服务文件ID；为空表示仍用旧的本地存储文件',
   `size` bigint(20) NOT NULL DEFAULT '0',
   `mime` varchar(128) DEFAULT '',
   `uploaded_by` bigint(20) DEFAULT NULL,
@@ -266,21 +267,6 @@ CREATE TABLE IF NOT EXISTS `ehr_attendance_rule_segment` (
 /*!40101 SET character_set_client = @saved_cs_client */;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!40101 SET character_set_client = utf8 */;
-CREATE TABLE IF NOT EXISTS `ehr_audit_log` (
-  `id` bigint(20) NOT NULL COMMENT '雪花ID',
-  `operator_id` bigint(20) NOT NULL COMMENT '操作人统一账号ID',
-  `operator_name` varchar(64) DEFAULT '' COMMENT '操作人账号名',
-  `action` varchar(16) NOT NULL COMMENT '动作：VIEW查看/PLAIN查看明文/EXPORT导出/EDIT修改',
-  `target_type` varchar(32) NOT NULL COMMENT '目标类型：EMPLOYEE/LEAVE/CONTRACT等',
-  `target_id` bigint(20) DEFAULT NULL COMMENT '目标业务ID，如员工ID',
-  `fields` varchar(255) DEFAULT '' COMMENT '涉及的敏感字段，逗号分隔；导出时为行数',
-  `ip` varchar(64) DEFAULT '' COMMENT '客户端IP（优先取X-Forwarded-For）',
-  `ua` varchar(255) DEFAULT '' COMMENT '客户端User-Agent',
-  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '记录时间',
-  PRIMARY KEY (`id`),
-  KEY `idx_audit_target` (`target_type`,`target_id`),
-  KEY `idx_audit_time` (`created_at`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='敏感操作审计（查看/明文/导出留痕）';
 /*!40101 SET character_set_client = @saved_cs_client */;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!40101 SET character_set_client = utf8 */;

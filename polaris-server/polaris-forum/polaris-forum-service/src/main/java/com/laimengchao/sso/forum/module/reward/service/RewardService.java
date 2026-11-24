@@ -117,7 +117,10 @@ public class RewardService {
         mapper.ensureMember(user.getAccountId(), user.getUsername());
         mapper.memberForUpdate(user.getAccountId());
         int used = mapper.lotteryCountToday(user.getAccountId());
-        if (used >= dailyLimit) throw new BizException(ErrorCode.TOO_MANY_REQUESTS, "今日抽奖次数已用完");
+        if (used >= dailyLimit) {
+            log.warn("抽奖次数已用完：accountId={} used={} limit={}", user.getAccountId(), used, dailyLimit);
+            throw new BizException(ErrorCode.TOO_MANY_REQUESTS, "今日抽奖次数已用完");
+        }
         changePoints(user.getAccountId(), -cost, "LOTTERY", "", "积分抽奖");
         int award = 0;
         if (PRIZE_GIFT.equals(prize.getPrizeType())) {
@@ -125,18 +128,21 @@ public class RewardService {
         } else {
             award = prize.getPoints() == null ? 0 : prize.getPoints();
         }
-        ForumLotteryLog log = new ForumLotteryLog();
-        log.setId(IdWorker.getId());
-        log.setAccountId(user.getAccountId());
-        log.setPrizeKey(prize.getKey());
-        log.setPrizeName(prize.getName());
-        log.setCostPoints(cost);
-        log.setAwardPoints(award);
-        mapper.insertLottery(log);
+        // 局部变量改名，避免遮蔽 Lombok 的 log logger
+        ForumLotteryLog lotteryLog = new ForumLotteryLog();
+        lotteryLog.setId(IdWorker.getId());
+        lotteryLog.setAccountId(user.getAccountId());
+        lotteryLog.setPrizeKey(prize.getKey());
+        lotteryLog.setPrizeName(prize.getName());
+        lotteryLog.setCostPoints(cost);
+        lotteryLog.setAwardPoints(award);
+        mapper.insertLottery(lotteryLog);
         if (award > 0) {
-            changePoints(user.getAccountId(), award, "LOTTERY_AWARD", String.valueOf(log.getId()), "抽奖获得" + prize.getName());
+            changePoints(user.getAccountId(), award, "LOTTERY_AWARD", String.valueOf(lotteryLog.getId()), "抽奖获得" + prize.getName());
             badgeService.evaluate(user.getAccountId(), "TOTAL_POINTS");
         }
+        log.info("积分抽奖完成：accountId={} prize={} type={} cost={} award={}",
+                user.getAccountId(), prize.getKey(), prize.getPrizeType(), cost, award);
         return new LotteryDrawVO(index, prize, balance(user.getAccountId()), dailyLimit - used - 1);
     }
 
@@ -149,6 +155,9 @@ public class RewardService {
         if (gift == null || !Integer.valueOf(1).equals(gift.getStatus())
                 || gift.getStock() == null || gift.getStock() <= 0
                 || mapper.decreaseGiftStock(gift.getId()) != 1) {
+            // 中奖却发不出实物（下架/无库存/并发扣减失败），降级发等值积分，必须留痕
+            log.warn("抽中礼品但发放失败，降级发等值积分：accountId={} giftId={} prize={}",
+                    accountId, prize.getGiftId(), prize.getKey());
             return prize.getGiftPoints() == null ? 0 : prize.getGiftPoints();
         }
         ForumExchange exchange = new ForumExchange();
@@ -180,7 +189,11 @@ public class RewardService {
         if (myLevel < minLevel) throw new BizException(ErrorCode.FORBIDDEN, "该礼品需 Lv." + minLevel + " 及以上才能兑换");
         int points = gift.getPoints();
         changePoints(user.getAccountId(), -points, "GIFT_EXCHANGE", String.valueOf(giftId), "兑换" + gift.getName());
-        if (mapper.decreaseGiftStock(giftId) != 1) throw new BizException(ErrorCode.CONFLICT, "礼品库存不足");
+        if (mapper.decreaseGiftStock(giftId) != 1) {
+            // 并发扣库存失败：积分已扣但库存没减，事务回滚，属可预期的竞争
+            log.warn("礼品兑换并发扣库存失败：accountId={} giftId={}", user.getAccountId(), giftId);
+            throw new BizException(ErrorCode.CONFLICT, "礼品库存不足");
+        }
         ForumExchange exchange = new ForumExchange();
         exchange.setId(IdWorker.getId());
         exchange.setAccountId(user.getAccountId());
@@ -189,6 +202,8 @@ public class RewardService {
         exchange.setPoints(points);
         exchange.setSource(SOURCE_EXCHANGE);
         mapper.insertExchange(exchange);
+        log.info("礼品兑换成功：accountId={} giftId={} gift={} points={}",
+                user.getAccountId(), giftId, gift.getName(), points);
         return new GiftExchangeVO(exchange.getId(), balance(user.getAccountId()), gift.getName());
     }
 

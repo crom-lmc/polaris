@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>com.laimengchao.sso</groupId>
+        <artifactId>polaris-server</artifactId>
+        <version>1.0.0</version>
+        <relativePath>../pom.xml</relativePath>
+    </parent>
+
+    <artifactId>polaris-audit</artifactId>
+    <packaging>pom</packaging>
+    <name>polaris-audit</name>
+    <description>
+        统一审计中心聚合模块：audit-server(9012，独立库 polaris_audit，单表审计事件流)
+        + audit-client（跨服客户端：事件上报与登录统计，凭 X-Internal-Token 准入）。
+        网关 ACCESS、账号 LOGIN 与敏感操作、EHR 敏感操作统一落到本服务；仅做模块聚合。
+    </description>
+
+    <modules>
+        <module>polaris-audit-client</module>
+        <module>polaris-audit-server</module>
+    </modules>
+</project>

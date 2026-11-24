@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>com.laimengchao.sso</groupId>
+        <artifactId>polaris-server</artifactId>
+        <version>1.0.0</version>
+        <relativePath>../pom.xml</relativePath>
+    </parent>
+
+    <artifactId>polaris-file</artifactId>
+    <packaging>pom</packaging>
+    <name>polaris-file</name>
+    <description>
+        统一文件服务聚合模块：file-service(9011，独立库 polaris_file，落盘 + 元数据 + 公私分级访问)
+        + file-client（跨服客户端：FileApi 提供上传/元数据/下载/软删，凭 X-Internal-Token 准入）。
+        仅做模块聚合；构建/依赖管理仍以根 pom（polaris-server）为准。
+    </description>
+
+    <modules>
+        <module>polaris-file-client</module>
+        <module>polaris-file-service</module>
+    </modules>
+</project>

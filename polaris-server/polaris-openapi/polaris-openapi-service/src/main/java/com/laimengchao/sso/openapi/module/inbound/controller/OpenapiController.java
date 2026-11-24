@@ -86,6 +86,39 @@ public class OpenapiController {
         return invoke("inbound.org.employees", req, null, Map.of("id", String.valueOf(id)));
     }
 
+    /* ---------------- 文件服务（base64 上传 / 元数据 / 签名下载 / 软删） ---------------- */
+
+    /** 上传文件：body 内联 base64 content，content 不落调用日志。 */
+    @PostMapping("/v1/file/upload")
+    public R<?> fileUpload(@RequestBody(required = false) Map<String, Object> body, HttpServletRequest req) {
+        return invoke("inbound.file.upload", req, body, Map.of());
+    }
+
+    /** 查询文件元数据。 */
+    @GetMapping("/v1/file/{id}/meta")
+    public R<?> fileMeta(@PathVariable String id, HttpServletRequest req) {
+        return invoke("inbound.file.meta", req, null, Map.of("id", id));
+    }
+
+    /** 换取临时下载 URL（purpose=VIEW/DOWNLOAD，expiresSeconds 可选）。第三方拿到 URL 后自行下载，字节不经本服务。 */
+    @GetMapping("/v1/file/{id}/download")
+    public R<?> fileDownload(@PathVariable String id,
+                             @RequestParam(value = "purpose", required = false) String purpose,
+                             @RequestParam(value = "expiresSeconds", required = false) String expiresSeconds,
+                             HttpServletRequest req) {
+        Map<String, String> vars = new java.util.HashMap<>();
+        vars.put("id", id);
+        if (purpose != null && !purpose.isBlank()) vars.put("purpose", purpose);
+        if (expiresSeconds != null && !expiresSeconds.isBlank()) vars.put("expiresSeconds", expiresSeconds);
+        return invoke("inbound.file.download", req, null, vars);
+    }
+
+    /** 软删除文件。 */
+    @PostMapping("/v1/file/{id}/delete")
+    public R<?> fileDelete(@PathVariable String id, HttpServletRequest req) {
+        return invoke("inbound.file.delete", req, null, Map.of("id", id));
+    }
+
     /* ---------------- 内部工具 ---------------- */
 
     private R<?> invoke(String apiCode, HttpServletRequest req, Object body, Map<String, String> pathVars) {

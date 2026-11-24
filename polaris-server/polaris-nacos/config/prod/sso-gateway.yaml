@@ -22,6 +22,19 @@ spring:
           uri: lb://sso-account
           predicates:
             - Path=/api/accounts/**,/api/roles/**,/api/permissions/**,/api/applications/**
+        # CMS legacy static media links -> unified file service (must precede the cms route)
+        - id: cms-file-legacy
+          order: -1
+          uri: lb://file
+          predicates:
+            - Path=/api/cms/media/file/**
+        # Forum inline images embedded in post HTML -> unified file service legacy endpoint.
+        # Must precede the /api/forum/** route (live Nacos keeps that route outside this template).
+        - id: forum-file-legacy
+          order: -1
+          uri: lb://file
+          predicates:
+            - Path=/api/forum/media/file/**
         - id: cms
           uri: lb://cms
           predicates:
@@ -30,12 +43,25 @@ spring:
           uri: lb://portal
           predicates:
             - Path=/api/portal/**
+        - id: file
+          uri: lb://file
+          predicates:
+            - Path=/api/file/**
+        - id: audit
+          uri: lb://audit
+          predicates:
+            - Path=/api/audit/**
 
 sso:
   gateway:
     issuer: sso-auth
     # how often to poll the revocation list from auth (smaller = faster logout, more load)
     revocation-sync-millis: 5000
+    # unified audit fallback: every verified request is reported to audit-server /internal/audit/event
+    audit:
+      enabled: true
+      audit-url: lb://audit
+      internal-token: ${SSO_INTERNAL_TOKEN:}
     # lb:// prefix switches RevocationCache to the load-balanced WebClient
     auth-base-url: lb://sso-auth
     # prod verifies with the prod public key above, matching sso-auth.yaml

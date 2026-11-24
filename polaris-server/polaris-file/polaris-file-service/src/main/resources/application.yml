@@ -1,0 +1,73 @@
+server:
+  port: ${FILE_PORT:9011}
+
+spring:
+  application:
+    name: file
+  config:
+    import: "optional:nacos:file.yaml?group=${SSO_NACOS_GROUP:SSO}&refreshEnabled=true"
+  cloud:
+    nacos:
+      server-addr: ${SSO_NACOS_ADDR:${NACOS_SERVER_ADDR:127.0.0.1:8848}}
+      username: ${SSO_NACOS_USER:${NACOS_USERNAME:nacos}}
+      password: ${SSO_NACOS_PASSWORD:${NACOS_PASSWORD:}}
+      config:
+        enabled: ${SSO_NACOS_ENABLED:false}
+        namespace: ${SSO_NACOS_NAMESPACE:sso-ms-local}
+        group: ${SSO_NACOS_GROUP:SSO}
+        file-extension: yaml
+        refresh-enabled: true
+      discovery:
+        enabled: ${SSO_NACOS_DISCOVERY:false}
+        group: ${SSO_NACOS_GROUP:SSO}
+        namespace: ${SSO_NACOS_NAMESPACE:sso-ms-local}
+  datasource:
+    url: ${FILE_DB_URL:jdbc:mysql://127.0.0.1:3306/polaris_file?useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&createDatabaseIfNotExist=true}
+    username: ${FILE_DB_USER:root}
+    password: ${FILE_DB_PASSWORD:root}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    hikari:
+      minimum-idle: 2
+      maximum-pool-size: 10
+      connection-timeout: 30000
+  sql:
+    init:
+      mode: ${FILE_SQL_INIT_MODE:always}
+      encoding: UTF-8
+  jackson:
+    default-property-inclusion: non_null
+    time-zone: Asia/Shanghai
+    date-format: yyyy-MM-dd HH:mm:ss
+
+mybatis-plus:
+  mapper-locations: classpath*:/mapper/**/*.xml
+  type-aliases-package: com.laimengchao.sso.file.**.entity
+  configuration:
+    map-underscore-to-camel-case: true
+    log-impl: org.apache.ibatis.logging.nologging.NoLoggingImpl
+  global-config:
+    banner: false
+
+# 统一登录中心跨服客户端（X-Internal-Token 准入）
+sso:
+  client:
+    account-base-url: ${SSO_ACCOUNT_URL:http://127.0.0.1:9002}
+    auth-base-url: ${SSO_AUTH_URL:http://127.0.0.1:9001}
+    internal-token: ${SSO_INTERNAL_TOKEN:}
+  # 管理端 SSO：file 作为 OAuth 客户端入驻统一登录中心（appSecret 部署时注入）
+  file:
+    app-code: ${SSO_FILE_APP_CODE:file}
+    app-secret: ${SSO_FILE_APP_SECRET:}
+
+# common 的 CommonSecurityWebConfig 用此令牌校验 /internal/**（fail-closed）
+polaris:
+  security:
+    internal-token: ${SSO_INTERNAL_TOKEN:}
+
+# 文件服务配置
+file:
+  storage-root: ${FILE_STORAGE_ROOT:./data/files}
+  sign-secret: ${FILE_SIGN_SECRET:file-local-dev-secret-change-me}
+  sign-ttl-seconds: ${FILE_SIGN_TTL_SECONDS:900}
+  sign-ttl-max-seconds: ${FILE_SIGN_TTL_MAX_SECONDS:86400}
+  public-base-url: ${FILE_PUBLIC_BASE_URL:}

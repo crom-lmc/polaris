@@ -1,0 +1,80 @@
+server:
+  port: ${AUDIT_PORT:9012}
+
+spring:
+  application:
+    name: audit
+  config:
+    import: "optional:nacos:audit.yaml?group=${SSO_NACOS_GROUP:SSO}&refreshEnabled=true"
+  cloud:
+    nacos:
+      server-addr: ${SSO_NACOS_ADDR:${NACOS_SERVER_ADDR:127.0.0.1:8848}}
+      username: ${SSO_NACOS_USER:${NACOS_USERNAME:nacos}}
+      password: ${SSO_NACOS_PASSWORD:${NACOS_PASSWORD:}}
+      config:
+        enabled: ${SSO_NACOS_ENABLED:false}
+        namespace: ${SSO_NACOS_NAMESPACE:sso-ms-local}
+        group: ${SSO_NACOS_GROUP:SSO}
+        file-extension: yaml
+        refresh-enabled: true
+      discovery:
+        enabled: ${SSO_NACOS_DISCOVERY:false}
+        group: ${SSO_NACOS_GROUP:SSO}
+        namespace: ${SSO_NACOS_NAMESPACE:sso-ms-local}
+  datasource:
+    url: ${AUDIT_DB_URL:jdbc:mysql://127.0.0.1:3306/polaris_audit?useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&createDatabaseIfNotExist=true}
+    username: ${AUDIT_DB_USER:root}
+    password: ${AUDIT_DB_PASSWORD:root}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    hikari:
+      minimum-idle: 2
+      maximum-pool-size: 10
+      connection-timeout: 30000
+  sql:
+    init:
+      mode: ${AUDIT_SQL_INIT_MODE:always}
+      encoding: UTF-8
+  jackson:
+    default-property-inclusion: non_null
+    time-zone: Asia/Shanghai
+    date-format: yyyy-MM-dd HH:mm:ss
+
+mybatis-plus:
+  mapper-locations: classpath*:/mapper/**/*.xml
+  type-aliases-package: com.laimengchao.sso.audit.**.entity
+  configuration:
+    map-underscore-to-camel-case: true
+    log-impl: org.apache.ibatis.logging.nologging.NoLoggingImpl
+  global-config:
+    banner: false
+
+# common 的 CommonSecurityWebConfig 用此令牌校验 /internal/**（fail-closed）
+# system-log.enabled=false：本服务自身关闭日志采集，避免「写入 system_log 的日志」被再次采集形成自我循环；
+# 其他服务由 polaris-common 自动装配，默认开启采集 WARN 及以上。
+polaris:
+  security:
+    internal-token: ${SSO_INTERNAL_TOKEN:}
+  system-log:
+    enabled: false
+
+# 统一账号平台 Feign 客户端（sso-client 自动装配 AuthApi/AccountApi/OpenapiAccountApi）
+# audit 仅用 AuthApi.oauthToken 完成单点换票；地址/内部令牌与其他服务同口径。
+sso:
+  client:
+    account-base-url: ${SSO_ACCOUNT_URL:http://127.0.0.1:9002}
+    auth-base-url: ${SSO_AUTH_URL:http://127.0.0.1:9001}
+    internal-token: ${SSO_INTERNAL_TOKEN:}
+  # 管理端 SSO：audit 作为 OAuth 客户端入驻统一登录中心（appSecret 部署时注入）
+  audit:
+    app-code: ${SSO_AUDIT_APP_CODE:audit}
+    app-secret: ${SSO_AUDIT_APP_SECRET:}
+
+# 审计保留期（天）；-1 表示不清理。由后续调度任务消费，当前仅作配置契约。
+audit:
+  retention-days: ${AUDIT_RETENTION_DAYS:180}
+  # 本服务只复用 audit-client 的 DTO 契约，不自建 Feign 客户端
+  client:
+    enabled: false
+  # 审计服务自身不做业务留痕（避免 admin/internal 查询自审计； ACCESS 由网关兜底）
+  log:
+    enabled: false

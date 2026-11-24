@@ -14,9 +14,14 @@ import com.laimengchao.sso.ehr.module.contract.mapper.ContractMapper;
 import com.laimengchao.sso.ehr.module.employee.entity.Employee;
 import com.laimengchao.sso.ehr.module.employee.mapper.EmployeeMapper;
 import com.laimengchao.sso.ehr.security.DataScopeService;
+import com.laimengchao.sso.file.client.api.FileApi;
+import com.laimengchao.sso.file.client.dto.FileMeta;
+import com.laimengchao.sso.file.client.dto.FileUploadRequest;
+import com.laimengchao.sso.file.client.dto.R;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.io.ByteArrayResource;
 import org.springframework.core.io.FileSystemResource;
 import org.springframework.core.io.Resource;
 import org.springframework.stereotype.Service;
@@ -26,6 +31,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.Base64;
 import java.util.List;
 import java.util.Locale;
 import java.util.stream.Collectors;
@@ -40,11 +46,13 @@ import java.util.stream.Collectors;
 public class AttachmentService {
 
     private static final long MAX_SIZE = 20L * 1024 * 1024;
+    private static final String FILE_BIZ_TYPE = "ehr_attachment";
 
     private final AttachmentMapper attachmentMapper;
     private final EmployeeMapper employeeMapper;
     private final ContractMapper contractMapper;
     private final DataScopeService dataScopeService;
+    private final FileApi fileApi;
 
     @Value("${ehr.file-root:./data/attachments}")
     private String fileRoot;
@@ -89,20 +97,24 @@ public class AttachmentService {
         String suffix = suffixOf(original);
         long id = IdWorker.getId();
         String key = type + "/" + id + suffix;
-        Path target = Paths.get(fileRoot).toAbsolutePath().normalize().resolve(key);
-        try {
-            Files.createDirectories(target.getParent());
-            Files.write(target, bytes);
-        } catch (IOException e) {
-            log.error("附件落盘失败 key={}", key, e);
-            throw new BizException(ErrorCode.SYSTEM_ERROR, "附件保存失败，请稍后重试");
+        Long fileId = uploadToUnified(bytes, original, contentType, accountId);
+        if (fileId == null) {
+            Path target = Paths.get(fileRoot).toAbsolutePath().normalize().resolve(key);
+            try {
+                Files.createDirectories(target.getParent());
+                Files.write(target, bytes);
+            } catch (IOException e) {
+                log.error("附件落盘失败 key={}", key, e);
+                throw new BizException(ErrorCode.SYSTEM_ERROR, "附件保存失败，请稍后重试");
+            }
         }
         Attachment a = new Attachment();
         a.setId(id);
         a.setBizType(type);
         a.setBizId(bizId == null ? 0L : bizId);
         a.setFileName(original);
-        a.setFileKey(key);
+        a.setFileKey(fileId == null ? key : "");
+        a.setFileId(fileId);
         a.setSize((long) bytes.length);
         a.setMime(contentType == null ? "" : contentType);
         a.setUploadedBy(accountId);
@@ -119,11 +131,77 @@ public class AttachmentService {
         return vo;
     }
 
+    /** 上传到统一文件服务；失败返回 null，由调用方回退旧本地存储。 */
+    private Long uploadToUnified(byte[] bytes, String original, String contentType, Long accountId) {
+        try {
+            FileUploadRequest request = new FileUploadRequest();
+            request.setBizType(FILE_BIZ_TYPE);
+            // ehr_attachment 策略 force_private=1，服务端会强制 PRIVATE，这里显式声明避免歧义
+            request.setVisibility("PRIVATE");
+            request.setOriginalName(original);
+            request.setContentType(contentType == null ? "" : contentType);
+            request.setContent(Base64.getEncoder().encodeToString(bytes));
+            request.setOwnerType("EHR_ATTACHMENT");
+            request.setUploaderId(accountId);
+            R<FileMeta> result = fileApi.upload(request);
+            FileMeta meta = result == null ? null : result.getData();
+            if (result == null || !result.ok() || meta == null || meta.getId() == null) {
+                log.warn("统一文件服务上传失败：name={}, message={}", original,
+                        result == null ? "无响应" : result.getMessage());
+                return null;
+            }
+            return Long.valueOf(meta.getId());
+        } catch (Exception e) {
+            log.warn("统一文件服务上传异常，回退本地存储：name={}", original, e);
+            return null;
+        }
+    }
+
+    /** 读附件字节：file_id 优先从统一文件服务取，读不到再回退旧本地文件。 */
+    private byte[] readBytes(Attachment a) {
+        if (a.getFileId() != null) {
+            try {
+                R<String> result = fileApi.content(String.valueOf(a.getFileId()));
+                if (result != null && result.ok() && result.getData() != null) {
+                    return Base64.getDecoder().decode(result.getData());
+                }
+                log.warn("统一文件服务读取为空，回退本地：fileId={}", a.getFileId());
+            } catch (Exception e) {
+                log.warn("统一文件服务读取失败，回退本地：fileId={}", a.getFileId(), e);
+            }
+        }
+        if (a.getFileKey() == null || a.getFileKey().isBlank()) {
+            throw new BizException(EhrErrorCode.ATTACHMENT_NOT_FOUND, "附件文件已丢失");
+        }
+        Path p = Paths.get(fileRoot).toAbsolutePath().normalize().resolve(a.getFileKey());
+        try {
+            if (!Files.exists(p)) {
+                throw new BizException(EhrErrorCode.ATTACHMENT_NOT_FOUND, "附件文件已丢失");
+            }
+            return Files.readAllBytes(p);
+        } catch (IOException e) {
+            log.error("附件读取失败 key={}", a.getFileKey(), e);
+            throw new BizException(EhrErrorCode.ATTACHMENT_NOT_FOUND, "附件文件已丢失");
+        }
+    }
+
     /** 内部解析用（导入 xlsx）：返回落盘路径，不存在直接报错 */
     public Path localPath(Long attachmentId) {
         Attachment a = attachmentId == null ? null : attachmentMapper.selectById(attachmentId);
         if (a == null) {
             throw new BizException(EhrErrorCode.ATTACHMENT_NOT_FOUND, "附件不存在");
+        }
+        if (a.getFileId() != null) {
+            // 统一文件服务里的文件没有本地路径，Excel 解析需要一个带正确扩展名的临时文件
+            try {
+                Path temp = Files.createTempFile("ehr-attachment-", suffixOf(a.getFileName()));
+                Files.write(temp, readBytes(a));
+                temp.toFile().deleteOnExit();
+                return temp;
+            } catch (IOException e) {
+                log.error("附件临时文件生成失败 id={}", attachmentId, e);
+                throw new BizException(EhrErrorCode.ATTACHMENT_NOT_FOUND, "附件读取失败");
+            }
         }
         Path p = Paths.get(fileRoot).toAbsolutePath().normalize().resolve(a.getFileKey());
         if (!Files.exists(p)) {
@@ -144,7 +222,7 @@ public class AttachmentService {
                 .stream().map(this::toVO).collect(Collectors.toList());
     }
 
-    /** 删除附件（逻辑删除，保留落盘文件便于追溯）；仅业务数据范围内可删 */
+    /** 删除附件（逻辑删除，旧本地文件保留便于追溯）；仅业务数据范围内可删 */
     public void delete(Long attachmentId, Long accountId) {
         Attachment a = attachmentMapper.selectById(attachmentId);
         if (a == null) {
@@ -156,6 +234,17 @@ public class AttachmentService {
             throw new BizException(ErrorCode.FORBIDDEN, "只能删除自己上传的附件");
         }
         attachmentMapper.deleteById(attachmentId);
+        if (a.getFileId() != null) {
+            try {
+                R<Void> result = fileApi.delete(String.valueOf(a.getFileId()));
+                if (result == null || !result.ok()) {
+                    log.warn("统一文件服务软删失败：id={}, message={}", a.getFileId(),
+                            result == null ? "无响应" : result.getMessage());
+                }
+            } catch (Exception e) {
+                log.warn("统一文件服务软删异常：id={}", a.getFileId(), e);
+            }
+        }
     }
 
     private AttachmentVO toVO(Attachment a) {
@@ -238,14 +327,7 @@ public class AttachmentService {
         if (src == null) {
             throw new BizException(EhrErrorCode.ATTACHMENT_NOT_FOUND, "附件不存在");
         }
-        Path source = Paths.get(fileRoot).toAbsolutePath().normalize().resolve(src.getFileKey());
-        byte[] bytes;
-        try {
-            bytes = Files.readAllBytes(source);
-        } catch (IOException e) {
-            log.error("复制附件读取失败 id={}", attachmentId, e);
-            throw new BizException(EhrErrorCode.ATTACHMENT_NOT_FOUND, "附件文件已丢失");
-        }
+        byte[] bytes = readBytes(src);
         AttachmentVO vo = save(bytes, src.getFileName(), src.getMime(), normalizeType(bizType),
                 src.getUploadedBy(), bizId);
         return vo.getId();
@@ -272,6 +354,9 @@ public class AttachmentService {
             }
         } else if (!canViewAll && accountId != null && !accountId.equals(a.getUploadedBy())) {
             throw new BizException(ErrorCode.FORBIDDEN, "无权下载该附件");
+        }
+        if (a.getFileId() != null) {
+            return new ByteArrayResource(readBytes(a));
         }
         Path p = Paths.get(fileRoot).toAbsolutePath().normalize().resolve(a.getFileKey());
         if (!Files.exists(p)) {

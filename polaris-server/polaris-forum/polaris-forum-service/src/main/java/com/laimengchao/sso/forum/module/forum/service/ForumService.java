@@ -238,9 +238,12 @@ public class ForumService {
                 throw param("只能回复同一帖子下的顶级评论");
             }
         }
-        String content = text(body.getContent(), "").trim();
-        if (content.isBlank() || content.length() > 2000) throw param("评论长度应为 1-2000 个字符");
-        sensitiveWordService.check(content);
+        // 评论富文本化：与帖子正文共用同一套 Jsoup 白名单清洗（保留 img 与本站相对路径），
+        // 长度与敏感词校验按纯文本算，避免 HTML 标签计入字数、标签属性触发误判。
+        String content = forumContentService.sanitize(text(body.getContent(), ""));
+        String plain = forumContentService.plainText(content);
+        if (plain.isBlank() || plain.length() > 2000) throw param("评论长度应为 1-2000 个字符");
+        sensitiveWordService.check(plain);
         mapper.ensureMember(user.getAccountId(), user.getUsername());
         mapper.memberForUpdate(user.getAccountId());
         ForumComment values = new ForumComment();
@@ -349,7 +352,9 @@ public class ForumService {
         view.setId(row.getId());
         view.setThreadId(row.getThreadId());
         view.setAuthorAccountId(row.getAuthorAccountId());
-        view.setContent(intValue(row.getDeleted()) == 1 ? "" : row.getContent());
+        String rawContent = intValue(row.getDeleted()) == 1 ? "" : text(row.getContent(), "");
+        view.setContent(rawContent);
+        view.setPlainContent(forumContentService.plainText(rawContent));
         view.setParentCommentId(row.getParentCommentId());
         view.setLikes(row.getLikes());
         view.setDeleted(intValue(row.getDeleted()) == 1);

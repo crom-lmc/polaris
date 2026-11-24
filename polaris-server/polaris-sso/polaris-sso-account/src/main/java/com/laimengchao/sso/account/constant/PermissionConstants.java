@@ -26,15 +26,11 @@ public final class PermissionConstants {
     public static final String MENU_ROLE = "role";
     public static final String MENU_PERMISSION = "permission";
     public static final String MENU_APP = "app";
-    /** 登录日志（独立菜单，查看权限挂在其下） */
-    public static final String MENU_LOG = "log";
     /** 通知中心（统一账号中心展示人力中心发布的内部通知，员工基本功能） */
     public static final String MENU_NOTICE = "notice";
 
     /** 账户模块按钮级权限 */
     public static final String ACCOUNT_LIST = "account:list";
-    /** 登录日志查看（审计） */
-    public static final String ACCOUNT_LOG_VIEW = "account:log:view";
     public static final String ACCOUNT_CREATE = "account:create";
     public static final String ACCOUNT_EDIT = "account:edit";
     public static final String ACCOUNT_DELETE = "account:delete";
@@ -90,13 +86,11 @@ public final class PermissionConstants {
             new PermDef("角色管理", MENU_ROLE, PermissionType.MENU, null, 2),
             new PermDef("权限管理", MENU_PERMISSION, PermissionType.MENU, null, 3),
             new PermDef("应用管理", MENU_APP, PermissionType.MENU, null, 4),
-            new PermDef("登录日志", MENU_LOG, PermissionType.MENU, null, 5),
             new PermDef("通知中心", MENU_NOTICE, PermissionType.MENU, null, 6),
             // —— 通知中心按钮 ——
             new PermDef("查看通知", NOTICE_VIEW, PermissionType.BUTTON, MENU_NOTICE, 1),
             // —— 账户按钮 ——
             new PermDef("查询账户", ACCOUNT_LIST, PermissionType.BUTTON, MENU_ACCOUNT, 1),
-            new PermDef("查看登录日志", ACCOUNT_LOG_VIEW, PermissionType.BUTTON, MENU_LOG, 1),
             new PermDef("新建账户", ACCOUNT_CREATE, PermissionType.BUTTON, MENU_ACCOUNT, 2),
             new PermDef("编辑账户", ACCOUNT_EDIT, PermissionType.BUTTON, MENU_ACCOUNT, 3),
             new PermDef("删除账户", ACCOUNT_DELETE, PermissionType.BUTTON, MENU_ACCOUNT, 4),
@@ -179,6 +173,11 @@ public final class PermissionConstants {
     public static final String INBOUND_EMPLOYEE_LIST = "inbound:employee:list";
     public static final String INBOUND_ORG_TREE = "inbound:org:tree";
     public static final String OUTBOUND_EMAIL_INVOKE = "outbound:email:invoke";
+    /** 文件服务对外开放 API 调用权限（注册在 openapi 域，授权给第三方应用） */
+    public static final String INBOUND_FILE_UPLOAD = "inbound:file:upload";
+    public static final String INBOUND_FILE_META = "inbound:file:meta";
+    public static final String INBOUND_FILE_DOWNLOAD = "inbound:file:download";
+    public static final String INBOUND_FILE_DELETE = "inbound:file:delete";
 
     /** 开放平台内置权限清单（管理端 + 四类进 + 一等出），幂等播种到 sso_permission(app_code='openapi') */
     public static final java.util.List<PermDef> OPENAPI_BUILTIN = java.util.List.of(
@@ -216,7 +215,66 @@ public final class PermissionConstants {
             new PermDef("获取字典", INBOUND_DICT_LIST, PermissionType.BUTTON, null, 21),
             new PermDef("获取人员信息", INBOUND_EMPLOYEE_LIST, PermissionType.BUTTON, null, 22),
             new PermDef("获取组织信息", INBOUND_ORG_TREE, PermissionType.BUTTON, null, 23),
-            new PermDef("调用邮件渠道", OUTBOUND_EMAIL_INVOKE, PermissionType.BUTTON, null, 24)
+            new PermDef("调用邮件渠道", OUTBOUND_EMAIL_INVOKE, PermissionType.BUTTON, null, 24),
+            new PermDef("上传文件", INBOUND_FILE_UPLOAD, PermissionType.BUTTON, null, 25),
+            new PermDef("查询文件元数据", INBOUND_FILE_META, PermissionType.BUTTON, null, 26),
+            new PermDef("下载文件", INBOUND_FILE_DOWNLOAD, PermissionType.BUTTON, null, 27),
+            new PermDef("删除文件", INBOUND_FILE_DELETE, PermissionType.BUTTON, null, 28)
+    );
+
+    /* ---------- 业务应用 file（统一文件服务）的内置权限 ---------- */
+
+    /** 文件服务的权限域 */
+    public static final String FILE_APP = "file";
+    /* —— 管理端菜单 —— */
+    public static final String FILE_MENU_OVERVIEW = "file:overview";
+    public static final String FILE_MENU_FILES = "file:files";
+    public static final String FILE_MENU_POLICY = "file:policy";
+    /* —— 管理端按钮 —— */
+    public static final String FILE_OVERVIEW_VIEW = "file:overview:view";
+    public static final String FILE_LIST = "file:list";
+    public static final String FILE_UPLOAD = "file:upload";
+    public static final String FILE_DOWNLOAD = "file:download";
+    public static final String FILE_DELETE = "file:delete";
+    public static final String FILE_POLICY_LIST = "file:policy:list";
+    public static final String FILE_POLICY_EDIT = "file:policy:edit";
+
+    public static final java.util.List<PermDef> FILE_BUILTIN = java.util.List.of(
+            new PermDef("统一文件服务-概览", FILE_MENU_OVERVIEW, PermissionType.MENU, null, 1),
+            new PermDef("文件管理", FILE_MENU_FILES, PermissionType.MENU, null, 2),
+            new PermDef("存储策略", FILE_MENU_POLICY, PermissionType.MENU, null, 3),
+            new PermDef("查看概览", FILE_OVERVIEW_VIEW, PermissionType.BUTTON, FILE_MENU_OVERVIEW, 1),
+            new PermDef("查看文件列表", FILE_LIST, PermissionType.BUTTON, FILE_MENU_FILES, 1),
+            new PermDef("上传文件", FILE_UPLOAD, PermissionType.BUTTON, FILE_MENU_FILES, 2),
+            new PermDef("下载文件", FILE_DOWNLOAD, PermissionType.BUTTON, FILE_MENU_FILES, 3),
+            new PermDef("删除文件", FILE_DELETE, PermissionType.BUTTON, FILE_MENU_FILES, 4),
+            new PermDef("查看存储策略", FILE_POLICY_LIST, PermissionType.BUTTON, FILE_MENU_POLICY, 1),
+            new PermDef("编辑存储策略", FILE_POLICY_EDIT, PermissionType.BUTTON, FILE_MENU_POLICY, 2)
+    );
+
+    /* ---------- 业务应用 audit（统一审计中心）的内置权限 ---------- */
+
+    public static final String AUDIT_APP = "audit";
+    /* —— 管理端菜单 —— */
+    public static final String AUDIT_MENU_OVERVIEW = "audit:overview";
+    public static final String AUDIT_MENU_EVENTS = "audit:events";
+    public static final String AUDIT_MENU_LOGIN = "audit:login";
+    public static final String AUDIT_MENU_SYSTEM_LOG = "audit:system-log";
+    /* —— 管理端按钮 —— */
+    public static final String AUDIT_OVERVIEW_VIEW = "audit:overview:view";
+    public static final String AUDIT_EVENTS_LIST = "audit:events:list";
+    public static final String AUDIT_LOGIN_LIST = "audit:login:list";
+    public static final String AUDIT_SYSTEM_LOG_LIST = "audit:system-log:list";
+
+    public static final java.util.List<PermDef> AUDIT_BUILTIN = java.util.List.of(
+            new PermDef("统一审计中心-概览", AUDIT_MENU_OVERVIEW, PermissionType.MENU, null, 1),
+            new PermDef("审计事件", AUDIT_MENU_EVENTS, PermissionType.MENU, null, 2),
+            new PermDef("登录审计", AUDIT_MENU_LOGIN, PermissionType.MENU, null, 3),
+            new PermDef("系统日志", AUDIT_MENU_SYSTEM_LOG, PermissionType.MENU, null, 4),
+            new PermDef("查看概览", AUDIT_OVERVIEW_VIEW, PermissionType.BUTTON, AUDIT_MENU_OVERVIEW, 1),
+            new PermDef("查询审计事件", AUDIT_EVENTS_LIST, PermissionType.BUTTON, AUDIT_MENU_EVENTS, 1),
+            new PermDef("查询登录审计", AUDIT_LOGIN_LIST, PermissionType.BUTTON, AUDIT_MENU_LOGIN, 1),
+            new PermDef("查询系统日志", AUDIT_SYSTEM_LOG_LIST, PermissionType.BUTTON, AUDIT_MENU_SYSTEM_LOG, 1)
     );
 
     /* ---------- 业务应用 forum（社区论坛）的内置权限 ---------- */

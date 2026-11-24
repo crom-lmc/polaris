@@ -1,20 +1,16 @@
 package com.laimengchao.sso.account.service;
 
-import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
-import com.baomidou.mybatisplus.core.metadata.IPage;
-import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
-import com.laimengchao.sso.account.domain.entity.SsoAuditLog;
-import com.laimengchao.sso.account.mapper.SsoAuditLogMapper;
-import com.laimengchao.sso.common.PageResult;
-import com.laimengchao.sso.common.security.AuditLogWriter;
+import com.laimengchao.sso.audit.client.api.AuditApi;
+import com.laimengchao.sso.audit.client.dto.AuditEventRequest;
+import com.laimengchao.sso.common.security.AuditContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 
-import java.time.LocalDate;
-
-/** SSO 敏感操作审计；登录成功/失败仍由 LoginLogService 记录。 */
+/**
+ * SSO 敏感操作审计。统一上报 audit-server 的 audit_event（app=sso，eventCategory=SENSITIVE），
+ * 不再写本地 sso_audit_log 表；登录审计由 LoginLogService 单独上报。
+ */
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -37,58 +33,60 @@ public class AuditLogService {
     public static final String TARGET_PERMISSION = "PERMISSION";
     public static final String TARGET_APPLICATION = "APPLICATION";
 
-    private static final String TABLE = "sso_audit_log";
+    private static final String APP = "sso";
+    private static final String CATEGORY = "SENSITIVE";
 
-    private final JdbcTemplate jdbcTemplate;
-    private final SsoAuditLogMapper auditLogMapper;
+    private final AuditApi auditApi;
 
     public void record(String action, String targetType, Long targetId, String fields) {
-        AuditLogWriter.record(jdbcTemplate, TABLE, action, targetType, targetId, fields);
+        publish(action, targetType, targetId, true, fields, null);
     }
 
     /** 失败审计尽力写入，不能用审计异常覆盖原业务异常。 */
     public void recordFailure(String action, String targetType, Long targetId, String fields) {
         try {
-            AuditLogWriter.record(jdbcTemplate, TABLE, action, targetType, targetId, false, fields);
+            publish(action, targetType, targetId, false, fields, null);
         } catch (Exception e) {
             log.warn("写入失败操作审计失败（已忽略）: {}", e.getMessage());
         }
     }
 
+    /** 无登录主体的内部调用（如邮件重置密码），由调用方显式给出操作人与原始客户端信息。 */
     public void recordInternal(Long operatorId, String operatorName, String action,
                                String targetType, Long targetId, String fields,
                                String clientIp, String userAgent) {
-        AuditLogWriter.record(jdbcTemplate, TABLE, operatorId, operatorName, action,
-                targetType, targetId, fields, clientIp, userAgent);
+        if (operatorId == null) {
+            return;
+        }
+        AuditContext.Actor actor = new AuditContext.Actor(operatorId, operatorName, clientIp, userAgent);
+        publish(action, targetType, targetId, true, fields, actor);
     }
 
-    public PageResult<SsoAuditLog> page(int page, int size, String action, String targetType,
-                                        Long targetId, String operator, String result,
-                                        LocalDate startDate, LocalDate endDate) {
-        LambdaQueryWrapper<SsoAuditLog> w = new LambdaQueryWrapper<>();
-        if (action != null && !action.isBlank()) {
-            w.eq(SsoAuditLog::getAction, action.trim());
+    private void publish(String action, String targetType, Long targetId, boolean success,
+                         String fields, AuditContext.Actor explicitActor) {
+        AuditContext.Actor actor = explicitActor == null ? AuditContext.current() : explicitActor;
+        // 取不到登录主体时不记，避免产生无主审计；内部调用请用 recordInternal 显式指定
+        if (actor == null || actor.accountId() == null) {
+            return;
         }
-        if (targetType != null && !targetType.isBlank()) {
-            w.eq(SsoAuditLog::getTargetType, targetType.trim());
+        String result = success ? "success" : "fail";
+        try {
+            AuditEventRequest req = new AuditEventRequest();
+            req.setApp(APP);
+            req.setEventCategory(CATEGORY);
+            req.setAction(action);
+            req.setOperatorType(explicitActor == null ? "USER" : "SYSTEM");
+            req.setOperatorId(String.valueOf(actor.accountId()));
+            req.setOperatorName(actor.username());
+            req.setTargetType(targetType);
+            req.setTargetId(targetId == null ? "" : String.valueOf(targetId));
+            req.setDetail("result=" + result + (fields == null || fields.isBlank() ? "" : ";" + fields.trim()));
+            req.setResult(result);
+            req.setClientIp(actor.clientIp());
+            req.setUserAgent(actor.userAgent());
+            auditApi.report(req);
+        } catch (Exception e) {
+            log.warn("上报 SSO 敏感操作审计失败（已忽略）: action={} reason={}", action, e.getMessage());
         }
-        if (targetId != null) {
-            w.eq(SsoAuditLog::getTargetId, targetId);
-        }
-        if (operator != null && !operator.isBlank()) {
-            w.like(SsoAuditLog::getOperatorName, operator.trim());
-        }
-        if (result != null && !result.isBlank()) {
-            w.likeRight(SsoAuditLog::getFields, "result=" + result.trim());
-        }
-        if (startDate != null) {
-            w.ge(SsoAuditLog::getCreatedAt, startDate.atStartOfDay());
-        }
-        if (endDate != null) {
-            w.lt(SsoAuditLog::getCreatedAt, endDate.plusDays(1).atStartOfDay());
-        }
-        w.orderByDesc(SsoAuditLog::getCreatedAt).orderByDesc(SsoAuditLog::getId);
-        IPage<SsoAuditLog> resultPage = auditLogMapper.selectPage(new Page<>(page, size), w);
-        return PageResult.of(resultPage.getRecords(), resultPage.getTotal(), page, size);
     }
 }

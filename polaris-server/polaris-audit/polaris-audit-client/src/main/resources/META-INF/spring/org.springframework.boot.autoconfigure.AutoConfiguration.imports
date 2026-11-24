@@ -1,0 +1,2 @@
+com.laimengchao.sso.audit.client.AuditClientAutoConfiguration
+com.laimengchao.sso.audit.client.AuditLogAutoConfiguration

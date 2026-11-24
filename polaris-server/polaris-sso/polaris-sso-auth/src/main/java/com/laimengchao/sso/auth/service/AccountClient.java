@@ -154,14 +154,19 @@ public class AccountClient {
 
     private <T> T invoke(Supplier<T> supplier, String action) {
         try {
-            return supplier.get();
+            T result = supplier.get();
+            log.info("调用 sso-account 成功: action={}", action);
+            return result;
         } catch (BizException e) {
+            // 密码错误/锁定/禁用等业务拒绝，属于可预期结果，留痕便于审计但不带堆栈
+            log.warn("调用 sso-account 被业务拒绝: action={} code={} reason={}", action, e.getCode(), e.getMessage());
             throw e;
         } catch (RetryableException e) {
             log.error("调用 sso-account 失败: {}", action, e);
             throw new BizException(ErrorCode.SYSTEM_ERROR, "认证后端不可用，请稍后重试");
         } catch (FeignException e) {
             // account 把「密码错误/账户锁定」映射为 401 或 423，把原始提示透传给前端
+            log.warn("调用 sso-account 返回非预期状态: action={} status={}", action, e.status());
             throw new BizException(e.status(), extractMessage(e.status(), e.contentUTF8()));
         }
     }

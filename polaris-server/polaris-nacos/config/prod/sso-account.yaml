@@ -16,6 +16,11 @@ spring:
     url: jdbc:mysql://${SSO_DB_HOST:120.53.9.119}:${SSO_DB_PORT:3306}/sso_ms?useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true
     username: ${SSO_DB_USER}
     password: ${SSO_DB_PASSWORD}
+  # data-scope cache (ScopeCodeCacheImpl). Host/port/db come from the jar's application.yml;
+  # password is delivered here or via SSO_REDIS_PASSWORD. Missing password -> NOAUTH -> cache degraded.
+  data:
+    redis:
+      password: ${SSO_REDIS_PASSWORD:}
   sql:
     init:
       # never auto-DDL in prod; run sso-account/src/main/resources/schema.sql manually

@@ -59,10 +59,14 @@ public class ForumSchemaInitializer implements ApplicationRunner {
             if (tableExists("forum_comment")) {
                 addColumnIfMissing("forum_comment", "parent_comment_id", "BIGINT NULL AFTER thread_id");
                 addIndexIfMissing("forum_comment", "idx_comment_parent", "parent_comment_id,deleted,created_at");
+                // 评论富文本化：历史库 content 是 VARCHAR(2000)，HTML 清洗后容易超长，扩容为 TEXT
+                widenCommentContent();
             }
             if (tableExists("forum_attachment")) {
                 addColumnIfMissing("forum_attachment", "profile_account_id", "BIGINT NULL AFTER draft_id");
                 addIndexIfMissing("forum_attachment", "idx_attachment_profile", "profile_account_id,usage_type");
+                // 统一文件服务迁移标记：为空表示仍用旧本地存储，读取时优先按此列取文件
+                addColumnIfMissing("forum_attachment", "file_id", "BIGINT NULL AFTER storage_path");
             }
             if (tableExists("forum_exchange")) {
                 addColumnIfMissing("forum_exchange", "tracking_no", "VARCHAR(100) NOT NULL DEFAULT ''");
@@ -555,6 +559,19 @@ public class ForumSchemaInitializer implements ApplicationRunner {
         int rest = 100 - assigned;
         for (int i = 0; i < rest; i++) result[order[i]] += 1;
         return result;
+    }
+
+    /** 评论富文本化：把存量 VARCHAR(2000) 的 content 扩容为 TEXT（幂等）。 */
+    private void widenCommentContent() {
+        String dataType = jdbcTemplate.queryForObject(
+                "SELECT DATA_TYPE FROM information_schema.columns "
+                        + "WHERE table_schema=DATABASE() AND table_name='forum_comment' AND column_name='content'",
+                String.class);
+        if (dataType != null && !"text".equalsIgnoreCase(dataType) && !"mediumtext".equalsIgnoreCase(dataType)) {
+            jdbcTemplate.execute("ALTER TABLE forum_comment MODIFY COLUMN content TEXT NOT NULL "
+                    + "COMMENT '评论内容（富文本HTML，白名单清洗；历史纯文本按纯文本渲染）'");
+            log.info("已把 forum_comment.content 从 {} 扩容为 TEXT", dataType);
+        }
     }
 
     private boolean tableExists(String table) {
