@@ -4,7 +4,7 @@
       <div class="logo" :class="{ 'is-collapsed': collapsed }">
         <!-- 汉堡菜单图标：点击折叠/展开侧栏，替代底部原生触发器 -->
         <menu-outlined class="menu-toggle" :title="collapsed ? '展开菜单' : '收起菜单'" @click="toggleCollapse" />
-        <span class="logo-text">统一账号中心</span>
+        <span class="logo-text">{{ appName }}</span>
       </div>
       <div class="right">
         <a-popover
@@ -121,10 +121,6 @@
             <template #icon><appstore-outlined /></template>
             应用管理
           </a-menu-item>
-          <a-menu-item v-if="store.can('account:log:view')" key="logs">
-            <template #icon><audit-outlined /></template>
-            登录日志
-          </a-menu-item>
         </a-menu>
       </a-layout-sider>
       <a-layout-content class="content">
@@ -139,7 +135,6 @@ import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import {
   AppstoreOutlined,
-  AuditOutlined,
   BellOutlined,
   CarryOutOutlined,
   DashboardOutlined,
@@ -165,6 +160,7 @@ import {
   type NoticeMessage
 } from '@/api/notice'
 import { getRefreshToken } from '@/utils/token'
+import { appName } from '@/utils/appTitle'
 import ThemeToggleIcon from '@/components/ThemeToggleIcon.vue'
 
 const router = useRouter()
@@ -279,7 +275,7 @@ function onUserMenuClick({ key }: { key: string }) {
 function confirmLogout() {
   Modal.confirm({
     title: '退出登录',
-    content: '退出后需要重新登录统一账号中心，确定吗？',
+    content: `退出后需要重新登录${appName.value || '北极星钥'}，确定吗？`,
     okText: '确定退出',
     cancelText: '取消',
     okButtonProps: { danger: true },

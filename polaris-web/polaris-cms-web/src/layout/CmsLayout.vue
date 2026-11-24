@@ -105,8 +105,9 @@ import {
 import { useUserStore } from '@/stores/user'
 import { useThemeStore } from '@/stores/theme'
 import { Modal } from 'ant-design-vue'
-import { fetchAppName, gotoAuthorize, logoutSso } from '@/api/cms'
+import { gotoAuthorize, logoutSso } from '@/api/cms'
 import { getRefreshToken } from '@/utils/token'
+import { appName, resolveAppName } from '@/utils/appTitle'
 import { useSessionGuard } from '@/composables/useSessionGuard'
 import ThemeToggleIcon from '@/components/ThemeToggleIcon.vue'
 
@@ -119,13 +120,11 @@ useSessionGuard()
 const theme = useThemeStore()
 
 const collapsed = ref(false)
-const appName = ref('内容中心')
 
 onMounted(async () => {
   const code = store.me?.appCode
   if (!code) return
-  const name = await fetchAppName(code)
-  if (name) appName.value = name
+  await resolveAppName(code)
 })
 
 function toggleCollapse() {

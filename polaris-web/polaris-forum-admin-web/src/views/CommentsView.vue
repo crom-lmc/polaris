@@ -104,7 +104,7 @@ async function changeComment(comment: ForumComment) {
             <a-empty v-if="!loading" class="table-empty" description="暂无数据" />
           </template>
           <template #bodyCell="{ column, record }">
-            <template v-if="column.key === 'content'"><div class="content-cell">{{ record.content }}</div></template>
+            <template v-if="column.key === 'content'"><div class="content-cell">{{ record.plainContent || record.content }}</div></template>
             <template v-else-if="column.key === 'thread'">
               <a v-if="!record.deleted" :href="publicThreadUrl(record.threadId)" target="_blank" rel="noopener noreferrer">#{{ record.threadId }}</a>
               <span v-else>#{{ record.threadId }}</span>

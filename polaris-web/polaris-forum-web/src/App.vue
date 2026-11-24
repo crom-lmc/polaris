@@ -6,7 +6,7 @@
     </main>
     <footer v-if="!isCallback" class="site-footer">
       <div class="container footer-inner">
-        <div class="footer-brand"><img class="brand-mark small" src="/favicon.svg" alt="" aria-hidden="true" /><b>Polaris</b></div>
+        <div class="footer-brand"><img class="brand-mark small" src="/favicon.svg" alt="" aria-hidden="true" /><b>{{ appName }}</b></div>
         <span class="footer-text">{{ site?.footerText || '分享知识，连接彼此' }}</span>
         <nav class="footer-links" aria-label="站点链接"><RouterLink to="/about">关于</RouterLink><RouterLink to="/about#friend-links">友情链接</RouterLink></nav>
         <span class="footer-meta">真实社区数据 · SSO 统一认证</span>
@@ -27,7 +27,7 @@ import { authReady, clearAuth, getAccessToken, refreshCurrentUser } from '@/auth
 import { loadBoards } from '@/data/forum'
 import { loadFeatureSwitch } from '@/composables/useFeatureSwitch'
 import { fetchSite } from '@/api/forum'
-import { applyAppTitle } from '@/utils/appTitle'
+import { appName, applyAppTitle } from '@/utils/appTitle'
 import type { SiteConfig } from '@/types'
 
 const route = useRoute()

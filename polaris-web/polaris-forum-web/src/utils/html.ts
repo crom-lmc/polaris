@@ -1,7 +1,9 @@
 import DOMPurify from 'dompurify'
 
-const allowedTags = ['p', 'br', 'strong', 'b', 'em', 'i', 'u', 's', 'del', 'h2', 'h3', 'ul', 'ol', 'li', 'blockquote']
-const richTextStart = /^<(?:p|h2|h3|ul|ol|blockquote)(?:\s[^>]*)?>/i
+const allowedTags = ['p', 'br', 'strong', 'b', 'em', 'i', 'u', 's', 'del', 'h2', 'h3', 'ul', 'ol', 'li', 'blockquote', 'img']
+// 正文插图 src 只允许本站相对路径（统一文件服务别名）、https 与图片 data URI，禁止 javascript: 等协议
+const allowedUriRegexp = /^(?:\/api\/forum\/media\/file\/|https:\/\/|data:image\/)/i
+const richTextStart = /^<(?:p|h2|h3|ul|ol|blockquote|img)(?:\s[^>]*)?>/i
 
 export function isRichText(value: string) {
   return richTextStart.test(value.trim())
@@ -10,7 +12,8 @@ export function isRichText(value: string) {
 export function sanitizeRichText(value: string) {
   return DOMPurify.sanitize(value || '', {
     ALLOWED_TAGS: allowedTags,
-    ALLOWED_ATTR: [],
+    ALLOWED_ATTR: ['src', 'alt'],
+    ALLOWED_URI_REGEXP: allowedUriRegexp,
     ALLOW_ARIA_ATTR: false,
     ALLOW_DATA_ATTR: false
   }).trim()

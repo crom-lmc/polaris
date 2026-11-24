@@ -109,7 +109,8 @@ import {
 import { useUserStore } from '@/stores/user'
 import { useThemeStore } from '@/stores/theme'
 import { Modal } from 'ant-design-vue'
-import { fetchAppName, gotoAuthorize, listBizCategories, logoutSso, type BizCategory } from '@/api/settings'
+import { gotoAuthorize, listBizCategories, logoutSso, type BizCategory } from '@/api/settings'
+import { appName, resolveAppName } from '@/utils/appTitle'
 import { getRefreshToken } from '@/utils/token'
 import { useSessionGuard } from '@/composables/useSessionGuard'
 import ThemeToggleIcon from '@/components/ThemeToggleIcon.vue'
@@ -120,7 +121,6 @@ const store = useUserStore()
 const theme = useThemeStore()
 
 const collapsed = ref(false)
-const appName = ref('配置中心')
 
 /* ---------------- 主数据子菜单 ---------------- */
 
@@ -141,10 +141,7 @@ useSessionGuard()
 
 onMounted(async () => {
   const code = store.me?.appCode
-  if (code) {
-    const name = await fetchAppName(code)
-    if (name) appName.value = name
-  }
+  if (code) await resolveAppName(code)
   if (!store.can('biz:view')) return
   try {
     const list = await listBizCategories()

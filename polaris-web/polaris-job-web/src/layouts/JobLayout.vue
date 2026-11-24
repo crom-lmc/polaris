@@ -10,7 +10,7 @@ import {
   LogoutOutlined,
   MenuOutlined
 } from '@ant-design/icons-vue'
-import { fetchAppName } from '@/api/job'
+import { appName, resolveAppName } from '@/utils/appTitle'
 import { useUserStore } from '@/stores/user'
 import { useThemeStore } from '@/stores/theme'
 import ThemeToggleIcon from '@/components/ThemeToggleIcon.vue'
@@ -21,11 +21,9 @@ const user = useUserStore()
 const theme = useThemeStore()
 
 const collapsed = ref(false)
-const appName = ref('调度中心')
 
 onMounted(async () => {
-  const name = await fetchAppName('job')
-  if (name) appName.value = name
+  await resolveAppName('job')
 })
 
 const currentPath = computed(() => {

@@ -57,7 +57,7 @@ export function del<T>(path: string) {
   return request<T>(path, { method: 'DELETE' })
 }
 
-export function upload<T>(path: string, file: File, usageType: 'ATTACHMENT' | 'COVER' | 'AVATAR' | 'PROFILE_COVER') {
+export function upload<T>(path: string, file: File, usageType: 'ATTACHMENT' | 'COVER' | 'AVATAR' | 'PROFILE_COVER' | 'INLINE') {
   const data = new FormData()
   data.append('file', file)
   data.append('usageType', usageType)

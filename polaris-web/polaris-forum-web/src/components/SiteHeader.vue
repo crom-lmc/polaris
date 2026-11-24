@@ -2,7 +2,7 @@
   <header class="site-header">
     <div class="container header-inner">
       <RouterLink to="/" class="brand" aria-label="Polaris 社区首页">
-        <img class="brand-mark" src="/favicon.svg" alt="" aria-hidden="true" /><span class="brand-copy"><b>Polaris</b></span>
+        <img class="brand-mark" src="/favicon.svg" alt="" aria-hidden="true" /><span class="brand-copy"><b>{{ appName }}</b></span>
       </RouterLink>
 
       <nav class="main-nav" aria-label="主导航">
@@ -66,6 +66,7 @@ import { fetchBoards } from '@/api/forum'
 import { currentUser, isLoggedIn, logout, refreshUnreadCount, requireLogin, unreadCount } from '@/auth'
 import { isDark, toggleTheme } from '@/theme'
 import type { Board } from '@/types'
+import { appName } from '@/utils/appTitle'
 
 const keyword = ref('')
 const publishOpen = ref(false)

@@ -114,10 +114,6 @@
             <template #icon><audit-outlined /></template>
             审批中心
           </a-menu-item>
-          <a-menu-item v-if="store.can('audit:view')" key="/audit-logs">
-            <template #icon><file-search-outlined /></template>
-            审计日志
-          </a-menu-item>
         </a-menu>
       </a-layout-sider>
       <a-layout-content class="content">
@@ -138,7 +134,6 @@ import {
   ClockCircleOutlined,
   DownOutlined,
   ExportOutlined,
-  FileSearchOutlined,
   FundOutlined,
   LogoutOutlined,
   MenuOutlined,
@@ -150,7 +145,8 @@ import {
 import { useUserStore } from '@/stores/user'
 import { useThemeStore } from '@/stores/theme'
 import { Modal } from 'ant-design-vue'
-import { fetchAppName, gotoAuthorize, logoutSso } from '@/api/ehr'
+import { gotoAuthorize, logoutSso } from '@/api/ehr'
+import { appName, resolveAppName } from '@/utils/appTitle'
 import { getRefreshToken } from '@/utils/token'
 import { useSessionGuard } from '@/composables/useSessionGuard'
 import ThemeToggleIcon from '@/components/ThemeToggleIcon.vue'
@@ -164,13 +160,11 @@ useSessionGuard()
 const theme = useThemeStore()
 
 const collapsed = ref(false)
-const appName = ref('人力中心')
 
 onMounted(async () => {
   const code = store.me?.appCode
   if (!code) return
-  const name = await fetchAppName(code)
-  if (name) appName.value = name
+  await resolveAppName(code)
 })
 
 function toggleCollapse() {

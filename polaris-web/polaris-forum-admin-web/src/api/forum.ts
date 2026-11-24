@@ -225,6 +225,8 @@ export interface ForumComment {
   threadId: string
   author: Author
   content: string
+  /** 纯文本摘要（后端富文本清洗后生成），后台列表展示用，避免 HTML 标签字面显示 */
+  plainContent?: string
   time: string
   deleted?: boolean
   createdAt?: string

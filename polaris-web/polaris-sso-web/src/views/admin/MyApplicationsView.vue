@@ -35,7 +35,7 @@
               @keydown.space.prevent="enter(app)"
             >
               <div class="app-main">
-                <img class="app-logo" :src="logoOf(app)" :alt="app.name" />
+                <img class="app-logo" :src="logoOf(app)" :alt="app.name" @error="onLogoError" />
                 <div class="app-text">
                   <div class="app-name">{{ app.name }}</div>
                   <div class="app-code">{{ app.code }}</div>
@@ -105,6 +105,12 @@ async function loadTypes() {
 
 function logoOf(app: ApplicationVO) {
   return app.icon || `/icons/${app.code}.svg`
+}
+
+/** 图标文件缺失时回退到通用图标，避免裂图 */
+function onLogoError(e: Event) {
+  const img = e.target as HTMLImageElement
+  if (!img.src.endsWith('/icons/app-default.svg')) img.src = '/icons/app-default.svg'
 }
 
 function isBuiltin(app: ApplicationVO) {

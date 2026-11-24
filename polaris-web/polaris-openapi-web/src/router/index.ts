@@ -1,6 +1,7 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import { useUserStore } from '@/stores/user'
 import { gotoAuthorize } from '@/api/openapi'
+import { renderAppTitle, resolveAppName } from '@/utils/appTitle'
 
 const router = createRouter({
   history: createWebHistory(),
@@ -27,7 +28,7 @@ const router = createRouter({
 })
 
 router.beforeEach(async (to) => {
-  document.title = to.meta.title ? `${to.meta.title} · 接口开放平台` : '接口开放平台'
+  renderAppTitle(to.meta.title as string | undefined)
   if (to.meta.public) return true
   const store = useUserStore()
   const loggedIn = await store.bootstrap()
@@ -35,6 +36,8 @@ router.beforeEach(async (to) => {
     gotoAuthorize(to.fullPath)
     return false
   }
+  // 应用名取登录接口登记的实际名称（北极星桥…），只取一次；就绪后刷新标签
+  void resolveAppName('openapi').then(() => renderAppTitle(to.meta.title as string | undefined))
   if (to.meta.perm && !store.can(to.meta.perm as string)) {
     return '/no-access'
   }

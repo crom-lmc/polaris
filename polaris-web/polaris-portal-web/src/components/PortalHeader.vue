@@ -5,6 +5,7 @@ import { Modal } from 'ant-design-vue'
 import { fetchCategories, gotoAuthorize, type TaxonomyItem } from '@/api/portal'
 import { useUserStore } from '@/stores/user'
 import { useThemeStore } from '@/stores/theme'
+import { appName } from '@/utils/appTitle'
 
 const router = useRouter()
 const route = useRoute()
@@ -60,7 +61,7 @@ function onMenu({ key }: { key: string }) {
 <template>
   <header class="header">
     <div class="container header-inner">
-      <div class="brand" @click="router.push('/')">内容门户</div>
+      <div class="brand" @click="router.push('/')">{{ appName }}</div>
 
       <nav class="nav">
         <a class="nav-item" :class="{ active: route.path === '/' }" @click="router.push('/')">首页</a>

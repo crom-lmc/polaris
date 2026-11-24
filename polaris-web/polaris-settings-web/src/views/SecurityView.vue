@@ -34,15 +34,8 @@
                   </a-radio-group>
                 </a-form-item>
 
-                <a-form-item label="默认密码">
+                <a-form-item v-if="!isDemo" label="默认密码">
                   <a-input
-                    v-if="isDemo"
-                    value="••••••••"
-                    disabled
-                    placeholder="演示账号不可查看"
-                  />
-                  <a-input
-                    v-else
                     v-model:value="form.defaultPassword"
                     :disabled="form.initialPasswordMode === 'RANDOM'"
                     :maxlength="64"

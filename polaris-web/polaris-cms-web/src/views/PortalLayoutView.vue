@@ -9,9 +9,9 @@ import {
   type PortalLayoutItem
 } from '@/api/cms'
 
-/** 门户前端地址（iframe 预览目标，origin 需与 SSO 里 portal 应用注册的 baseUrl 一致） */
+/** 门户前端地址（iframe 预览目标）：portal 前台已并入 CMS 域名 /portal/ 子路径 */
 const PORTAL_ORIGIN = import.meta.env.VITE_PORTAL_ORIGIN ||
-  (import.meta.env.DEV ? 'http://localhost:5178' : 'https://polaris-portal.laimengchao.site')
+  (import.meta.env.DEV ? 'http://localhost:5178' : 'https://polaris-cms.laimengchao.site/portal')
 
 const MODULE_DESC: Record<string, string> = {
   banner: '顶部大图轮播，取自 CMS Banner 模块',

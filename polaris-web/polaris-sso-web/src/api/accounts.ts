@@ -1,5 +1,5 @@
 import request from './request'
-import type { AccountVO, ApplicationVO, LoginLog, PageResult } from '@/types'
+import type { AccountVO, ApplicationVO, PageResult } from '@/types'
 
 /** 账户管理接口（/api/accounts），每个写操作对应一个按钮级权限码 */
 
@@ -65,16 +65,6 @@ export function resetAccountPassword(id: string, newPassword: string, forceChang
 export function changeMyPassword(oldPassword: string, newPassword: string) {
   return request.post<never, { data: void }>('/api/accounts/me/password',
     { oldPassword, newPassword })
-}
-
-/** 登录审计日志 */
-export function fetchLoginLogs(params: {
-  page: number
-  size: number
-  keyword?: string
-  loginType?: string
-}) {
-  return request.get<never, { data: PageResult<LoginLog> }>('/api/accounts/login-logs', { params })
 }
 
 // ---------------- 账号的应用授权 ----------------

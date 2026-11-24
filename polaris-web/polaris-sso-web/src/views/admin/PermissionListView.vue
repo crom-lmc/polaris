@@ -14,7 +14,7 @@
       <a-button v-if="store.can('permission:create')" @click="openImport">批量导入</a-button>
       <a-button @click="toggleExpand">{{ expandedAll ? '收起全部' : '展开全部' }}</a-button>
       <span class="hint">
-        权限点按应用分域：统一账号中心（<code>sso</code>）是平台自身，业务应用用自己的 code。
+        权限点按应用分域：{{ platformName }}（<code>sso</code>）是平台自身，业务应用用自己的 code。
         不同应用可以定义同名权限码（各自的 <code>article:list</code> 互不影响）。
       </span>
     </div>
@@ -238,6 +238,7 @@ import { useUserStore } from '@/stores/user'
 import type { ApplicationVO, PermissionVO } from '@/types'
 import { message } from 'ant-design-vue'
 import { confirmAction } from '@/utils/confirm'
+import { appName } from '@/utils/appTitle'
 
 const store = useUserStore()
 
@@ -281,22 +282,26 @@ const importApp = ref<string>('')
 const importJson = ref('')
 
 /**
- * 应用下拉：空串是「全部应用」。平台权限域（app_code=sso）统一显示为「统一账号中心」——
- * 它和内置应用 sso-center 是同一件事的两种存在，界面上只保留一个入口；
- * sso-center 本身没有权限点，也从下拉里隐藏，避免出现两个「统一账号中心」。
+ * 应用下拉：空串是「全部应用」。平台权限域（app_code=sso）对应内置应用 sso-center，
+ * 名称取登记的实际应用名；sso-center 本身没有权限点，从下拉里隐藏避免重复。
  */
 const appOptions = computed(() => [
   { label: '全部应用', value: '' },
-  { label: '统一账号中心（sso）', value: 'sso' },
+  { label: `${appLabel('sso')}（sso）`, value: 'sso' },
   ...apps.value
     .filter((a) => a.code !== 'sso-center')
     .map((a) => ({ label: `${a.name}（${a.code}）`, value: a.code }))
 ])
 
 function appLabel(code?: string) {
-  if (!code || code === 'sso' || code === 'sso-center') return '统一账号中心'
+  // 权限域 sso 对应平台内置应用 sso-center，展示其登记的实际应用名
+  if (!code || code === 'sso' || code === 'sso-center') {
+    return apps.value.find((a) => a.code === 'sso-center')?.name || appName.value || '北极星钥'
+  }
   return apps.value.find((a) => a.code === code)?.name || code
 }
+
+const platformName = computed(() => appLabel('sso'))
 
 /** 可作上级的节点：同应用 + 菜单类型 + 排除自己及后代（防环） */
 const parentOptions = computed(() => {

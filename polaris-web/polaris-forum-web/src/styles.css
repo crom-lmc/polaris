@@ -280,10 +280,12 @@ img.brand-mark { display: block; flex: none; object-fit: contain; background: tr
 .editor-toolbar { display: flex; gap: 4px; padding: 7px; border: 1px solid #dfe2eb; border-bottom: 0; border-radius: 8px 8px 0 0; background: #fafafd; }
 .editor-toolbar button { min-width: 29px; height: 27px; padding: 0 8px; border: 0; border-radius: 5px; background: transparent; color: #71778a; font-size: 11px; }
 .editor-toolbar button:hover { background: #eceef8; }
+/* 编辑器不受外部容器 text-align 影响（评论区 .composer-box 为 right），光标与占位文字一律左对齐 */
+.rich-text-editor { text-align: left; }
 .content-editor { width: 100%; height: 310px; padding: 15px; resize: vertical; border: 1px solid #dfe2eb; border-radius: 0 0 8px 8px; outline: 0; color: var(--text); font-size: 13px; line-height: 1.8; }
-.rich-text-editor.content-editor { display: flex; flex-direction: column; min-height: 170px; padding: 0; overflow: hidden; border-radius: 8px; background: white; }
+.rich-text-editor.content-editor { display: flex; flex-direction: column; height: 360px; min-height: 240px; padding: 0; overflow: hidden; border-radius: 8px; background: var(--surface); }
 .rich-text-editor:focus-within { border-color: #abb3f6; box-shadow: 0 0 0 3px rgb(91 103 241 / 8%); }
-.editor-toolbar.rich-text-toolbar { flex: none; align-items: center; padding: 4px 7px; border: 0; border-bottom: 1px solid #dfe2eb; border-radius: 0; }
+.editor-toolbar.rich-text-toolbar { flex: none; align-items: center; padding: 4px 7px; border: 0; border-bottom: 1px solid var(--border); border-radius: 0; }
 .rich-text-toolbar .rich-text-toolbar-buttons { flex: 1; display: flex; flex-wrap: wrap; background: transparent; }
 .editor-toolbar .rich-text-clear { flex: none; margin-left: auto; }
 .rich-text-editor-content { flex: 1; min-height: 0; overflow-y: auto !important; }
@@ -291,6 +293,11 @@ img.brand-mark { display: block; flex: none; object-fit: contain; background: tr
 .rich-text-editor-content [data-slate-editor] { min-height: 100%; }
 .rich-text-editor-content [data-slate-editor] { padding: 15px; color: var(--text); font-size: 13px; line-height: 1.8; }
 .rich-text-editor-content [data-slate-editor] p { margin: 0 0 10px; }
+/* 评论/回复用的精简富文本编辑器：固定高度、带边框，避免空编辑器塌陷 */
+.rich-text-editor.comment-editor { display: flex; flex-direction: column; height: 480px; padding: 0; overflow: hidden; border: 1px solid var(--border); border-radius: 9px; background: var(--surface); }
+.rich-text-editor.comment-editor.reply-editor { height: 150px; }
+.rich-text-editor.comment-editor .editor-toolbar.rich-text-toolbar { border-bottom: 1px solid var(--border); background: transparent; }
+.rich-text-editor.comment-editor .rich-text-editor-content [data-slate-editor] { padding: 11px 12px; font-size: 12px; }
 .rich-text-view { overflow-wrap: anywhere; color: var(--text); font-size: 14px; line-height: 1.9; }
 .rich-text-view p { margin: 0 0 12px; }
 .rich-text-view h2 { margin: 24px 0 12px; font-size: 22px; line-height: 1.4; }
@@ -1109,11 +1116,22 @@ button:disabled { cursor: not-allowed; opacity: .58; transform: none !important;
 [data-theme='dark'] .tag-select-control.focus { border-color: var(--primary); }
 [data-theme='dark'] .category-submenu button { color: var(--text); }
 [data-theme='dark'] .content-editor { background: var(--surface); }
-[data-theme='dark'] .rich-text-toolbar,
-[data-theme='dark'] .rich-text-toolbar .rich-text-toolbar-buttons { background: var(--soft); }
+/* wangeditor 自带一套浅色 CSS 变量，深色主题下整组覆盖，工具栏与编辑区一起变深 */
+[data-theme='dark'] .rich-text-editor {
+  --w-e-textarea-bg-color: var(--surface);
+  --w-e-textarea-color: var(--text);
+  --w-e-textarea-border-color: var(--border);
+  --w-e-textarea-slight-bg-color: var(--soft);
+  --w-e-textarea-slight-color: var(--muted);
+  --w-e-toolbar-bg-color: var(--surface);
+  --w-e-toolbar-color: var(--muted);
+  --w-e-toolbar-active-bg-color: var(--primary-soft);
+  --w-e-toolbar-active-color: var(--text);
+  --w-e-toolbar-disabled-color: #5c6475;
+  --w-e-toolbar-border-color: var(--border);
+}
 [data-theme='dark'] .rich-text-toolbar button { color: var(--muted); }
 [data-theme='dark'] .rich-text-toolbar button:hover { background: var(--surface-hover); }
-[data-theme='dark'] .rich-text-editor-content [data-slate-editor] { color: var(--text); }
 [data-theme='dark'] .welcome-card,
 [data-theme='dark'] .sso-tip { border-color: #343b59; background: var(--primary-soft); }
 [data-theme='dark'] .member-cover { background: linear-gradient(120deg, #2b3455, #202942 48%, #193b3b); }

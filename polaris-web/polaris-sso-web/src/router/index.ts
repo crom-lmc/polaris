@@ -2,6 +2,7 @@ import { createRouter, createWebHistory } from 'vue-router'
 import LoginView from '@/views/LoginView.vue'
 import AdminLayout from '@/views/admin/AdminLayout.vue'
 import { useUserStore } from '@/stores/user'
+import { renderAppTitle, resolveAppName } from '@/utils/appTitle'
 
 /**
  * 路由表。
@@ -90,12 +91,6 @@ const router = createRouter({
           meta: { title: '应用管理', perm: 'app:list' }
         },
         {
-          path: 'logs',
-          name: 'logs',
-          component: () => import('@/views/admin/LoginLogView.vue'),
-          meta: { title: '登录日志', perm: 'account:log:view' }
-        },
-        {
           path: 'profile',
           name: 'profile',
           component: () => import('@/views/admin/ProfileView.vue'),
@@ -123,6 +118,8 @@ router.beforeEach(async (to) => {
   if (!loggedIn) {
     return { path: '/login', query: { redirect: to.fullPath } }
   }
+  // 应用名取登录接口登记的实际名称（北极星钥…），只取一次；就绪后刷新浏览器标签
+  void resolveAppName('sso-center').then(() => renderAppTitle(to.meta.title as string | undefined))
   const perm = to.meta.perm as string | undefined
   if (perm && !store.can(perm)) {
     // 没有该菜单权限：回概览并带上原因，由页面提示，而不是静默跳走
@@ -132,8 +129,7 @@ router.beforeEach(async (to) => {
 })
 
 router.afterEach((to) => {
-  const title = to.meta.title as string | undefined
-  document.title = title ? `${title} · 统一账号中心` : '统一账号中心'
+  renderAppTitle(to.meta.title as string | undefined)
 })
 
 export default router

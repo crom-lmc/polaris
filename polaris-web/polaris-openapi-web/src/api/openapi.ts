@@ -1,5 +1,9 @@
 import request from './request'
 
+/** 当前登录者可访问的应用详情（含 name），用于取本应用登记名 */
+export interface MyAppInfo { code: string; name: string }
+export const fetchMyApps = () => request.get<never, MyAppInfo[]>('/api/accounts/me/apps')
+
 /** 统一账号中心 sso-web 的 /authorize 页（授权码签发入口） */
 export const SSO_AUTHORIZE_URL = import.meta.env.VITE_SSO_ORIGIN || 'http://localhost:5173'
 

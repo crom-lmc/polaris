@@ -1,6 +1,7 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import { useUserStore } from '@/stores/user'
 import { gotoAuthorize } from '@/api/ehr'
+import { renderAppTitle, resolveAppName } from '@/utils/appTitle'
 
 const router = createRouter({
   history: createWebHistory(),
@@ -47,7 +48,6 @@ const router = createRouter({
           meta: { title: '招聘管理', perms: ['recruit:board', 'recruit:offers', 'recruit:jobs', 'recruit:interviews'] }
         },
         { path: 'announcements', component: () => import('@/views/AnnouncementView.vue'), meta: { title: '通知管理', perm: 'announcement:view' } },
-        { path: 'audit-logs', component: () => import('@/views/AuditLogView.vue'), meta: { title: '审计日志', perm: 'audit:view' } },
         {
           path: 'hr-ledgers',
           component: () => import('@/views/HrLedgerView.vue'),
@@ -91,7 +91,7 @@ const router = createRouter({
 })
 
 router.beforeEach(async (to) => {
-  document.title = to.meta.title ? `${to.meta.title} · 人力中心` : '人力中心'
+  renderAppTitle(to.meta.title as string | undefined)
   if (to.meta.public) return true
   const store = useUserStore()
   const loggedIn = await store.bootstrap()
@@ -99,6 +99,8 @@ router.beforeEach(async (to) => {
     gotoAuthorize(to.fullPath)
     return false
   }
+  // 应用名取登录接口登记的实际名称（北极星宿…），只取一次；就绪后刷新标签
+  void resolveAppName(store.me?.appCode || 'ehr').then(() => renderAppTitle(to.meta.title as string | undefined))
   if (to.meta.perm && !store.can(to.meta.perm as string)) {
     return '/no-access'
   }

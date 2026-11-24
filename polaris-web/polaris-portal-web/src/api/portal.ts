@@ -1,5 +1,9 @@
 import request from './request'
 
+/** 当前登录者可访问的应用详情（含 name），用于取本应用登记名 */
+export interface MyAppInfo { code: string; name: string }
+export const fetchMyApps = () => request.get<never, MyAppInfo[]>('/api/accounts/me/apps')
+
 /** 统一账号中心 sso-web 的 /authorize 页（授权码签发入口） */
 export const SSO_AUTHORIZE_URL = import.meta.env.VITE_SSO_ORIGIN || 'http://localhost:5173'
 
@@ -14,9 +18,9 @@ export const IS_PREVIEW =
 /** 后台预览下发的布局消息类型 */
 export const PREVIEW_MSG_TYPE = 'portal:preview-layout'
 
-/** 门户回调地址（必须与统一账号中心里 portal 应用 baseUrl 同 origin） */
+/** 门户回调地址（门户前台挂在 CMS 域名 /portal/ 子路径下） */
 export function callbackUrl(): string {
-  return window.location.origin + '/callback'
+  return window.location.origin + '/portal/callback'
 }
 
 /** 跳转统一账号中心签授权码 */

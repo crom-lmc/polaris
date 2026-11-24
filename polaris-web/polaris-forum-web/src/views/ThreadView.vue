@@ -57,7 +57,7 @@
         <div class="comment-composer">
           <UserAvatar :name="displayName" :avatar-url="currentUser?.member?.avatarUrl" :class="{ guest: !isLoggedIn }" />
           <div class="composer-box">
-            <textarea v-model="commentContent" :readonly="!isLoggedIn" maxlength="2000" :placeholder="isLoggedIn ? '分享你的观点，评论成功可获得 5 积分…' : '登录后参与讨论，分享你的观点…'" @focus="!isLoggedIn && requireLogin('评论')" @click="!isLoggedIn && requireLogin('评论')"></textarea>
+            <RichTextEditor v-model="commentContent" class="comment-editor" compact :disabled="!isLoggedIn" :placeholder="isLoggedIn ? '分享你的观点，可插入图片，评论成功可获得 5 积分…' : '登录后参与讨论，分享你的观点…'" />
             <button class="primary-button" :disabled="commenting" @click="submitComment">{{ commenting ? '正在发布…' : isLoggedIn ? '发布评论' : '统一登录后评论' }}</button>
           </div>
         </div>
@@ -67,7 +67,7 @@
           <ForumCommentItem :comment="comment" :thread-author-id="thread.authorAccountId" :can-reply="!comment.deleted" :liking="likingCommentId === comment.id" @like="likeComment" @reply="openReply" @report="openCommentReport" />
           <div v-if="replyingTo?.id === comment.id" class="reply-composer">
             <div class="reply-composer-heading">回复 <b>{{ comment.author.name }}</b><button @click="closeReply">取消</button></div>
-            <textarea v-model="replyContent" maxlength="2000" placeholder="写下你的回复…"></textarea>
+            <RichTextEditor v-model="replyContent" class="comment-editor reply-editor" compact placeholder="写下你的回复，可插入图片…" />
             <button class="primary-button" :disabled="replying" @click="submitReply">{{ replying ? '正在回复…' : '发布回复' }}</button>
           </div>
           <div v-if="comment.replies?.length" class="comment-replies">
@@ -113,12 +113,13 @@ import { computed, nextTick, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { CheckCircleOutlined, CloseOutlined, DownloadOutlined, EyeOutlined, FlagOutlined, LikeOutlined, MessageOutlined, PaperClipOutlined, ShareAltOutlined, StarOutlined } from '@ant-design/icons-vue'
 import ForumCommentItem from '@/components/ForumCommentItem.vue'
+import RichTextEditor from '@/components/RichTextEditor.vue'
 import RichTextView from '@/components/RichTextView.vue'
 import UserAvatar from '@/components/UserAvatar.vue'
 import { createComment, createReport, favoriteThread, fetchComments, fetchThread, fetchThreadsPage, toggleLike, unfavoriteThread, vote } from '@/api/forum'
 import { boards, formatTime } from '@/data/forum'
 import { currentUser, isLoggedIn, refreshCurrentUser, refreshUnreadCount, requireLogin } from '@/auth'
-import { cleanLiteralEscapes } from '@/utils/html'
+import { cleanLiteralEscapes, richTextToPlainText } from '@/utils/html'
 import type { ForumComment, ReportTargetType, Thread } from '@/types'
 
 const route = useRoute()
@@ -245,8 +246,13 @@ async function likeComment(comment: ForumComment) {
 async function submitComment() {
   if (!thread.value || !requireLogin('评论')) return
   const content = commentContent.value.trim()
-  if (!content) {
+  const plain = richTextToPlainText(content)
+  if (!plain) {
     commentError.value = '请输入评论内容'
+    return
+  }
+  if (plain.length > 2000) {
+    commentError.value = '评论内容不能超过 2000 个字符'
     return
   }
   commenting.value = true
@@ -280,8 +286,13 @@ async function submitReply() {
   const parent = replyingTo.value
   if (!thread.value || !parent || !requireLogin('回复评论')) return
   const content = replyContent.value.trim()
-  if (!content) {
+  const plain = richTextToPlainText(content)
+  if (!plain) {
     commentError.value = '请输入回复内容'
+    return
+  }
+  if (plain.length > 2000) {
+    commentError.value = '回复内容不能超过 2000 个字符'
     return
   }
   replying.value = true

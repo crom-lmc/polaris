@@ -3,7 +3,7 @@
     <a-layout-header class="header">
       <div class="logo" :class="{ 'is-collapsed': collapsed }">
         <menu-outlined class="menu-toggle" :title="collapsed ? '展开菜单' : '收起菜单'" @click="toggleCollapse" />
-        <span class="logo-text">接口开放平台</span>
+        <span class="logo-text">{{ appName }}</span>
       </div>
       <div class="right">
         <a-button
@@ -102,6 +102,7 @@ import { useThemeStore } from '@/stores/theme'
 import { Modal } from 'ant-design-vue'
 import { gotoAuthorize, logoutSso } from '@/api/openapi'
 import { getRefreshToken } from '@/utils/token'
+import { appName } from '@/utils/appTitle'
 import { useSessionGuard } from '@/composables/useSessionGuard'
 import ThemeToggleIcon from '@/components/ThemeToggleIcon.vue'
 

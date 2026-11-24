@@ -157,6 +157,7 @@ import { useUserStore } from '@/stores/user'
 import type { ApplicationVO, PermissionVO, RoleVO } from '@/types'
 import { message } from 'ant-design-vue'
 import { confirmAction } from '@/utils/confirm'
+import { appName } from '@/utils/appTitle'
 import RoleUserTransferModal from './components/RoleUserTransferModal.vue'
 
 const store = useUserStore()
@@ -236,7 +237,10 @@ async function loadApps() {
 }
 
 function appLabel(code: string): string {
-  if (code === 'sso' || code === 'sso-center') return '统一账号中心'
+  // 权限域 sso 对应平台内置应用 sso-center，展示其登记的实际应用名
+  if (code === 'sso' || code === 'sso-center') {
+    return apps.value.find((a) => a.code === 'sso-center')?.name || appName.value || '北极星钥'
+  }
   return apps.value.find((a) => a.code === code)?.name || code
 }
 

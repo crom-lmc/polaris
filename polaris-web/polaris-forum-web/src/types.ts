@@ -60,7 +60,7 @@ export interface ForumAttachment {
   originalName: string
   mimeType: string
   size: number
-  usageType: 'ATTACHMENT' | 'COVER' | 'AVATAR' | 'PROFILE_COVER'
+  usageType: 'ATTACHMENT' | 'COVER' | 'AVATAR' | 'PROFILE_COVER' | 'INLINE'
   url: string
 }
 

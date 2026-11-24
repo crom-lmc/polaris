@@ -92,19 +92,6 @@ export interface TicketResponse {
   expiresIn: number
 }
 
-/** 登录日志（审计） */
-export interface LoginLog {
-  id: number
-  accountId?: number
-  username: string
-  loginType: string
-  result: 'success' | 'fail' | string
-  failReason?: string
-  clientIp?: string
-  userAgent?: string
-  createdAt?: string
-}
-
 /** 1 正常 / 2 已禁用 / 3 已锁定 / 4 未激活（与后端 AccountStatus 枚举一致） */
 export type AccountStatusCode = 1 | 2 | 3 | 4
 

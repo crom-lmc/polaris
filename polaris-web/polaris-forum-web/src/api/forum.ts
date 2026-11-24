@@ -153,7 +153,7 @@ export function exchangeGift(id: string) {
   return post<{ exchangeId: string; balance: number; giftName: string }>(`/api/forum/gifts/${id}/exchange`)
 }
 
-export function uploadAttachment(file: File, usageType: 'ATTACHMENT' | 'COVER' | 'AVATAR' | 'PROFILE_COVER' = 'ATTACHMENT') {
+export function uploadAttachment(file: File, usageType: 'ATTACHMENT' | 'COVER' | 'AVATAR' | 'PROFILE_COVER' | 'INLINE' = 'ATTACHMENT') {
   return upload<ForumAttachment>('/api/forum/attachments', file, usageType)
 }
 

@@ -405,6 +405,7 @@ import { useUserStore } from '@/stores/user'
 import type { AccountVO, ApplicationVO, RoleVO } from '@/types'
 import { message } from 'ant-design-vue'
 import { confirmAction } from '@/utils/confirm'
+import { appName } from '@/utils/appTitle'
 
 const store = useUserStore()
 
@@ -553,7 +554,7 @@ const orgTreeData = computed<OrgTreeNode[]>(() => {
   // 加一层虚拟应用节点作为根，key 以 'app_' 前缀区分，且不可勾选（要全部权限直接勾最顶级组织）
   const wrapped: OrgTreeNode = {
     key: 'app_root',
-    title: '统一账号中心',
+    title: appName.value || '北极星钥',
     children: tree,
     disableCheckbox: true
   }

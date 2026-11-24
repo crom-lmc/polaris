@@ -6,6 +6,8 @@ import vue from '@vitejs/plugin-vue'
 const target = process.env.VITE_SSO_TARGET || 'http://127.0.0.1:9080'
 
 export default defineConfig({
+  // 门户前台与 CMS 管理端共用 polaris-cms 域名，前台挂在 /portal/ 子路径（对齐 forum-admin 的 /admin/）
+  base: '/portal/',
   plugins: [vue()],
   resolve: {
     alias: {

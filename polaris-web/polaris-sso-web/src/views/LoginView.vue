@@ -12,7 +12,7 @@
       <div class="brand">
         <div class="logo">SSO</div>
         <div>
-          <h1>统一账号中心</h1>
+          <h1>北极星钥</h1>
           <p v-if="appName">正在登录「{{ appName }}」</p>
           <p v-else>一个账号，通行所有应用</p>
         </div>

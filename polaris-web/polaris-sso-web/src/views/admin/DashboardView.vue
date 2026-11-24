@@ -44,7 +44,7 @@
 
           <div v-else class="app-grid">
             <div v-for="app in overviewApps" :key="app.id" class="app-tile">
-              <img class="app-logo" :src="logoOf(app)" :alt="app.name" />
+              <img class="app-logo" :src="logoOf(app)" :alt="app.name" @error="onLogoError" />
               <div class="app-name">{{ app.name }}</div>
               <div class="app-code">{{ app.code }}</div>
               <!-- 统一账号中心是平台自身（当前控制台），没有可跳转的目标地址，不显示「进入」 -->
@@ -649,6 +649,12 @@ function isBuiltin(app: ApplicationVO) {
 /** 应用 logo：优先用中心配置的 icon，缺省回退到内置图标包（/public/icons） */
 function logoOf(app: ApplicationVO) {
   return app.icon || `/icons/${app.code}.svg`
+}
+
+/** 图标文件缺失时回退到通用图标，避免裂图 */
+function onLogoError(e: Event) {
+  const img = e.target as HTMLImageElement
+  if (!img.src.endsWith('/icons/app-default.svg')) img.src = '/icons/app-default.svg'
 }
 
 function randomState(): string {

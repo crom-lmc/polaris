@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { appName } from '@/utils/appTitle'
 const year = new Date().getFullYear()
 </script>
 
@@ -6,10 +7,10 @@ const year = new Date().getFullYear()
   <footer class="footer">
     <div class="container footer-inner">
       <div class="left">
-        <div class="brand-small">内容门户</div>
-        <div class="muted">内容由内容中心维护 · 单点登录由统一账号中心提供</div>
+        <div class="brand-small">{{ appName }}</div>
+        <div class="muted">内容由北极星源维护 · 单点登录由北极星钥提供</div>
       </div>
-      <div class="right muted">© {{ year }} 内容门户</div>
+      <div class="right muted">© {{ year }} {{ appName }}</div>
     </div>
   </footer>
 </template>

@@ -607,30 +607,6 @@ export function sensitiveEmployeeDetail(id: string) {
   return request.get<never, EmployeeItem>(`/api/ehr/employees/${id}/sensitive`)
 }
 
-/* ---------- 敏感操作审计 ---------- */
-
-export interface AuditLogItem {
-  id: string
-  operatorId: string
-  operatorName?: string
-  /** VIEW / PLAIN / EXPORT */
-  action: string
-  /** EMPLOYEE 等 */
-  targetType: string
-  targetId?: string | null
-  /** 员工类目标补的姓名 */
-  targetName?: string
-  /** 涉及的敏感字段 */
-  fields?: string
-  ip?: string
-  ua?: string
-  createdAt?: string
-}
-
-export function pageAuditLogs(params: Record<string, unknown>) {
-  return request.get<never, PageData<AuditLogItem>>('/api/ehr/audit-logs', { params })
-}
-
 /* ---------- 我的到期提醒 ---------- */
 
 export interface ReminderItem {
