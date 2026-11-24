@@ -1,10 +1,14 @@
 <template>
   <div class="ft-page">
     <div class="toolbar ft-head">
-      <a-input-search v-model:value="keyword" placeholder="文件名" style="width: 220px" allow-clear @search="handleSearch" />
+      <a-radio-group v-model:value="tab" @change="handleTabChange" style="margin-right: 4px">
+        <a-radio-button value="active">文件列表</a-radio-button>
+        <a-radio-button value="recycle">回收站</a-radio-button>
+      </a-radio-group>
+      <a-input-search v-model:value="keyword" placeholder="文件名" style="width: 200px" allow-clear @search="handleSearch" />
       <a-select v-model:value="bizType" style="width: 180px" :options="bizOptions" allowClear @change="handleSearch" />
-      <a-select v-model:value="visibility" style="width: 140px" :options="visibilityOptions" allowClear @change="handleSearch" />
-      <a-button type="primary" @click="openUpload">
+      <a-select v-if="tab === 'active'" v-model:value="visibility" style="width: 140px" :options="visibilityOptions" allowClear @change="handleSearch" />
+      <a-button v-if="tab === 'active'" type="primary" @click="openUpload">
         <template #icon><upload-outlined /></template>上传文件
       </a-button>
       <a-button @click="load">刷新</a-button>
@@ -20,14 +24,31 @@
               {{ record.visibility === 'PUBLIC' ? '公开' : '私有' }}
             </a-tag>
           </template>
+          <template v-else-if="column.key === 'name'">
+            <span class="name-cell">
+              <img v-if="record.thumbUrl && tab === 'active'" :src="record.thumbUrl" class="thumb" @error="onThumbError" />
+              <span>{{ record.originalName }}</span>
+              <a-tag v-if="record.deduplicated" color="cyan" style="margin-left: 6px">秒传</a-tag>
+            </span>
+          </template>
           <template v-else-if="column.key === 'size'">
             {{ formatSize(record.size) }}
           </template>
+          <template v-else-if="column.key === 'time'">
+            {{ tab === 'recycle' ? (record.deletedAt || '-') : record.createdAt }}
+          </template>
           <template v-else-if="column.key === 'action'">
             <a-space :size="4">
-              <a v-if="store.can('file:download')" @click="openFile(record)">查看</a>
-              <a v-if="store.can('file:download')" @click="downloadFile(record)">下载</a>
-              <a v-if="store.can('file:delete')" class="danger" @click="confirmDelete(record)">删除</a>
+              <template v-if="tab === 'active'">
+                <a v-if="store.can('file:download')" @click="openPreview(record)">预览</a>
+                <a v-if="store.can('file:download')" @click="downloadFile(record)">下载</a>
+                <a v-if="store.can('file:download')" @click="openShare(record)">分享</a>
+                <a v-if="store.can('file:delete')" class="danger" @click="confirmDelete(record)">删除</a>
+              </template>
+              <template v-else>
+                <a v-if="store.can('file:delete')" @click="confirmRestore(record)">恢复</a>
+                <a v-if="store.can('file:delete')" class="danger" @click="confirmPurge(record)">彻底删除</a>
+              </template>
             </a-space>
           </template>
         </template>
@@ -53,6 +74,44 @@
         </a-form-item>
       </a-form>
     </a-modal>
+
+    <a-drawer v-model:open="previewOpen" :title="previewInfo?.name || '文件预览'" width="72%" :footer="null" @close="closePreview">
+      <div v-if="previewLoading" class="preview-placeholder">加载中…</div>
+      <div v-else-if="!previewInfo" class="preview-placeholder">无预览信息</div>
+      <template v-else>
+        <img v-if="previewInfo.mode === 'IMAGE'" :src="previewInfo.url" class="preview-img" />
+        <iframe v-else-if="previewInfo.mode === 'PDF'" :src="previewInfo.url" class="preview-frame" />
+        <pre v-else-if="previewInfo.mode === 'TEXT'" class="preview-text">{{ previewText }}</pre>
+        <div v-else class="preview-placeholder">
+          <p>该文件类型不支持在线预览。</p>
+          <a-button type="primary" @click="downloadFile({ id: previewId } as FileMeta)">下载文件</a-button>
+        </div>
+      </template>
+    </a-drawer>
+
+    <a-modal v-model:open="shareOpen" title="创建分享链接" :confirm-loading="shareCreating" @ok="doCreateShare" :width="520">
+      <a-alert type="info" show-icon style="margin-bottom: 14px"
+        :message="`为「${shareFileName}」创建对外分享链接，可设置提取码、有效期与查看次数。`" />
+      <a-form :label-col="{ span: 6 }" :wrapper-col="{ span: 17 }">
+        <a-form-item label="提取码">
+          <a-input v-model:value="shareForm.password" placeholder="留空则无需提取码" />
+        </a-form-item>
+        <a-form-item label="有效期(小时)">
+          <a-input-number v-model:value="shareForm.expiresHours" :min="0" placeholder="0 长期有效" style="width: 100%" />
+        </a-form-item>
+        <a-form-item label="查看次数上限">
+          <a-input-number v-model:value="shareForm.maxViews" :min="0" placeholder="0 不限" style="width: 100%" />
+        </a-form-item>
+      </a-form>
+      <div v-if="createdShareUrl" class="share-result">
+        <p>分享链接已创建：</p>
+        <a-input :value="createdShareUrl" readonly @click="selectShareUrl">
+          <template #suffix>
+            <a @click="copyShareUrl">复制</a>
+          </template>
+        </a-input>
+      </div>
+    </a-modal>
   </div>
 </template>
 
@@ -60,21 +119,33 @@
 import { computed, onMounted, reactive, ref } from 'vue'
 import { message, Modal } from 'ant-design-vue'
 import { UploadOutlined } from '@ant-design/icons-vue'
-import { bizTypeOptions, deleteFile, listFiles, signFile, uploadFile } from '@/api/file'
-import type { FileMeta } from '@/api/file'
+import {
+  bizTypeOptions, completeMultipart, createShare, deleteFile, initMultipart, listFiles, listRecycle,
+  previewFile, purgeFile, readFileText, restoreFile, signFile, uploadFile, uploadPart
+} from '@/api/file'
+import type { FileMeta, PreviewInfo } from '@/api/file'
 import { useUserStore } from '@/stores/user'
 
 const store = useUserStore()
-const columns = [
-  { title: '文件名', dataIndex: 'originalName', key: 'originalName', width: 220 },
+const activeColumns = [
+  { title: '文件名', key: 'name', width: 240 },
   { title: '业务类型', dataIndex: 'bizType', key: 'bizType', width: 140 },
   { title: '可见性', key: 'visibility', width: 90 },
   { title: '大小', key: 'size', width: 100 },
   { title: '归属', key: 'owner', width: 160 },
-  { title: '上传时间', dataIndex: 'createdAt', key: 'createdAt', width: 180 },
+  { title: '上传时间', key: 'time', width: 180 },
+  { title: '操作', key: 'action', width: 200 }
+]
+const recycleColumns = [
+  { title: '文件名', key: 'name', width: 240 },
+  { title: '业务类型', dataIndex: 'bizType', key: 'bizType', width: 140 },
+  { title: '大小', key: 'size', width: 100 },
+  { title: '删除时间', key: 'time', width: 180 },
   { title: '操作', key: 'action', width: 140 }
 ]
+const columns = computed(() => (tab.value === 'recycle' ? recycleColumns : activeColumns))
 
+const tab = ref<'active' | 'recycle'>('active')
 const records = ref<FileMeta[]>([])
 const loading = ref(false)
 const errorMsg = ref('')
@@ -100,6 +171,22 @@ const uploading = ref(false)
 const uploadForm = reactive({ bizType: '', visibility: '', ownerType: '', ownerId: '' })
 let selectedFile: File | null = null
 
+// 预览抽屉
+const previewOpen = ref(false)
+const previewLoading = ref(false)
+const previewInfo = ref<PreviewInfo | null>(null)
+const previewText = ref('')
+const previewId = ref('')
+const CHUNK_THRESHOLD = 5 * 1024 * 1024
+
+// 分享弹窗
+const shareOpen = ref(false)
+const shareCreating = ref(false)
+const shareFileName = ref('')
+const createdShareUrl = ref('')
+const shareForm = reactive({ password: '', expiresHours: 0, maxViews: 0 })
+const shareFileId = ref('')
+
 onMounted(async () => {
   try { bizOptions.value = await bizTypeOptions() } catch { /* ignore */ }
   load()
@@ -109,10 +196,13 @@ async function load() {
   loading.value = true
   errorMsg.value = ''
   try {
-    const res = await listFiles({
+    const params = {
       page: current.value, size: pageSize.value,
-      bizType: bizType.value, visibility: visibility.value, keyword: keyword.value || undefined
-    })
+      bizType: bizType.value, keyword: keyword.value || undefined
+    }
+    const res = tab.value === 'recycle'
+      ? await listRecycle(params)
+      : await listFiles({ ...params, visibility: visibility.value })
     records.value = res.records || []
     total.value = res.total || 0
   } catch (e: any) {
@@ -122,6 +212,7 @@ async function load() {
   }
 }
 
+function handleTabChange() { current.value = 1; load() }
 function handleSearch() { current.value = 1; load() }
 function handleTableChange(pag: any) { current.value = pag.current; pageSize.value = pag.pageSize; load() }
 
@@ -146,17 +237,41 @@ async function doUpload() {
   }
   uploading.value = true
   try {
-    const base64 = await fileToBase64(selectedFile)
-    await uploadFile({
-      bizType: uploadForm.bizType,
-      visibility: uploadForm.visibility || undefined,
-      originalName: selectedFile.name,
-      contentType: selectedFile.type || 'application/octet-stream',
-      content: base64,
-      ownerType: uploadForm.ownerType || undefined,
-      ownerId: uploadForm.ownerId || undefined
-    })
-    message.success('上传成功')
+    const file = selectedFile
+    const contentType = file.type || 'application/octet-stream'
+    let res: FileMeta
+    if (file.size > CHUNK_THRESHOLD) {
+      // 大文件：分片上传
+      const session = await initMultipart({
+        bizType: uploadForm.bizType,
+        visibility: uploadForm.visibility || undefined,
+        originalName: file.name,
+        contentType,
+        totalSize: file.size,
+        ownerType: uploadForm.ownerType || undefined,
+        ownerId: uploadForm.ownerId || undefined
+      })
+      const chunkSize = session.chunkSize
+      for (let i = 0; i < session.totalChunks; i++) {
+        const start = i * chunkSize
+        const chunk = file.slice(start, Math.min(start + chunkSize, file.size))
+        const base64 = await blobToBase64(chunk)
+        await uploadPart(session.uploadId, i, base64)
+      }
+      res = await completeMultipart(session.uploadId)
+    } else {
+      const base64 = await fileToBase64(file)
+      res = await uploadFile({
+        bizType: uploadForm.bizType,
+        visibility: uploadForm.visibility || undefined,
+        originalName: file.name,
+        contentType,
+        content: base64,
+        ownerType: uploadForm.ownerType || undefined,
+        ownerId: uploadForm.ownerId || undefined
+      })
+    }
+    message.success(res?.deduplicated ? '上传成功（秒传：内容已存在，复用存储）' : '上传成功')
     uploadOpen.value = false
     load()
   } catch (e: any) {
@@ -166,13 +281,78 @@ async function doUpload() {
   }
 }
 
-async function openFile(record: FileMeta) {
+async function openPreview(record: FileMeta) {
+  previewId.value = record.id
+  previewInfo.value = null
+  previewText.value = ''
+  previewLoading.value = true
+  previewOpen.value = true
   try {
-    const res = await signFile(record.id, 'VIEW')
-    window.open(res.url, '_blank')
+    const info = await previewFile(record.id)
+    previewInfo.value = info
+    if (info.mode === 'TEXT') {
+      try {
+        previewText.value = await readFileText(info.url)
+      } catch {
+        previewText.value = '（文本内容读取失败，请下载查看）'
+      }
+    }
   } catch (e: any) {
-    message.error(e?.message || '获取访问链接失败')
+    message.error(e?.message || '获取预览信息失败')
+  } finally {
+    previewLoading.value = false
   }
+}
+
+function closePreview() {
+  previewInfo.value = null
+  previewText.value = ''
+}
+
+function openShare(record: FileMeta) {
+  shareFileId.value = record.id
+  shareFileName.value = record.originalName
+  shareForm.password = ''
+  shareForm.expiresHours = 0
+  shareForm.maxViews = 0
+  createdShareUrl.value = ''
+  shareOpen.value = true
+}
+
+async function doCreateShare() {
+  shareCreating.value = true
+  try {
+    const res = await createShare({
+      fileId: shareFileId.value,
+      password: shareForm.password || undefined,
+      expiresHours: shareForm.expiresHours || undefined,
+      maxViews: shareForm.maxViews || undefined
+    })
+    createdShareUrl.value = res.url
+    message.success('分享链接已创建')
+  } catch (e: any) {
+    message.error(e?.message || '创建分享失败')
+  } finally {
+    shareCreating.value = false
+  }
+}
+
+function selectShareUrl(e: MouseEvent) {
+  (e.target as HTMLInputElement).select()
+}
+
+async function copyShareUrl() {
+  try {
+    await navigator.clipboard.writeText(createdShareUrl.value)
+    message.success('已复制')
+  } catch {
+    message.warning('复制失败，请手动选择链接')
+  }
+}
+
+function onThumbError(e: Event) {
+  const img = e.target as HTMLImageElement
+  img.style.display = 'none'
 }
 
 async function downloadFile(record: FileMeta) {
@@ -187,13 +367,13 @@ async function downloadFile(record: FileMeta) {
 function confirmDelete(record: FileMeta) {
   Modal.confirm({
     title: '删除文件',
-    content: `确定删除「${record.originalName}」吗？删除为软删，字节文件延后清理。`,
+    content: `确定删除「${record.originalName}」吗？删除后可在回收站恢复。`,
     okText: '确定删除', cancelText: '取消', centered: true,
     okButtonProps: { danger: true },
     onOk: async () => {
       try {
         await deleteFile(record.id)
-        message.success('已删除')
+        message.success('已移入回收站')
         load()
       } catch (e: any) {
         message.error(e?.message || '删除失败')
@@ -202,12 +382,55 @@ function confirmDelete(record: FileMeta) {
   })
 }
 
+function confirmRestore(record: FileMeta) {
+  Modal.confirm({
+    title: '恢复文件',
+    content: `确定恢复「${record.originalName}」吗？`,
+    okText: '恢复', cancelText: '取消', centered: true,
+    onOk: async () => {
+      try {
+        await restoreFile(record.id)
+        message.success('已恢复')
+        load()
+      } catch (e: any) {
+        message.error(e?.message || '恢复失败')
+      }
+    }
+  })
+}
+
+function confirmPurge(record: FileMeta) {
+  Modal.confirm({
+    title: '彻底删除',
+    content: `彻底删除「${record.originalName}」？物理文件将被删除且不可恢复（若被其它文件秒传复用则仅删元数据）。`,
+    okText: '彻底删除', cancelText: '取消', centered: true,
+    okButtonProps: { danger: true },
+    onOk: async () => {
+      try {
+        await purgeFile(record.id)
+        message.success('已彻底删除')
+        load()
+      } catch (e: any) {
+        message.error(e?.message || '彻底删除失败')
+      }
+    }
+  })
+}
+
 function fileToBase64(file: File): Promise<string> {
+  return readAsBase64(file)
+}
+
+function blobToBase64(blob: Blob): Promise<string> {
+  return readAsBase64(blob)
+}
+
+function readAsBase64(blob: Blob): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader()
     reader.onload = () => resolve(String(reader.result).split(',')[1] || '')
     reader.onerror = reject
-    reader.readAsDataURL(file)
+    reader.readAsDataURL(blob)
   })
 }
 
@@ -222,4 +445,12 @@ function formatSize(size: number) {
 <style scoped>
 .toolbar { display: flex; gap: 8px; align-items: center; margin-bottom: 16px; flex-wrap: wrap; }
 .danger { color: #ff4d4f; }
+.name-cell { display: inline-flex; align-items: center; gap: 6px; }
+.thumb { width: 28px; height: 28px; object-fit: cover; border-radius: 4px; flex: none; }
+.preview-placeholder { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 300px; color: #999; gap: 12px; }
+.preview-img { max-width: 100%; max-height: 70vh; object-fit: contain; display: block; margin: 0 auto; }
+.preview-frame { width: 100%; height: 70vh; border: none; }
+.preview-text { white-space: pre-wrap; word-break: break-all; font-size: 13px; line-height: 1.6; max-height: 70vh; overflow: auto; background: #fafafa; padding: 12px; border-radius: 6px; }
+.share-result { margin-top: 8px; padding: 12px; background: #f6ffed; border: 1px solid #b7eb8f; border-radius: 6px; }
+.share-result p { margin: 0 0 8px; color: #389e0d; }
 </style>

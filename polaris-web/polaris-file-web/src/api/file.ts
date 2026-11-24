@@ -94,7 +94,10 @@ export interface FileMeta {
   ownerId: string
   status: string
   url?: string
+  thumbUrl?: string
+  deduplicated?: boolean
   createdAt: string
+  deletedAt?: string
 }
 export interface FilePage {
   records: FileMeta[]
@@ -126,9 +129,78 @@ export function signFile(id: string, purpose: 'VIEW' | 'DOWNLOAD', expiresSecond
   return request.post<never, { url: string; expiresAt: number }>(`/api/file/admin/files/${id}/sign`,
     { purpose, expiresSeconds })
 }
+
+/** 预览信息：IMAGE / PDF / TEXT / UNSUPPORTED */
+export interface PreviewInfo {
+  mode: 'IMAGE' | 'PDF' | 'TEXT' | 'UNSUPPORTED'
+  name: string
+  contentType: string
+  url: string
+  thumbUrl?: string
+}
+export const previewFile = (id: string) => request.get<never, PreviewInfo>(`/api/file/admin/files/${id}/preview`)
+
+/** 读取文本内容用于文本预览 */
+export const readFileText = (url: string) => request.get<never, string>(url, { responseType: 'text' })
 export function deleteFile(id: string) {
   return request.delete<never, void>(`/api/file/admin/files/${id}`)
 }
+
+// ---------------- 回收站 ----------------
+export function listRecycle(params: { page: number; size: number; bizType?: string; keyword?: string }) {
+  return request.get<never, FilePage>('/api/file/admin/recycle', { params })
+}
+export function restoreFile(id: string) {
+  return request.post<never, void>(`/api/file/admin/files/${id}/restore`)
+}
+export function purgeFile(id: string) {
+  return request.delete<never, void>(`/api/file/admin/files/${id}/purge`)
+}
+
+// ---------------- 文件分享 ----------------
+export interface FileShare {
+  id: string
+  fileId: string
+  shareCode: string
+  url: string
+  fileName?: string
+  expiresAt?: string
+  maxViews: number
+  viewCount: number
+  enabled: boolean
+  createdAt: string
+}
+export interface ShareCreatePayload {
+  fileId: string
+  password?: string
+  expiresHours?: number
+  maxViews?: number
+}
+export const listShares = () => request.get<never, FileShare[]>('/api/file/admin/shares')
+export const createShare = (payload: ShareCreatePayload) => request.post<never, FileShare>('/api/file/admin/shares', payload)
+export const revokeShare = (id: string) => request.delete<never, void>(`/api/file/admin/shares/${id}`)
+
+// ---------------- 分片上传 ----------------
+export interface MultipartInit {
+  bizType: string
+  visibility?: string
+  originalName: string
+  contentType: string
+  totalSize: number
+  ownerType?: string
+  ownerId?: string
+}
+export interface MultipartSession {
+  uploadId: string
+  chunkSize: number
+  totalChunks: number
+}
+export const initMultipart = (payload: MultipartInit) =>
+  request.post<never, MultipartSession>('/api/file/admin/multipart/init', payload)
+export const uploadPart = (uploadId: string, index: number, content: string) =>
+  request.post<never, void>(`/api/file/admin/multipart/${uploadId}/part/${index}`, { content })
+export const completeMultipart = (uploadId: string) =>
+  request.post<never, FileMeta>(`/api/file/admin/multipart/${uploadId}/complete`)
 
 // ---------------- 存储策略 ----------------
 export interface StoragePolicy {
@@ -139,6 +211,8 @@ export interface StoragePolicy {
   allowedExt: string
   defaultVisibility: 'PUBLIC' | 'PRIVATE' | string
   forcePrivate: boolean
+  quotaGb?: number
+  ttlDays?: number
   enabled: boolean
   remark?: string
   createdAt?: string

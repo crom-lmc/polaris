@@ -26,6 +26,12 @@
             <a-tag v-if="record.forcePrivate" color="red">强制私有</a-tag>
             <span v-else class="muted">否</span>
           </template>
+          <template v-else-if="column.key === 'quotaGb'">
+            {{ record.quotaGb && record.quotaGb > 0 ? record.quotaGb + ' GB' : '不限' }}
+          </template>
+          <template v-else-if="column.key === 'ttlDays'">
+            {{ record.ttlDays && record.ttlDays > 0 ? record.ttlDays + ' 天' : '永久' }}
+          </template>
           <template v-else-if="column.key === 'enabled'">
             <a-tag :color="record.enabled ? 'green' : 'default'">{{ record.enabled ? '启用' : '停用' }}</a-tag>
           </template>
@@ -67,6 +73,12 @@
         <a-form-item label="强制私有">
           <a-switch v-model:checked="form.forcePrivate" />
         </a-form-item>
+        <a-form-item label="总配额(GB)">
+          <a-input-number v-model:value="form.quotaGb" :min="0" placeholder="0 不限" style="width: 100%" />
+        </a-form-item>
+        <a-form-item label="生命周期(天)">
+          <a-input-number v-model:value="form.ttlDays" :min="0" placeholder="0 永久" style="width: 100%" />
+        </a-form-item>
         <a-form-item label="启用">
           <a-switch v-model:checked="form.enabled" />
         </a-form-item>
@@ -94,6 +106,8 @@ const columns = [
   { title: '允许扩展名', dataIndex: 'allowedExt', key: 'allowedExt', width: 220 },
   { title: '默认可见性', key: 'defaultVisibility', width: 110 },
   { title: '强制私有', key: 'forcePrivate', width: 100 },
+  { title: '总配额', key: 'quotaGb', width: 90 },
+  { title: '生命周期', key: 'ttlDays', width: 100 },
   { title: '状态', key: 'enabled', width: 90 },
   { title: '备注', key: 'remark', width: 180 },
   { title: '操作', key: 'action', width: 80 }
@@ -111,7 +125,7 @@ const isCreate = ref(false)
 const saving = ref(false)
 const form = reactive<StoragePolicy>({
   bizType: '', bizName: '', maxSizeMb: 20, allowedExt: '',
-  defaultVisibility: 'PRIVATE', forcePrivate: false, enabled: true, remark: ''
+  defaultVisibility: 'PRIVATE', forcePrivate: false, quotaGb: 0, ttlDays: 0, enabled: true, remark: ''
 })
 
 onMounted(load)
@@ -131,7 +145,7 @@ async function load() {
 function openCreate() {
   Object.assign(form, {
     id: undefined, bizType: '', bizName: '', maxSizeMb: 20, allowedExt: '',
-    defaultVisibility: 'PRIVATE', forcePrivate: false, enabled: true, remark: ''
+    defaultVisibility: 'PRIVATE', forcePrivate: false, quotaGb: 0, ttlDays: 0, enabled: true, remark: ''
   })
   isCreate.value = true
   editOpen.value = true
