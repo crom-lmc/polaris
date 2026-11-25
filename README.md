@@ -27,7 +27,7 @@ polaris/
 | 接口开放平台 | https://polaris-openapi.laimengchao.site/ |
 | 北极星空论坛（前台） | https://polaris-forum.laimengchao.site/ |
 | 论坛管理后台 | https://polaris-forum.laimengchao.site/admin/ |
-| 内容门户 | https://polaris-portal.laimengchao.site/ |
+| 内容门户 | https://polaris-cms.laimengchao.site/portal/ |
 | 统一文件服务（北极星云） | https://polaris-file.laimengchao.site/ |
 | 审计中心（北极星眼） | https://polaris-audit.laimengchao.site/ |
 
