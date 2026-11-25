@@ -79,7 +79,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
-import type { Dayjs } from 'dayjs'
+import dayjs, { type Dayjs } from 'dayjs'
 import { useRouter } from 'vue-router'
 import {
   fetchSystemLogs,
@@ -115,7 +115,7 @@ const errorMsg = ref('')
 const keyword = ref('')
 const app = ref('')
 const level = ref('ERROR')
-const dateRange = ref<[Dayjs, Dayjs] | null>(null)
+const dateRange = ref<[Dayjs, Dayjs] | null>([dayjs().subtract(6, 'day').startOf('day'), dayjs()])
 const appOptions = ref<Array<{ label: string; value: string }>>([{ label: '全部应用', value: '' }])
 const overview = ref<SystemLogOverview | null>(null)
 const total = ref(0)

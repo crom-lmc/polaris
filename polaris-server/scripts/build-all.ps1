@@ -41,6 +41,7 @@ if (-not $SkipBackend) {
     'cms.jar'         = 'polaris-cms\polaris-cms-service\target\cms-service.jar'
     'portal.jar'      = 'polaris-portal\polaris-portal-service\target\portal-service.jar'
     'job.jar'         = 'polaris-job\polaris-job-service\target\job-service.jar'
+    'meeting-service.jar' = 'polaris-meeting\polaris-meeting-service\target\meeting-service.jar'
   }
   foreach ($name in $jarMap.Keys) {
     $src = Join-Path $ServerRoot $jarMap[$name]
@@ -58,7 +59,8 @@ if (-not $SkipWeb) {
     @{ dir = 'polaris-settings-web'; out = 'settings' },
     @{ dir = 'polaris-ehr-web';      out = 'ehr' },
     @{ dir = 'polaris-portal-web';   out = 'portal' },
-    @{ dir = 'polaris-job-web';      out = 'job' }
+    @{ dir = 'polaris-job-web';      out = 'job' },
+    @{ dir = 'polaris-meeting-web';  out = 'meeting' }
   )
   if ($WithCms) { $sites += @{ dir = 'polaris-cms-web'; out = 'cms' } }
 

@@ -32,7 +32,7 @@ agent_created: true
 
 1. **定范围**：确认改动落在哪些模块/服务；列出可能受影响的接口、表、权限码与共享类。
 2. **查归属**：从页面 → API → Controller → Service → Mapper → 表走一遍调用链；全仓 grep 关键词确认能力是否已存在。
-3. **做决策**：新功能按 `../../rules/backend-02-L2-platform.md` 决策表逐项判断是否接入单号/审批/消息/埋点/字典/主数据；权限码按四联动补齐；新增配置必须有真实引用点。
+3. **做决策**：新功能按 `../../rules/backend-02-L2-platform.md` 决策表逐项判断是否接入单号/审批/消息/埋点/字典/主数据；权限码按四联动补齐；新增配置必须有真实引用点；**新建表涉及组织归属 MUST 预留 `org_code`（orgCode 口径，不是 `org_id`），见 `references/platform-capabilities.md` 第 4 节**。
 4. **实现**：按本服务既有分层与风格写代码；写前确认响应壳、app 域口径、Wrapper 条件、SQL 幂等策略、审计留痕方式。
 5. **自检**：全仓 grep 改动符号无漏改；逐条检查 L1（红线）与 L2（后端/平台）。
 6. **验证**：`mvn -o -q -pl <模块> -am -DskipTests compile` 通过；失败先修复再进入下一步。

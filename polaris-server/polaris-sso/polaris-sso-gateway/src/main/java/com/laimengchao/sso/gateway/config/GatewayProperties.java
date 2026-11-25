@@ -90,6 +90,8 @@ public class GatewayProperties {
             "/api/file/share/**",
             // 统一审计中心换票端：前端 /callback 拿 OAuth code 换令牌时还没有用户令牌，必须免鉴权
             "/api/audit/sso/**",
+            // 会议室管理换票端：/callback 拿 OAuth code 换令牌时还没有用户令牌
+            "/api/meetingroom/sso/**",
             // 论坛正文插图：走 file-service legacy 端点按别名读取（公开图片，非用户令牌鉴权）
             "/api/forum/media/file/**",
             // 调度中心派发入口：中心直连网关 9080 调 /internal/jobs/run，

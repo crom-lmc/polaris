@@ -1,6 +1,6 @@
 # Polaris Web（前端）
 
-Polaris 一体化企业平台前端，包含统一账号中心、EHR、配置与审批中心、CMS、门户、调度中心、论坛、**接口开放平台管理端**、**统一文件服务**和**统一审计中心**共 11 个独立应用。各应用独立开发、独立构建、独立部署，通过统一 SSO 登录，并经 Gateway 访问后端。
+Polaris 一体化企业平台前端，包含统一账号中心、EHR、配置与审批中心、CMS、门户、调度中心、论坛、**接口开放平台管理端**、**统一文件服务**、**统一审计中心**和**北极星会（会议室管理）**共 12 个独立应用。各应用独立开发、独立构建、独立部署，通过统一 SSO 登录，并经 Gateway 访问后端。
 
 技术栈：Vue 3 + TypeScript + Vite 5 + Pinia 2 + Ant Design Vue 4 + axios + vue-router。
 
@@ -23,6 +23,7 @@ Polaris 一体化企业平台前端，包含统一账号中心、EHR、配置与
 | 内容门户 | https://polaris-cms.laimengchao.site/portal/ |
 | 统一文件服务（北极星云） | https://polaris-file.laimengchao.site/ |
 | 审计中心（北极星眼） | https://polaris-audit.laimengchao.site/ |
+| 北极星会（会议室管理） | https://poraris-meeting.laimengchao.site/ |
 
 **演示账号**：`yanshi` / `yanshi`（全部菜单可查看；写操作由网关拦截，提示「演示账户不能进行操作」）。
 
@@ -39,7 +40,7 @@ node -v   # 推荐 Node.js 20 LTS
 npm -v
 ```
 
-同时需要后端已就绪：至少启动 Gateway(9080)、Auth(9001)、Account(9002)、MySQL、Redis；按使用范围再启动 Settings(9007)、EHR(9006)、CMS(9004)、Portal(9005)、Job(9008)、Forum(9009)、OpenAPI(9010)、File(9011)、Audit(9012)。详见 [后端 README](../polaris-server/README.md)。
+同时需要后端已就绪：至少启动 Gateway(9080)、Auth(9001)、Account(9002)、MySQL、Redis；按使用范围再启动 Settings(9007)、EHR(9006)、CMS(9004)、Portal(9005)、Job(9008)、Forum(9009)、OpenAPI(9010)、File(9011)、Audit(9012)、Meeting(9013)。详见 [后端 README](../polaris-server/README.md)。
 
 ### 1.2 获取代码
 
@@ -72,6 +73,7 @@ cd polaris-forum-admin-web # http://localhost:5183，访问需带 /admin/
 cd polaris-openapi-web    # http://localhost:5184
 cd polaris-file-web       # http://localhost:5185
 cd polaris-audit-web      # http://localhost:5186
+cd polaris-meeting-web    # http://localhost:5187
 ```
 
 普通应用的 Vite 开发服务器把 `/api`、`/actuator` 代理到 `VITE_SSO_TARGET`（默认 `http://127.0.0.1:9080`）。未登录时会跳转账号中心，登录后通过一次性 ticket 返回。
@@ -108,7 +110,7 @@ sudo mkdir -p /opt/polaris/www/openapi
 sudo cp -r dist/. /opt/polaris/www/openapi/
 ```
 
-其余应用同理，站点目录建议：`sso`、`ehr`、`settings`、`cms`、`portal`、`job`、`forum`、`admin`、`openapi`。构建产物用新 dist 覆盖旧 dist 前，建议先备份：
+其余应用同理，站点目录建议：`sso`、`ehr`、`settings`、`cms`、`portal`、`job`、`forum`、`admin`、`openapi`、`file`、`audit`、`meeting`。构建产物用新 dist 覆盖旧 dist 前，建议先备份：
 
 ```bash
 sudo cp -a /opt/polaris/www/openapi /tmp/openapi-dist-bak-$(date +%Y%m%d_%H%M%S)
@@ -120,7 +122,8 @@ sudo cp -a /opt/polaris/www/openapi /tmp/openapi-dist-bak-$(date +%Y%m%d_%H%M%S)
 $apps = @(
   "polaris-sso-web", "polaris-cms-web", "polaris-portal-web", "polaris-ehr-web",
   "polaris-settings-web", "polaris-job-web", "polaris-forum-web",
-  "polaris-forum-admin-web", "polaris-openapi-web"
+  "polaris-forum-admin-web", "polaris-openapi-web", "polaris-file-web",
+  "polaris-audit-web", "polaris-meeting-web"
 )
 foreach ($app in $apps) { Push-Location $app; npm ci; npm run build; Pop-Location }
 ```
@@ -179,12 +182,13 @@ server {
 | `polaris-forum-web` | 论坛前台 | 5182 | 全员 |
 | `polaris-forum-admin-web` | 论坛管理端 | 5183 | 论坛运营（base `/admin/`） |
 | `polaris-openapi-web` | 接口开放平台管理端 | 5184 | 开放平台管理员 |
+| `polaris-meeting-web` | 北极星会（会议室管理） | 5187 | 全员、行政/管理员 |
 
 ---
 
 ## 四、功能模块
 
-各应用界面预览（生产实测，白天模式，每个菜单一张）。共 **92 张**截图，覆盖全部 11 个前端应用的每个应用 / 模块 / 菜单，完整原图见 [docs/screenshots/](../docs/screenshots/)。
+各应用界面预览（生产实测，白天模式，每个菜单一张）。共 **97 张**截图，覆盖全部 12 个前端应用的每个应用 / 模块 / 菜单，完整原图见 [docs/screenshots/](../docs/screenshots/)。
 
 | 统一登录 | 账号中心工作台 | 人力中心-组织树 |
 |:---:|:---:|:---:|
@@ -198,9 +202,13 @@ server {
 |:---:|:---:|:---:|
 | ![业务点配置](../docs/screenshots/51-settings-bizpoints.png) | ![抽奖配置](../docs/screenshots/70-forumadmin-lottery.png) | ![考勤管理](../docs/screenshots/41-ehr-attendance.png) |
 
-| 统一文件服务-概览 | 审计中心-审计事件 | 审计中心-全局设置 |
+| 统一文件服务-概览 | 审计中心-审计事件 | 北极星会-会议室概览 |
 |:---:|:---:|:---:|
-| ![文件服务](../docs/screenshots/81-file-overview.png) | ![审计事件](../docs/screenshots/88-audit-events.png) | ![审计设置](../docs/screenshots/92-audit-settings.png) |
+| ![文件服务](../docs/screenshots/81-file-overview.png) | ![审计事件](../docs/screenshots/88-audit-events.png) | ![北极星会概览](../docs/screenshots/93-meeting-overview.png) |
+
+| 北极星会-位置维护 | 北极星会-会议室预定 | 北极星会-我的预定 |
+|:---:|:---:|:---:|
+| ![位置维护](../docs/screenshots/94-meeting-locations.png) | ![会议室预定](../docs/screenshots/96-meeting-booking.png) | ![我的预定](../docs/screenshots/97-meeting-mybookings.png) |
 
 **完整截图索引（点击展开各应用）**
 
@@ -363,6 +371,19 @@ server {
 
 </details>
 
+<details>
+<summary>⑫ 北极星会 meeting-web（5 张，按菜单）</summary>
+
+| 概览 | 位置维护 | 会议室维护 |
+|:---:|:---:|:---:|
+| ![会议室概览](../docs/screenshots/93-meeting-overview.png) | ![位置维护](../docs/screenshots/94-meeting-locations.png) | ![会议室维护](../docs/screenshots/95-meeting-rooms.png) |
+
+| 会议室预定 | 我的预定 |
+|:---:|:---:|
+| ![会议室预定](../docs/screenshots/96-meeting-booking.png) | ![我的预定](../docs/screenshots/97-meeting-mybookings.png) |
+
+</details>
+
 ### 4.1 统一账号中心（`polaris-sso-web`）
 
 面向全员与管理员。登录页 `LoginView`、授权页 `AuthorizeView`；登录后的管理后台 `/admin/`（由 `AdminLayout` 承载）包含：
@@ -452,6 +473,25 @@ server {
 - **日志文件 `LogFilesView`**：服务日志文件浏览与下载。
 - **全局设置 `SettingView`**：采集/忽略/留存/脱敏隐私/导出合规五个分区，按 `audit:setting:*` 分区权限显示，保存/放弃/恢复默认。
 
+### 4.10 北极星会（`polaris-meeting-web`）
+
+端口 5187，生产域名 `https://poraris-meeting.laimengchao.site/`，对接后端 meeting-service（:9013）。面向全员提供会议室预定，面向行政/管理员提供位置与房间台账维护，共 5 个功能页：
+
+| 概览 | 位置维护 | 会议室维护 |
+|:---:|:---:|:---:|
+| ![会议室概览](../docs/screenshots/93-meeting-overview.png) | ![位置维护](../docs/screenshots/94-meeting-locations.png) | ![会议室维护](../docs/screenshots/95-meeting-rooms.png) |
+
+| 会议室预定 | 我的预定 |
+|:---:|:---:|
+| ![会议室预定](../docs/screenshots/96-meeting-booking.png) | ![我的预定](../docs/screenshots/97-meeting-mybookings.png) |
+
+- **概览 `OverviewView`**：按日期展示全平台当日会议、待签到、进行中、可用会议室数；月历与日程按「本人创建 + 被邀请」口径联动，支持按可选日期范围翻月查看。
+- **位置维护 `LocationView`**：城市取平台字典只读；按城市维护大楼与楼层，实时统计会议室数；已有关联会议室的大楼/楼层禁止删除或停用。
+- **会议室维护 `RoomsView`**：维护房间类型、容量、设备、图片与状态；支持城市/大楼/楼层/类型/设备/状态组合筛选；维护、停用房间不可预约。
+- **会议室预定 `BookingView`**：按当前人员城市过滤房间，24 小时 30 分钟粒度时间轴展示占用与过去时段；弹窗点选起止格、选参会人并提交，前端提前拦截冲突、跨天、超限时长与禁约。
+- **我的预定 `MyBookingsView`**：已预约 / 已开始 / 已结束 / 已取消四页签，页签角标与筛选条件同步；支持详情、修改、签到、延时、取消与释放。
+- **规则配置**：可预约天数、单次最长时长、未签到释放宽限期、爽约限制均由 settings 埋点配置，前端从会议服务读取并展示，服务端做最终校验。
+
 ---
 
 ## 五、技术栈与通用结构
@@ -508,7 +548,7 @@ npm run dev
 ```text
 账号中心 5173 / CMS 5177 / Portal 5178 / EHR 5179 / Settings 5180
 Job 5181 / 论坛前台 5182 / 论坛管理 5183 / 开放平台 5184
-文件服务 5185 / 审计中心 5186 / Gateway 9080
+文件服务 5185 / 审计中心 5186 / 会议室管理 5187 / Gateway 9080
 ```
 
 应用登记检查项：应用已启用且当前账号有权限；`base_url` 与浏览器 origin 完全一致；后端 `*_APP_SECRET` 与登记值一致；账号具备角色、功能权限与数据范围。

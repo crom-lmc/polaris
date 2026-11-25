@@ -526,4 +526,24 @@ public final class PermissionCodes {
     public static final String AUDIT_SETTING_RETENTION = "audit:setting:retention";
     public static final String AUDIT_SETTING_PRIVACY = "audit:setting:privacy";
     public static final String AUDIT_SETTING_EXPORT = "audit:setting:export";
+
+    /* ============================================================
+     * 会议室管理（app_code = meeting）
+     * ============================================================ */
+    /** 会议室管理权限域：与 sso_application.code / sso_permission.app_code 一致 */
+    public static final String APP_MEETING = "meeting";
+
+    /* 菜单（页面级，前端路由 meta.perm） */
+    public static final String MEETING_OVERVIEW_VIEW = "meeting:overview:view";
+    public static final String MEETING_ROOM_LIST = "meeting:room:list";
+    public static final String MEETING_ROOM_EDIT = "meeting:room:edit";
+    public static final String MEETING_BOOKING_VIEW = "meeting:booking:view";
+    public static final String MEETING_BOOKING_LIST = "meeting:booking:list";
+
+    /* 按钮级（前端 hasPerm + 服务端 @Permit） */
+    public static final String MEETING_BOOKING_CREATE = "meeting:booking:create";
+    public static final String MEETING_BOOKING_CHECKIN = "meeting:booking:checkin";
+    public static final String MEETING_BOOKING_EXTEND = "meeting:booking:extend";
+    public static final String MEETING_BOOKING_CANCEL = "meeting:booking:cancel";
+    public static final String MEETING_BOOKING_RELEASE = "meeting:booking:release";
 }

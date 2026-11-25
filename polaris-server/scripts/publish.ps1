@@ -83,10 +83,10 @@ nginx -t && nginx -s reload
 echo "nginx ok, domain=$DOMAIN"
 
 # 发版自检：只告警、不自动回滚，保留现场
-echo "=== 发版自检（7 站点 + tengine 8443） ==="
+echo "=== 发版自检（8 站点 + tengine 8443） ==="
 FAIL=0
 for name in polaris-sso polaris-ehr polaris-cms polaris-settings polaris-job \
-            polaris-portal vault; do
+            polaris-portal polaris-meeting vault; do
   code=$(curl -sk -o /dev/null -w '%{http_code}' --resolve "$name.$DOMAIN:443:127.0.0.1" "https://$name.$DOMAIN/" || echo 000)
   printf '  %-20s %s\n' "$name" "$code"
   [ "$code" = "200" ] || FAIL=1
@@ -109,7 +109,7 @@ if [ "$FAIL" != "0" ]; then
   echo "  sudo nginx -t && sudo nginx -s reload"
   exit 1
 fi
-echo "自检通过：9 域名均 200，tengine 8443 可达"
+echo "自检通过：10 域名均 200，tengine 8443 可达"
 '@
   $nginxCmd.Replace('REMOTE_DIR', $Remote) -replace "`r",'' | ssh $target 'bash -s'
 }

@@ -50,6 +50,9 @@
 
         <!-- 统一审计中心：audit-server(9012，独立库 polaris_audit) + audit-client（上报/统计跨服客户端） -->
         <module>polaris-audit</module>
+
+        <!-- 会议室管理（北极星会）：meeting(9013，独立库 polaris_meetingroom)，不对外提供接口故无 meeting-client -->
+        <module>polaris-meeting</module>
     </modules>
 
     <dependencyManagement>

@@ -1,6 +1,6 @@
 # Polaris Server（后端）
 
-Polaris 一体化企业平台后端，提供统一认证、账号与权限、人力管理、配置与审批、内容管理、门户聚合、**接口开放平台**、任务调度、**统一文件服务**和**统一审计中心**能力。
+Polaris 一体化企业平台后端，提供统一认证、账号与权限、人力管理、配置与审批、内容管理、门户聚合、**接口开放平台**、任务调度、**统一文件服务**、**统一审计中心**和**北极星会（会议室管理）**能力。
 
 技术栈：Java 17 + Spring Boot 3.2.5 + Spring Cloud 2023.0.1 + MyBatis-Plus 3.5.7 + MySQL 5.7+ + Redis。Gateway 是统一入口，MySQL 按业务分库，Redis 用于令牌吊销和缓存。Nacos 配置中心/注册中心均为可选项，本地开发可不安装。
 
@@ -35,7 +35,7 @@ cd polaris/polaris-server
 
 ### 1.3 创建数据库
 
-用有建库权限的 MySQL 账号执行（开放平台、文件服务、审计中心各自独立库）：
+用有建库权限的 MySQL 账号执行（开放平台、文件服务、审计中心、会议室各自独立库）：
 
 ```sql
 CREATE DATABASE IF NOT EXISTS sso_ms          DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci;
@@ -46,9 +46,10 @@ CREATE DATABASE IF NOT EXISTS polaris_job     DEFAULT CHARACTER SET utf8mb4 COLL
 CREATE DATABASE IF NOT EXISTS polaris_openapi DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci;
 CREATE DATABASE IF NOT EXISTS polaris_file    DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci;
 CREATE DATABASE IF NOT EXISTS polaris_audit   DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci;
+CREATE DATABASE IF NOT EXISTS polaris_meetingroom DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci;
 ```
 
-只跑 SSO + EHR 时，先建 `sso_ms`、`ehr`、`settings` 即可；接口开放平台、统一文件服务、统一审计中心分别额外需要 `polaris_openapi`、`polaris_file`、`polaris_audit`。
+只跑 SSO + EHR 时，先建 `sso_ms`、`ehr`、`settings` 即可；接口开放平台、统一文件服务、统一审计中心、北极星会分别额外需要 `polaris_openapi`、`polaris_file`、`polaris_audit`、`polaris_meetingroom`。
 
 ### 1.4 初始化业务库
 
@@ -78,6 +79,10 @@ mysql -uroot -p --default-character-set=utf8mb4 polaris_file < polaris-file/pola
 # 统一审计中心
 mysql -uroot -p --default-character-set=utf8mb4 polaris_audit < polaris-audit/polaris-audit-server/src/main/resources/schema.sql
 mysql -uroot -p --default-character-set=utf8mb4 polaris_audit < polaris-audit/polaris-audit-server/src/main/resources/data.sql
+
+# 北极星会（会议室管理）
+mysql -uroot -p --default-character-set=utf8mb4 polaris_meetingroom < polaris-meeting/polaris-meeting-service/src/main/resources/schema.sql
+mysql -uroot -p --default-character-set=utf8mb4 polaris_meetingroom < polaris-meeting/polaris-meeting-service/src/main/resources/data.sql
 ```
 
 Account 默认 `sql.init.mode=never`，其余服务本地默认 `always`；生产环境必须统一设为 `never`。Account 首次启动可通过 `SSO_ADMIN_USERNAME/PASSWORD/EMAIL` 创建内置管理员（已存在则不重置密码）。
@@ -129,6 +134,11 @@ $env:FILE_SIGN_SECRET = "replace-with-a-long-random-file-sign-secret"   # PRIVAT
 $env:AUDIT_DB_URL = "jdbc:mysql://127.0.0.1:3306/polaris_audit?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&useSSL=false"
 $env:AUDIT_DB_USER = "your_db_user"; $env:AUDIT_DB_PASSWORD = "your_db_password"
 
+# 北极星会（会议室管理）
+$env:MEETING_DB_URL = "jdbc:mysql://127.0.0.1:3306/polaris_meetingroom?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&useSSL=false"
+$env:MEETING_DB_USER = "your_db_user"; $env:MEETING_DB_PASSWORD = "your_db_password"
+$env:SSO_MEETING_APP_SECRET = "replace-with-meeting-app-secret"
+
 # 服务间内部令牌：所有涉及内部调用的服务必须一致
 $env:SSO_INTERNAL_TOKEN = "replace-with-a-long-random-token"
 
@@ -165,6 +175,7 @@ mvn -DskipTests compile                                                   # 只�
 | 7 | CMS、Portal、Job、Forum | 9004/9005/9008/9009 | 按业务需要 |
 | 8 | 统一文件服务 File | 9011 | 使用附件/水印时必需 |
 | 9 | 统一审计中心 Audit | 9012 | 生产环境必备（异步接收审计与系统日志） |
+| 10 | 北极星会（会议室管理）Meeting | 9013 | 使用会议室时必需 |
 
 IDEA 启动：运行对应 `*Application` 启动类，每个 Run Configuration 配置相同环境变量。命令行启动：每个服务独立终端，`java -jar <target 下的 jar>`。开放平台启动类为 `OpenapiApplication`，产物 `polaris-openapi/polaris-openapi-service/target/openapi-service.jar`。
 
@@ -178,6 +189,7 @@ http://127.0.0.1:9007/actuator/health
 http://127.0.0.1:9010/actuator/health   # 接口开放平台
 http://127.0.0.1:9011/actuator/health   # 统一文件服务
 http://127.0.0.1:9012/actuator/health   # 统一审计中心
+http://127.0.0.1:9013/actuator/health   # 北极星会（会议室管理）
 http://127.0.0.1:9080/actuator/health
 ```
 
@@ -217,6 +229,7 @@ sudo install -m 644 polaris-ehr/polaris-ehr-service/target/ehr-service.jar /opt/
 sudo install -m 644 polaris-openapi/polaris-openapi-service/target/openapi-service.jar /opt/polaris/jars/openapi-service.jar
 sudo install -m 644 polaris-file/polaris-file-service/target/file-service.jar       /opt/polaris/jars/file-service.jar
 sudo install -m 644 polaris-audit/polaris-audit-server/target/audit-server.jar     /opt/polaris/jars/audit-server.jar
+sudo install -m 644 polaris-meeting/polaris-meeting-service/target/meeting-service.jar /opt/polaris/jars/meeting-service.jar
 # 其余 cms / portal / job / forum 同理
 ```
 
@@ -233,7 +246,7 @@ sudo mkdir -p /opt/polaris/www/openapi
 sudo cp -r dist/. /opt/polaris/www/openapi/
 ```
 
-其他应用（sso / ehr / cms / portal / settings / job / forum / file / audit）同样处理。注意 `server-deploy.sh` 的 `build_site` 只覆盖 8 个站点，openapi / file / audit 需单独发布；域名与环境注入详见 [前端 README](../polaris-web/README.md)。
+其他应用（sso / ehr / cms / portal / settings / job / forum / file / audit / meeting）同样处理。注意 `server-deploy.sh` 的 `build_site` 只覆盖 8 个站点，openapi / file / audit / meeting 需单独发布；域名与环境注入详见 [前端 README](../polaris-web/README.md)。
 
 ### 2.4 重启与验证
 
@@ -279,6 +292,7 @@ polaris-sso-gateway :9080
         ├──────────────► settings :9007 / job :9008 / forum :9009
         ├──────────────► file :9011（统一文件服务，独立库 polaris_file）
         ├──────────────► audit :9012（统一审计中心，独立库 polaris_audit）
+        ├──────────────► meeting :9013（北极星会，独立库 polaris_meetingroom）
         └──────────────► (内部服务) X-Internal-Token
 
 第三方系统 ──appCode+appSecret 换票──► polaris-openapi :9010 ──Bearer Token──► 开放接口
@@ -307,6 +321,7 @@ polaris/
 │   ├── polaris-openapi/             # 接口开放平台 :9010（独立库 polaris_openapi）
 │   ├── polaris-file/                # 统一文件服务 :9011（独立库 polaris_file）+ client
 │   ├── polaris-audit/               # 统一审计中心 :9012（独立库 polaris_audit）+ client
+│   ├── polaris-meeting/             # 北极星会（会议室管理）:9013（独立库 polaris_meetingroom）
 │   ├── polaris-nacos/               # 可选 Nacos 配置与密钥模板
 │   ├── deploy/                      # Docker Compose、Nginx、初始化 SQL
 │   └── scripts/                     # 构建、发布、备份、配置导入脚本
@@ -460,7 +475,31 @@ polaris/
 - **全局设置**：采集开关、忽略规则、留存清理、脱敏与隐私、导出合规五个分区，每项均有真实代码引用；无实际功能的配置项不保留。生产 `AUDIT_SQL_INIT_MODE=never`，新表须手工执行 schema。
 - **导出**：`GET /api/audit/admin/events/export` 导出 CSV，每次导出强制记一条 SENSITIVE 留痕，不提供关闭开关；权限码 `audit:events:export` 四联动。
 
-### 5.10 Common 与各 Client
+### 5.10 北极星会（Meeting）
+
+独立服务 `polaris-meeting :9013`，独立库 `polaris_meetingroom`，管理端为前端 `polaris-meeting-web`（:5187，生产域名 `https://poraris-meeting.laimengchao.site/`）。定位：**全员会议室预定 + 行政房间台账**，并作为新增独立业务应用的接入模板，跑通网关、SSO、权限码、字典、埋点、文件、审计与调度全链路。
+
+管理端界面（生产实测，白天模式，按菜单）：
+
+| 概览 | 位置维护 | 会议室维护 |
+|:---:|:---:|:---:|
+| ![会议室概览](../docs/screenshots/93-meeting-overview.png) | ![位置维护](../docs/screenshots/94-meeting-locations.png) | ![会议室维护](../docs/screenshots/95-meeting-rooms.png) |
+
+| 会议室预定 | 我的预定 |
+|:---:|:---:|
+| ![会议室预定](../docs/screenshots/96-meeting-booking.png) | ![我的预定](../docs/screenshots/97-meeting-mybookings.png) |
+
+- **Controller**：`MeetingMeta`（字典、概览、预定配置、人员姓名）、`Location`（城市/大楼/楼层）、`Room` 与 `RoomFile`（房间台账与图片）、`Booking`（预定/修改/取消/签到/延时/释放/日程）、`SsoExchange`（单点换票）。
+- **位置与房间**：城市复用 settings 字典 `ehr.job_city`，大楼/楼层/房间为本服务主数据；房间类型、容量档位、状态、设备、座位布局均取 settings 字典；图片通过 `polaris-file-client` 只存 `file_id`。有会议室的大楼/楼层禁止删除或停用。
+- **预定核心**：按当前人员城市过滤可用房间，24 小时 30 分钟粒度时间轴；服务端做同房间时段冲突检测、跨天校验、日期范围校验、房间状态复检、人数上限校验，并通过 `polaris-ehr-client` 获取人员城市与参会人信息。
+- **邀请与通知**：邀请参会人写 `meeting_booking_attendee`，通过 `polaris-settings-client` 的站内信/邮件能力发送模板化通知；被邀请人可从消息链接进入详情并查看日程。
+- **规则配置**：可预约天数 `meeting.booking.max_advance_days`、单次最长时长 `meeting.booking.max_duration_minutes`、未签到宽限期 `meeting.booking.no_show_grace_minutes`、爽约限制 `meeting.booking.no_show_restriction` 均为 settings 埋点（60 秒缓存），前端从 `/api/meetingroom/config/booking` 读取，服务端做最终边界校验。
+- **调度与审计**：`meetingNoShowRelease` 由平台 job 中心派发，按主键游标分批扫描并以 `status=PENDING` 条件更新保证幂等；释放原因记录 `NO_SHOW`，事件以 `SYSTEM` 身份上报审计中心。应用内不自起 `@Scheduled`。
+- **数据范围**：「我的预定」按 `creator_id` 过滤；概览月历/日程按本人创建或被邀请口径；统计卡按所选日期统计全平台有效预约，不依赖数据权限结构。
+
+数据表：`meeting_building`、`meeting_floor`、`meeting_room`、`meeting_room_device`、`meeting_booking`、`meeting_booking_attendee`。新权限码按 `meeting:*` 统一登记，菜单与按钮由前端权限控制、服务端 `@Permit` 兜底。
+
+### 5.11 Common 与各 Client
 
 `R<T>` 统一响应、`BizException`/`ErrorCode` 统一异常码、`LoginUser` 安全上下文、JWT 与可信头工具、`ENC(...)` 启动期配置解密；各 `*-client`（sso/client、settings/client、job/client、file/client、audit/client）封装 Feign 契约与 `X-Internal-Token` 注入，不单独启动。
 
@@ -482,6 +521,7 @@ polaris/
 | OpenAPI | 9010 | `polaris_openapi` | always | `OpenapiApplication` | `openapi-service.jar` |
 | File | 9011 | `polaris_file` | always（生产 never） | `FileApplication` | `file-service.jar` |
 | Audit | 9012 | `polaris_audit` | always（生产 never） | `AuditApplication` | `audit-server.jar` |
+| 北极星会 Meeting | 9013 | `polaris_meetingroom` | always（生产 never） | `MeetingApplication` | `meeting-service.jar` |
 
 ---
 
@@ -508,6 +548,9 @@ polaris/
 | `FILE_STORAGE_ROOT` / `FILE_PUBLIC_BASE_URL` | 文件存储根目录 / PUBLIC 直链前缀 |
 | `AUDIT_DB_*`、`AUDIT_SQL_INIT_MODE` | 统一审计中心库（生产 `never`） |
 | `AUDIT_RETENTION_DAYS` | 审计事件保留天数，默认 180 |
+| `MEETING_DB_*`、`MEETING_SQL_INIT_MODE` | 北极星会库（生产 `never`） |
+| `SSO_MEETING_APP_CODE` / `SSO_MEETING_APP_SECRET` | 北极星会向 sso-auth 换票用的应用凭证 |
+| `MEETING_WEB_URL` | 会议详情链接前端基址 |
 
 完整列表以各服务 `application.yml` 为准。
 

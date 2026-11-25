@@ -168,7 +168,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
-import type { Dayjs } from 'dayjs'
+import dayjs, { type Dayjs } from 'dayjs'
 import { message } from 'ant-design-vue'
 import { getOverview, listEndpoints, listApps, type StatQuery, type ApiEndpoint, type AppInfo } from '@/api/openapi'
 import { useUserStore } from '@/stores/user'
@@ -187,7 +187,7 @@ const directionOptions = [
 
 const direction = ref('')
 const appCode = ref('')
-const range = ref<[Dayjs, Dayjs] | undefined>()
+const range = ref<[Dayjs, Dayjs] | undefined>([dayjs().subtract(6, 'day').startOf('day'), dayjs()])
 
 const loading = ref(false)
 const overview = ref<OverviewData>({

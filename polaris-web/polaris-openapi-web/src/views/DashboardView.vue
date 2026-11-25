@@ -297,7 +297,7 @@ function padTrendRows(rows: TrendRow[], r: [Dayjs, Dayjs] | null): TrendRow[] {
 
 /* ---------- 指标卡（受顶部日期过滤） ---------- */
 const loading = ref(false)
-const range = ref<[Dayjs, Dayjs]>([dayjs(), dayjs()])
+const range = ref<[Dayjs, Dayjs]>(recentDays(7))
 const overview = ref<OverviewData>({
   total: 0,
   success: 0,
@@ -415,13 +415,13 @@ function load() {
 }
 
 function reset() {
-  range.value = [dayjs(), dayjs()]
+  range.value = recentDays(7)
   load()
 }
 
 /* ---------- 弹窗：调用趋势 ---------- */
 const trendModalOpen = ref(false)
-const trendModalRange = ref<[Dayjs, Dayjs]>(recentDays(10))
+const trendModalRange = ref<[Dayjs, Dayjs]>(recentDays(7))
 const trendModalLoading = ref(false)
 const trendModalRows = ref<TrendRow[]>([])
 /** 弹窗按当前查询范围补齐空白日期 */
@@ -433,7 +433,7 @@ const trendDayColumns = [
 ]
 
 function openTrendModal() {
-  trendModalRange.value = recentDays(10)
+  trendModalRange.value = recentDays(7)
   trendModalOpen.value = true
   void loadTrendModal()
 }
@@ -448,13 +448,13 @@ async function loadTrendModal() {
   }
 }
 function resetTrendModal() {
-  trendModalRange.value = recentDays(10)
+  trendModalRange.value = recentDays(7)
   void loadTrendModal()
 }
 
 /* ---------- 弹窗：失败 TOP API ---------- */
 const failedModalOpen = ref(false)
-const failedModalRange = ref<[Dayjs, Dayjs] | null>(null)
+const failedModalRange = ref<[Dayjs, Dayjs] | null>(recentDays(7))
 const failedModalLoading = ref(false)
 const failedModalRows = ref<FailedRow[]>([])
 const failedRankColumns = [
@@ -464,7 +464,7 @@ const failedRankColumns = [
 ]
 
 function openFailedModal() {
-  failedModalRange.value = null
+  failedModalRange.value = recentDays(7)
   failedModalOpen.value = true
   void loadFailedModal()
 }
@@ -479,18 +479,18 @@ async function loadFailedModal() {
   }
 }
 function resetFailedModal() {
-  failedModalRange.value = null
+  failedModalRange.value = recentDays(7)
   void loadFailedModal()
 }
 
 /* ---------- 弹窗：最近异常 ---------- */
 const errorsModalOpen = ref(false)
-const errorsModalRange = ref<[Dayjs, Dayjs] | null>(null)
+const errorsModalRange = ref<[Dayjs, Dayjs] | null>(recentDays(7))
 const errorsModalLoading = ref(false)
 const errorsModalRows = ref<RecentError[]>([])
 
 function openErrorsModal() {
-  errorsModalRange.value = null
+  errorsModalRange.value = recentDays(7)
   errorsModalOpen.value = true
   void loadErrorsModal()
 }
@@ -505,7 +505,7 @@ async function loadErrorsModal() {
   }
 }
 function resetErrorsModal() {
-  errorsModalRange.value = null
+  errorsModalRange.value = recentDays(7)
   void loadErrorsModal()
 }
 

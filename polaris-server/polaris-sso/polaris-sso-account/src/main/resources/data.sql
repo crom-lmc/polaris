@@ -2747,3 +2747,9 @@ WHERE a.`deleted`=0 AND (a.`data_scope_org_code` IN ('XC000100010001','XC0001000
 INSERT IGNORE INTO `sso_account_app` (`account_id`,`app_id`)
 SELECT a.`id`,ap.`id` FROM `sso_account` a JOIN `sso_application` ap ON ap.`deleted`=0 AND ap.`code`='file'
 WHERE a.`deleted`=0 AND a.`data_scope_org_code` IN ('XC000100010001','XC000100020001','XC000100060002','XC000100070001');
+
+-- 会议室管理（meeting）：本地/种子注册；app_secret 为占位符，须由 SSO_MEETING_APP_SECRET 环境变量同步后替换，禁止在仓库写真实密钥。
+INSERT IGNORE INTO `sso_application` (`id`, `code`, `name`, `app_type`, `base_url`, `app_secret`, `icon`, `remark`, `status`, `sort`, `created_at`, `updated_at`, `deleted`, `redirect_uri`) VALUES (2117000000000000007,'meeting','会议室管理','MANAGEMENT','http://localhost:5187','__SET_SSO_MEETING_APP_SECRET__','/icons/meeting.svg','会议室管理独立应用（预定时间轴/位置与会议室维护）',1,7,'2026-11-25 00:00:00','2026-11-25 00:00:00',0,'http://localhost:5187/callback');
+INSERT IGNORE INTO `sso_account_app` (`account_id`,`app_id`)
+SELECT a.`id`,ap.`id` FROM `sso_account` a JOIN `sso_application` ap ON ap.`code`='meeting' AND ap.`deleted`=0
+WHERE a.`deleted`=0 AND a.`username`='yanshi';

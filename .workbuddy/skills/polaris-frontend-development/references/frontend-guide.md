@@ -235,14 +235,18 @@ Ant Design Vue 全量注册（`app.use(Antd)` + `import 'ant-design-vue/dist/res
 
 ```vue
 <section class="ft-scroll ft-bottom">
-  <a-table :columns="columns" :data-source="list" :pagination="false">
+  <a-table :columns="columns" :data-source="list" :pagination="false"
+           :class="{ 'tbl-empty-mode': !loading && !list.length }">
     <template #bodyCell="{ column, record }"> ... </template>
+    <template #emptyText>
+      <div class="tbl-empty"><a-empty v-if="!loading" description="暂无数据" /></div>
+    </template>
   </a-table>
 </section>
 ```
 
 - 分页 `position: sticky; bottom: 0; margin: auto 0 0; z-index: 5`，必须高于 sticky 操作列的 `z-index: 3`。
-- 空数据铺满内容区（`.tbl-empty`），空树/面板用 `.org-empty`。
+- 空数据铺满内容区 MUST 三件套：上例的 `.tbl-empty-mode` 触发类 + `#emptyText` 插槽 + global.css/scoped `:deep()` 中的 `.tbl-empty-mode` 表格链与 `.tbl-empty` 定义（完整 CSS 见 `new-feature-guide.md` §3.1）。只写插槽不绑类/不定义样式 → 空态只占一行、下方留白。空树/面板用 `.org-empty`。
 - 抽屉宽度按内容选 420 / 480 / 520 / 640 / 760 / 820 / 900 / 960 / 1000；宽内容用 `'min(1440px, 94vw)'`。抽屉内表格用 `class="drawer-body-flex"`。
 - 视觉总口径：弹窗改抽屉、分页固定右下角、空态铺满、操作列左对齐不换行、确认框居中。
 

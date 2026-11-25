@@ -139,7 +139,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
-import type { Dayjs } from 'dayjs'
+import dayjs, { type Dayjs } from 'dayjs'
 import { message } from 'ant-design-vue'
 import { fetchAuditEvents, exportAuditEvents, fetchExportSettings, type AuditEvent } from '@/api/audit'
 import { appCodes, appLabel, ensureAppNames } from '@/utils/appLabels'
@@ -189,7 +189,7 @@ const keyword = ref('')
 const app = ref('')
 const category = ref('')
 const result = ref('')
-const dateRange = ref<[Dayjs, Dayjs] | null>(null)
+const dateRange = ref<[Dayjs, Dayjs] | null>([dayjs().subtract(6, 'day').startOf('day'), dayjs()])
 const total = ref(0)
 const current = ref(1)
 const pageSize = ref(20)

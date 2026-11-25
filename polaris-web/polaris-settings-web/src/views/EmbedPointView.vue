@@ -194,15 +194,42 @@
             <a-form-item :label="current?.name || '数值'">
               <a-input-number
                 v-model:value="numberValue"
-                :min="1"
-                :max="100"
+                :min="0"
+                :max="numberMax(currentCode)"
                 :disabled="isReadonly"
                 placeholder="请输入数值"
                 style="width: 220px"
                 @change="syncNumberJson"
               />
-              <span class="muted switch-tip">保存后最多 60 秒生效（配置中心缓存）；后端有内置兜底值</span>
+              <span class="muted switch-tip">保存后最多 60 秒生效（配置中心缓存）；后端有内置兜底值
+                <template v-if="currentCode === MEETING_MAX_ADVANCE_KEY">；0 表示仅可预约当天</template>
+                <template v-else-if="currentCode === MEETING_NO_SHOW_GRACE_KEY">；0 表示会议开始即自动释放</template>
+                <template v-else-if="currentCode === MEETING_MAX_DURATION_KEY">；0 表示单次时长不限制</template>
+              </span>
             </a-form-item>
+          </a-form>
+        </template>
+
+        <!-- 会议室爽约限制：统计天数 / 触发次数 / 禁约天数 -->
+        <template v-if="editor === 'noShowRule'">
+          <a-divider orientation="left">爽约限制规则</a-divider>
+          <a-form layout="vertical">
+            <a-form-item label="统计天数">
+              <a-input-number v-model:value="noShowWindowDays" :min="1" :max="365" :disabled="isReadonly"
+                              placeholder="近多少天内的爽约计入统计" style="width: 220px"
+                              @change="syncNoShowRuleJson" />
+            </a-form-item>
+            <a-form-item label="触发次数">
+              <a-input-number v-model:value="noShowThreshold" :min="0" :max="100" :disabled="isReadonly"
+                              placeholder="未签到释放达到多少次" style="width: 220px"
+                              @change="syncNoShowRuleJson" />
+            </a-form-item>
+            <a-form-item label="禁约天数">
+              <a-input-number v-model:value="noShowBanDays" :min="0" :max="365" :disabled="isReadonly"
+                              placeholder="达到阈值后禁止预约多少天" style="width: 220px"
+                              @change="syncNoShowRuleJson" />
+            </a-form-item>
+            <span class="muted switch-tip">次数或禁约天数填 0 表示不启用爽约限制；按会议开始时间统计未签到释放，保存后最多 60 秒生效</span>
           </a-form>
         </template>
 
@@ -432,6 +459,14 @@ const HR_ORG_NAME_KEY = 'ehr.notice.hr-org-name'
 const CITY_POLICY_KEY = 'ehr.leave.city-policy'
 /** 社区等级数量上限：数字输入，值为 {"maxLevel": 20} */
 const MAX_LEVELS_KEY = 'forum.level.max-levels'
+/** 会议室可预约天数上限：数字输入，值为 {"maxDays": 7}，0=仅当天 */
+const MEETING_MAX_ADVANCE_KEY = 'meeting.booking.max_advance_days'
+/** 会议室未签到释放宽限期：数字输入，值为 {"graceMinutes": 15}，0=开始即释放 */
+const MEETING_NO_SHOW_GRACE_KEY = 'meeting.booking.no_show_grace_minutes'
+/** 会议室单次预约最长时长：数字输入，值为 {"maxMinutes": 0}，0=不限制 */
+const MEETING_MAX_DURATION_KEY = 'meeting.booking.max_duration_minutes'
+/** 会议室爽约限制：值为 {"windowDays":90,"threshold":3,"banDays":7} */
+const MEETING_NO_SHOW_RULE_KEY = 'meeting.booking.no_show_restriction'
 /** 论坛积分抽奖开关：布尔，值为 {"enabled": true/false} */
 const FORUM_LOTTERY_KEY = 'forum.lottery.enabled'
 /** 论坛礼品兑换开关：布尔，值为 {"enabled": true/false} */
@@ -612,6 +647,7 @@ type EmbedEditor =
   | 'offsets'
   | 'orgs'
   | 'number'
+  | 'noShowRule'
   | 'unknown'
 const EDITOR_BY_CODE: Record<string, EmbedEditor> = {
   [RECEIVER_KEY]: 'receiver',
@@ -623,10 +659,34 @@ const EDITOR_BY_CODE: Record<string, EmbedEditor> = {
   [CONTRACT_OFFSETS_KEY]: 'offsets',
   [HR_ORG_NAME_KEY]: 'orgs',
   [MAX_LEVELS_KEY]: 'number',
+  [MEETING_MAX_ADVANCE_KEY]: 'number',
+  [MEETING_NO_SHOW_GRACE_KEY]: 'number',
+  [MEETING_MAX_DURATION_KEY]: 'number',
+  [MEETING_NO_SHOW_RULE_KEY]: 'noShowRule',
   [FORUM_LOTTERY_KEY]: 'switch',
   [FORUM_EXCHANGE_KEY]: 'switch'
 }
 const editor = computed<EmbedEditor>(() => EDITOR_BY_CODE[currentCode.value] || 'unknown')
+
+/** 数值埋点按 key 区分 JSON 字段名、缺省值与范围，禁止复用其他埋点的字段名 */
+function numberField(code: string) {
+  if (code === MEETING_MAX_ADVANCE_KEY) return 'maxDays'
+  if (code === MEETING_NO_SHOW_GRACE_KEY) return 'graceMinutes'
+  if (code === MEETING_MAX_DURATION_KEY) return 'maxMinutes'
+  return 'maxLevel'
+}
+function numberDefault(code: string) {
+  if (code === MEETING_MAX_ADVANCE_KEY) return 7
+  if (code === MEETING_NO_SHOW_GRACE_KEY) return 15
+  if (code === MEETING_MAX_DURATION_KEY) return 0
+  return 20
+}
+function numberMax(code: string) {
+  if (code === MEETING_MAX_DURATION_KEY) return 1440
+  if (code === MEETING_MAX_ADVANCE_KEY) return 365
+  if (code === MEETING_NO_SHOW_GRACE_KEY) return 240
+  return 100
+}
 
 /* 结构化编辑：部门 / 人员 / 直属主管，改动后回写 JSON 文本 */
 const orgIds = ref<string[]>([])
@@ -641,6 +701,10 @@ const mockEnabled = ref(false)
 const offsetTags = ref<string[]>([])
 /** 数值埋点（如等级上限）：通用数字输入 */
 const numberValue = ref<number>(1)
+/** 会议室爽约限制：统计天数 / 触发次数 / 禁约天数 */
+const noShowWindowDays = ref<number>(90)
+const noShowThreshold = ref<number>(3)
+const noShowBanDays = ref<number>(7)
 /** HR 部门组织节点（含全部下级） */
 const hrOrgIds = ref<string[]>([])
 /** 城市假期政策：每行一个城市 */
@@ -742,9 +806,17 @@ function applyStructured(code: string, raw: string) {
     defaultApps.value = Array.isArray(obj.apps) ? obj.apps.map(String) : []
   } else if (code === MOCK_ENABLED_KEY || code === FORUM_LOTTERY_KEY || code === FORUM_EXCHANGE_KEY) {
     mockEnabled.value = obj.enabled === true
-  } else if (code === MAX_LEVELS_KEY) {
-    const n = Number(obj.maxLevel)
-    numberValue.value = Number.isFinite(n) && n > 0 ? n : 20
+  } else if (code === MAX_LEVELS_KEY || code === MEETING_MAX_ADVANCE_KEY
+      || code === MEETING_NO_SHOW_GRACE_KEY || code === MEETING_MAX_DURATION_KEY) {
+    const n = Number(obj[numberField(code)])
+    numberValue.value = Number.isFinite(n) && n >= 0 ? n : numberDefault(code)
+  } else if (code === MEETING_NO_SHOW_RULE_KEY) {
+    const windowDays = Number(obj.windowDays)
+    const threshold = Number(obj.threshold)
+    const banDays = Number(obj.banDays)
+    noShowWindowDays.value = Number.isFinite(windowDays) && windowDays >= 1 ? windowDays : 90
+    noShowThreshold.value = Number.isFinite(threshold) && threshold >= 0 ? threshold : 3
+    noShowBanDays.value = Number.isFinite(banDays) && banDays >= 0 ? banDays : 7
   } else if (code === PROBATION_OFFSETS_KEY || code === CONTRACT_OFFSETS_KEY) {
     offsetTags.value = Array.isArray(obj.offsets) ? obj.offsets.map(String) : []
   } else if (code === HR_ORG_NAME_KEY) {
@@ -788,13 +860,28 @@ function syncSwitchJson() {
   form.value = JSON.stringify({ enabled: mockEnabled.value }, null, 2)
 }
 
-/** 数值埋点：当前埋点用 maxLevel 字段，字段 code 区分不同数值配置 */
+/** 数值埋点：按 key 写回各自字段，字段名由 numberField 决定 */
 function syncNumberJson() {
   const n = Number(numberValue.value)
-  if (!Number.isFinite(n) || n < 1) {
-    numberValue.value = 1
+  if (!Number.isFinite(n) || n < 0) {
+    numberValue.value = 0
   }
-  form.value = JSON.stringify({ maxLevel: Number(numberValue.value) }, null, 2)
+  form.value = JSON.stringify({ [numberField(currentCode.value)]: Number(numberValue.value) }, null, 2)
+}
+
+/** 爽约规则：三个字段整体写回，0 表示不启用限制 */
+function syncNoShowRuleJson() {
+  const windowDays = Number(noShowWindowDays.value)
+  const threshold = Number(noShowThreshold.value)
+  const banDays = Number(noShowBanDays.value)
+  if (!Number.isFinite(windowDays) || windowDays < 1) noShowWindowDays.value = 90
+  if (!Number.isFinite(threshold) || threshold < 0) noShowThreshold.value = 0
+  if (!Number.isFinite(banDays) || banDays < 0) noShowBanDays.value = 0
+  form.value = JSON.stringify({
+    windowDays: Number(noShowWindowDays.value),
+    threshold: Number(noShowThreshold.value),
+    banDays: Number(noShowBanDays.value)
+  }, null, 2)
 }
 
 /** 提醒节点：去重、降序、只保留正整数 */

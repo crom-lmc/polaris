@@ -182,4 +182,27 @@ services:
       retries: 3
       start_period: 90s
 
+  # 会议室管理（北极星会）：独立库 polaris_meetingroom，管理端经网关 /api/meetingroom/**
+  meeting:
+    <<: *base
+    container_name: polaris-meeting
+    command: ["java", "-jar", "/jars/meeting-service.jar"]
+    environment:
+      TZ: Asia/Shanghai
+      SERVER_ADDRESS: 127.0.0.1
+      JAVA_TOOL_OPTIONS: >-
+        -Xms64m -Xmx160m -XX:MaxMetaspaceSize=128m -XX:ReservedCodeCacheSize=24m
+        -XX:+UseSerialGC -XX:+ExitOnOutOfMemoryError
+        -Xss512k -Dfile.encoding=UTF-8 -Duser.timezone=Asia/Shanghai
+    mem_limit: 448m
+    depends_on:
+      sso-account:
+        condition: service_started
+    healthcheck:
+      test: ["CMD-SHELL", "timeout 2 bash -c '</dev/tcp/127.0.0.1/9013' || exit 1"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 90s
+
 

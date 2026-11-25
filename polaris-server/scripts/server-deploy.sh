@@ -41,6 +41,7 @@ if [ "$DO_BACKEND" = 1 ]; then
     [portal.jar]=polaris-portal/polaris-portal-service/target/portal-service.jar
     [job.jar]=polaris-job/polaris-job-service/target/job-service.jar
     [forum.jar]=polaris-forum/polaris-forum-service/target/forum-service.jar
+    [meeting-service.jar]=polaris-meeting/polaris-meeting-service/target/meeting-service.jar
   )
   mkdir -p "$ROOT/jars"
   for name in "${!JARS[@]}"; do
@@ -73,6 +74,7 @@ if [ "$DO_WEB" = 1 ]; then
   build_site polaris-job-web      job
   build_site polaris-forum-web    forum
   build_site polaris-forum-admin-web admin
+  build_site polaris-meeting-web  meeting
 
 fi
 
@@ -104,10 +106,10 @@ if [ "$DO_SYNC" = 1 ]; then
   nginx -t && nginx -s reload
 
   # 发版自检：只告警、不自动回滚，保留现场
-  say "发版自检（8 站点 + tengine 8443）"
+  say "发版自检（9 站点 + tengine 8443）"
   FAIL=0
   for name in polaris-sso polaris-ehr polaris-cms polaris-settings polaris-job \
-              polaris-portal polaris-forum vault; do
+              polaris-portal polaris-forum polaris-meeting vault; do
     code=$(curl -sk -o /dev/null -w '%{http_code}' --resolve "$name.$DOMAIN:443:127.0.0.1" "https://$name.$DOMAIN/" || echo 000)
     printf '  %-20s %s\n' "$name" "$code"
     [ "$code" = "200" ] || FAIL=1
@@ -130,7 +132,7 @@ if [ "$DO_SYNC" = 1 ]; then
     echo "  nginx -t && nginx -s reload"
     exit 1
   fi
-  echo "自检通过：10 域名均 200，tengine 8443 可达"
+  echo "自检通过：11 域名均 200，tengine 8443 可达"
 fi
 
 say "5/5 重启服务"

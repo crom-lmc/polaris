@@ -1962,3 +1962,64 @@ INSERT IGNORE INTO `cfg_dict_item` (`id`, `type_code`, `value`, `label`, `sort`,
 INSERT IGNORE INTO `cfg_dict_item` (`id`, `type_code`, `value`, `label`, `sort`, `status`, `remark`, `built_in`, `deleted`, `created_at`, `updated_at`) VALUES (14005,'forum.gift_category','会员','会员',5,1,'',1,0,'2026-11-20 00:00:00','2026-11-20 00:00:00');
 INSERT IGNORE INTO `cfg_dict_item` (`id`, `type_code`, `value`, `label`, `sort`, `status`, `remark`, `built_in`, `deleted`, `created_at`, `updated_at`) VALUES (14006,'forum.gift_category','AI服务','AI服务',6,1,'',1,0,'2026-11-20 00:00:00','2026-11-20 00:00:00');
 INSERT IGNORE INTO `cfg_dict_item` (`id`, `type_code`, `value`, `label`, `sort`, `status`, `remark`, `built_in`, `deleted`, `created_at`, `updated_at`) VALUES (14007,'forum.gift_category','生活','生活',7,1,'',1,0,'2026-11-20 00:00:00','2026-11-20 00:00:00');
+
+-- ===== 会议室管理（meeting）字典：房间类型 / 位置状态 / 座位布局 / 预定状态 =====
+-- ehr.job_city、meeting.room_capacity、meeting.room_status、meeting.device 已由其它应用/脚本维护，此处不重复播种。
+-- 新增 4 个 meeting.* 字典全部为只读选项型数据，built_in=1、status=1，固定 id 幂等 INSERT IGNORE。
+INSERT IGNORE INTO `cfg_dict_type` (`id`, `code`, `name`, `app_code`, `remark`, `built_in`, `status`, `deleted`, `created_at`, `updated_at`) VALUES (15001,'meeting.room_type','会议室类型','meeting','房间类型，列表筛选与预定选房展示',1,1,0,'2026-11-25 00:00:00','2026-11-25 00:00:00');
+INSERT IGNORE INTO `cfg_dict_item` (`id`, `type_code`, `value`, `label`, `sort`, `status`, `remark`, `built_in`, `deleted`, `created_at`, `updated_at`) VALUES (1500101,'meeting.room_type','多功能会议室','多功能会议室',1,1,'',1,0,'2026-11-25 00:00:00','2026-11-25 00:00:00');
+INSERT IGNORE INTO `cfg_dict_item` (`id`, `type_code`, `value`, `label`, `sort`, `status`, `remark`, `built_in`, `deleted`, `created_at`, `updated_at`) VALUES (1500102,'meeting.room_type','专用会议室','专用会议室',2,1,'',1,0,'2026-11-25 00:00:00','2026-11-25 00:00:00');
+INSERT IGNORE INTO `cfg_dict_item` (`id`, `type_code`, `value`, `label`, `sort`, `status`, `remark`, `built_in`, `deleted`, `created_at`, `updated_at`) VALUES (1500103,'meeting.room_type','常规会议室','常规会议室',3,1,'',1,0,'2026-11-25 00:00:00','2026-11-25 00:00:00');
+INSERT IGNORE INTO `cfg_dict_item` (`id`, `type_code`, `value`, `label`, `sort`, `status`, `remark`, `built_in`, `deleted`, `created_at`, `updated_at`) VALUES (1500104,'meeting.room_type','圆桌会议室','圆桌会议室',4,1,'',1,0,'2026-11-25 00:00:00','2026-11-25 00:00:00');
+
+INSERT IGNORE INTO `cfg_dict_type` (`id`, `code`, `name`, `app_code`, `remark`, `built_in`, `status`, `deleted`, `created_at`, `updated_at`) VALUES (15002,'meeting.location_status','位置状态','meeting','大楼/楼层状态，与房间状态拆开',1,1,0,'2026-11-25 00:00:00','2026-11-25 00:00:00');
+INSERT IGNORE INTO `cfg_dict_item` (`id`, `type_code`, `value`, `label`, `sort`, `status`, `remark`, `built_in`, `deleted`, `created_at`, `updated_at`) VALUES (1500201,'meeting.location_status','可用','可用',1,1,'',1,0,'2026-11-25 00:00:00','2026-11-25 00:00:00');
+INSERT IGNORE INTO `cfg_dict_item` (`id`, `type_code`, `value`, `label`, `sort`, `status`, `remark`, `built_in`, `deleted`, `created_at`, `updated_at`) VALUES (1500202,'meeting.location_status','停用','停用',2,1,'',1,0,'2026-11-25 00:00:00','2026-11-25 00:00:00');
+
+INSERT IGNORE INTO `cfg_dict_type` (`id`, `code`, `name`, `app_code`, `remark`, `built_in`, `status`, `deleted`, `created_at`, `updated_at`) VALUES (15003,'meeting.seat_layout','座位布局','meeting','座位布局，预留字段（本期只留字段不实现换算）',1,1,0,'2026-11-25 00:00:00','2026-11-25 00:00:00');
+INSERT IGNORE INTO `cfg_dict_item` (`id`, `type_code`, `value`, `label`, `sort`, `status`, `remark`, `built_in`, `deleted`, `created_at`, `updated_at`) VALUES (1500301,'meeting.seat_layout','剧院式','剧院式',1,1,'',1,0,'2026-11-25 00:00:00','2026-11-25 00:00:00');
+INSERT IGNORE INTO `cfg_dict_item` (`id`, `type_code`, `value`, `label`, `sort`, `status`, `remark`, `built_in`, `deleted`, `created_at`, `updated_at`) VALUES (1500302,'meeting.seat_layout','圆桌式','圆桌式',2,1,'',1,0,'2026-11-25 00:00:00','2026-11-25 00:00:00');
+INSERT IGNORE INTO `cfg_dict_item` (`id`, `type_code`, `value`, `label`, `sort`, `status`, `remark`, `built_in`, `deleted`, `created_at`, `updated_at`) VALUES (1500303,'meeting.seat_layout','董事会式','董事会式',3,1,'',1,0,'2026-11-25 00:00:00','2026-11-25 00:00:00');
+INSERT IGNORE INTO `cfg_dict_item` (`id`, `type_code`, `value`, `label`, `sort`, `status`, `remark`, `built_in`, `deleted`, `created_at`, `updated_at`) VALUES (1500304,'meeting.seat_layout','长桌式','长桌式',4,1,'',1,0,'2026-11-25 00:00:00','2026-11-25 00:00:00');
+
+INSERT IGNORE INTO `cfg_dict_type` (`id`, `code`, `name`, `app_code`, `remark`, `built_in`, `status`, `deleted`, `created_at`, `updated_at`) VALUES (15004,'meeting.booking_status','预定状态','meeting','预定列表状态细筛与展示，value 与状态机常量一一对应，只允许改 label/sort',1,1,0,'2026-11-25 00:00:00','2026-11-25 00:00:00');
+INSERT IGNORE INTO `cfg_dict_item` (`id`, `type_code`, `value`, `label`, `sort`, `status`, `remark`, `built_in`, `deleted`, `created_at`, `updated_at`) VALUES (1500401,'meeting.booking_status','PENDING','待开始',1,1,'',1,0,'2026-11-25 00:00:00','2026-11-25 00:00:00');
+INSERT IGNORE INTO `cfg_dict_item` (`id`, `type_code`, `value`, `label`, `sort`, `status`, `remark`, `built_in`, `deleted`, `created_at`, `updated_at`) VALUES (1500402,'meeting.booking_status','CHECKED_IN','进行中',2,1,'',1,0,'2026-11-25 00:00:00','2026-11-25 00:00:00');
+INSERT IGNORE INTO `cfg_dict_item` (`id`, `type_code`, `value`, `label`, `sort`, `status`, `remark`, `built_in`, `deleted`, `created_at`, `updated_at`) VALUES (1500403,'meeting.booking_status','COMPLETED','已完成',3,1,'',1,0,'2026-11-25 00:00:00','2026-11-25 00:00:00');
+INSERT IGNORE INTO `cfg_dict_item` (`id`, `type_code`, `value`, `label`, `sort`, `status`, `remark`, `built_in`, `deleted`, `created_at`, `updated_at`) VALUES (1500404,'meeting.booking_status','CANCELLED','已取消',4,1,'',1,0,'2026-11-25 00:00:00','2026-11-25 00:00:00');
+INSERT IGNORE INTO `cfg_dict_item` (`id`, `type_code`, `value`, `label`, `sort`, `status`, `remark`, `built_in`, `deleted`, `created_at`, `updated_at`) VALUES (1500405,'meeting.booking_status','RELEASED','已释放',5,1,'',1,0,'2026-11-25 00:00:00','2026-11-25 00:00:00');
+
+-- ===== 会议室管理（meeting）字典：房间容量 / 房间状态 / 设备类型 =====
+-- 值统一用中文，与会议服务常量及现有 meeting.* 字典口径一致。
+INSERT IGNORE INTO `cfg_dict_type` (`id`, `code`, `name`, `app_code`, `remark`, `built_in`, `status`, `deleted`, `created_at`, `updated_at`) VALUES (15005,'meeting.room_capacity','会议室容量档位','meeting','容量档位，筛选与展示；人数校验仍用硬性上限',1,1,0,'2026-11-25 00:00:00','2026-11-25 00:00:00');
+INSERT IGNORE INTO `cfg_dict_item` (`id`, `type_code`, `value`, `label`, `sort`, `status`, `remark`, `built_in`, `deleted`, `created_at`, `updated_at`) VALUES (1500501,'meeting.room_capacity','小型（≤8）','小型（≤8）',1,1,'',1,0,'2026-11-25 00:00:00','2026-11-25 00:00:00');
+INSERT IGNORE INTO `cfg_dict_item` (`id`, `type_code`, `value`, `label`, `sort`, `status`, `remark`, `built_in`, `deleted`, `created_at`, `updated_at`) VALUES (1500502,'meeting.room_capacity','中型（9-20）','中型（9-20）',2,1,'',1,0,'2026-11-25 00:00:00','2026-11-25 00:00:00');
+INSERT IGNORE INTO `cfg_dict_item` (`id`, `type_code`, `value`, `label`, `sort`, `status`, `remark`, `built_in`, `deleted`, `created_at`, `updated_at`) VALUES (1500503,'meeting.room_capacity','大型（21-50）','大型（21-50）',3,1,'',1,0,'2026-11-25 00:00:00','2026-11-25 00:00:00');
+INSERT IGNORE INTO `cfg_dict_item` (`id`, `type_code`, `value`, `label`, `sort`, `status`, `remark`, `built_in`, `deleted`, `created_at`, `updated_at`) VALUES (1500504,'meeting.room_capacity','特大（>50）','特大（>50）',4,1,'',1,0,'2026-11-25 00:00:00','2026-11-25 00:00:00');
+INSERT IGNORE INTO `cfg_dict_type` (`id`, `code`, `name`, `app_code`, `remark`, `built_in`, `status`, `deleted`, `created_at`, `updated_at`) VALUES (15006,'meeting.room_status','会议室状态','meeting','可用/维护/停用；维护与停用均不可预约',1,1,0,'2026-11-25 00:00:00','2026-11-25 00:00:00');
+INSERT IGNORE INTO `cfg_dict_item` (`id`, `type_code`, `value`, `label`, `sort`, `status`, `remark`, `built_in`, `deleted`, `created_at`, `updated_at`) VALUES (1500601,'meeting.room_status','可用','可用',1,1,'',1,0,'2026-11-25 00:00:00','2026-11-25 00:00:00');
+INSERT IGNORE INTO `cfg_dict_item` (`id`, `type_code`, `value`, `label`, `sort`, `status`, `remark`, `built_in`, `deleted`, `created_at`, `updated_at`) VALUES (1500602,'meeting.room_status','维护','维护',2,1,'',1,0,'2026-11-25 00:00:00','2026-11-25 00:00:00');
+INSERT IGNORE INTO `cfg_dict_item` (`id`, `type_code`, `value`, `label`, `sort`, `status`, `remark`, `built_in`, `deleted`, `created_at`, `updated_at`) VALUES (1500603,'meeting.room_status','停用','停用',3,1,'',1,0,'2026-11-25 00:00:00','2026-11-25 00:00:00');
+INSERT IGNORE INTO `cfg_dict_type` (`id`, `code`, `name`, `app_code`, `remark`, `built_in`, `status`, `deleted`, `created_at`, `updated_at`) VALUES (15007,'meeting.device','会议室设备','meeting','设备类型，只记录类型与数量，不维护设备状态',1,1,0,'2026-11-25 00:00:00','2026-11-25 00:00:00');
+INSERT IGNORE INTO `cfg_dict_item` (`id`, `type_code`, `value`, `label`, `sort`, `status`, `remark`, `built_in`, `deleted`, `created_at`, `updated_at`) VALUES (1500701,'meeting.device','投影','投影',1,1,'',1,0,'2026-11-25 00:00:00','2026-11-25 00:00:00');
+INSERT IGNORE INTO `cfg_dict_item` (`id`, `type_code`, `value`, `label`, `sort`, `status`, `remark`, `built_in`, `deleted`, `created_at`, `updated_at`) VALUES (1500702,'meeting.device','视频会议','视频会议',2,1,'',1,0,'2026-11-25 00:00:00','2026-11-25 00:00:00');
+INSERT IGNORE INTO `cfg_dict_item` (`id`, `type_code`, `value`, `label`, `sort`, `status`, `remark`, `built_in`, `deleted`, `created_at`, `updated_at`) VALUES (1500703,'meeting.device','白板','白板',3,1,'',1,0,'2026-11-25 00:00:00','2026-11-25 00:00:00');
+INSERT IGNORE INTO `cfg_dict_item` (`id`, `type_code`, `value`, `label`, `sort`, `status`, `remark`, `built_in`, `deleted`, `created_at`, `updated_at`) VALUES (1500704,'meeting.device','电话','电话',4,1,'',1,0,'2026-11-25 00:00:00','2026-11-25 00:00:00');
+INSERT IGNORE INTO `cfg_dict_item` (`id`, `type_code`, `value`, `label`, `sort`, `status`, `remark`, `built_in`, `deleted`, `created_at`, `updated_at`) VALUES (1500705,'meeting.device','电视屏幕','电视屏幕',5,1,'',1,0,'2026-11-25 00:00:00','2026-11-25 00:00:00');
+INSERT IGNORE INTO `cfg_dict_item` (`id`, `type_code`, `value`, `label`, `sort`, `status`, `remark`, `built_in`, `deleted`, `created_at`, `updated_at`) VALUES (1500706,'meeting.device','麦克风','麦克风',6,1,'',1,0,'2026-11-25 00:00:00','2026-11-25 00:00:00');
+
+-- ===== 会议室管理（meeting）埋点：可预约天数上限 =====
+-- {"maxDays":7}，0 = 只能预约当天；会议服务按 key 读取并强校验 maxDays >= 0。
+INSERT IGNORE INTO `cfg_embed_point` (`id`, `code`, `app_code`, `module`, `name`, `value`, `built_in`, `sort`, `deleted`, `created_at`, `updated_at`) VALUES (2026112500000000001,'meeting.booking.max_advance_days','meeting','会议室预约','会议室最多可提前预约天数','{\"maxDays\":7}',1,1,0,'2026-11-25 00:00:00','2026-11-25 00:00:00');
+
+-- ===== 会议室管理（meeting）埋点：未签到释放宽限期 / 单次最长时长 / 爽约限制规则 =====
+-- 宽限期 0 表示会议开始时即自动释放；默认 15 分钟，签到窗口与之共用。
+INSERT IGNORE INTO `cfg_embed_point` (`id`, `code`, `app_code`, `module`, `name`, `value`, `built_in`, `sort`, `deleted`, `created_at`, `updated_at`) VALUES (2026112600000000001,'meeting.booking.no_show_grace_minutes','meeting','会议室预约','未签到自动释放宽限期（分钟）','{\"graceMinutes\":15}',1,2,0,'2026-11-26 00:00:00','2026-11-26 00:00:00');
+-- 单次预约最长时长（分钟），0 表示不限制；默认 0，保持原有可用范围。
+INSERT IGNORE INTO `cfg_embed_point` (`id`, `code`, `app_code`, `module`, `name`, `value`, `built_in`, `sort`, `deleted`, `created_at`, `updated_at`) VALUES (2026112600000000002,'meeting.booking.max_duration_minutes','meeting','会议室预约','单次预约最长时长（分钟，0=不限制）','{\"maxMinutes\":0}',1,3,0,'2026-11-26 00:00:00','2026-11-26 00:00:00');
+-- windowDays 内 NO_SHOW 达到 threshold 次，自最近一次爽约的会议日期起 banDays 天内禁止预约；threshold 或 banDays 为 0 表示禁用。
+INSERT IGNORE INTO `cfg_embed_point` (`id`, `code`, `app_code`, `module`, `name`, `value`, `built_in`, `sort`, `deleted`, `created_at`, `updated_at`) VALUES (2026112600000000003,'meeting.booking.no_show_restriction','meeting','会议室预约','爽约限制规则（统计天数/次数/禁约天数）','{\"windowDays\":90,\"threshold\":3,\"banDays\":7}',1,4,0,'2026-11-26 00:00:00','2026-11-26 00:00:00');
+
+-- ===== 会议室管理（meeting）通知规则：邀请参会人 =====
+-- 站内消息(channel=2) + 可选邮件(email=1)；模板变量由会议服务写入 NoticeSendDTO.vars，缺一不可。
+INSERT IGNORE INTO `cfg_notice_rule` (`id`, `code`, `app_code`, `module`, `name`, `title_tpl`, `content_tpl`, `channel`, `email`, `enabled`, `built_in`, `sort`, `receiver_account_ids`, `receiver_org_ids`, `deleted`, `created_at`, `updated_at`) VALUES (11411,'meeting.booking.invite','meeting','会议室预约','会议室邀请参会人','会议邀请：{title}','{inviterName} 邀请你参加「{title}」，时间 {startTime}–{endTime}，地点 {location}（{roomName}），预定单号 {bookingNo}，参会人数 {attendeeCount} 人。详情：{link}',2,1,1,1,1,'','',0,'2026-11-25 00:00:00','2026-11-25 00:00:00');

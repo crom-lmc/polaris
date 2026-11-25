@@ -76,6 +76,7 @@ job:
     settings: ${SETTINGS_URL:http://127.0.0.1:9007}
     cms: ${CMS_URL:http://127.0.0.1:9004}
     gateway: ${GATEWAY_URL:http://127.0.0.1:9080}
+    meeting: ${MEETING_URL:http://127.0.0.1:9013}
   # SSO OAuth2 后端代理用（appSecret 只允许从环境变量注入，禁止写进源码）
   # 换票地址走 polaris-sso-client 的 sso.client.auth-base-url（默认 http://127.0.0.1:9001）
   sso:

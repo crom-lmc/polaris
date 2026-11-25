@@ -26,7 +26,8 @@ server {
         polaris-portal.${DOMAIN}
         polaris-forum.${DOMAIN}
         polaris-file.${DOMAIN}
-        polaris-audit.${DOMAIN};
+        polaris-audit.${DOMAIN}
+        poraris-meeting.${DOMAIN};
     return 301 https://$host$request_uri;
 }
 
@@ -244,6 +245,27 @@ server {
     gzip_types text/css application/javascript application/json image/svg+xml;
 
     root /opt/polaris/www/audit;
+    index index.html;
+
+    include /etc/nginx/snippets/polaris-api.inc;
+
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+}
+
+# 会议室管理（北极星会）：与 file/audit 一致直连，不走雷池片段
+server {
+    listen 443 ssl;
+    server_name poraris-meeting.${DOMAIN};
+    ssl_certificate     /etc/nginx/certs/poraris-meeting.${DOMAIN}/poraris-meeting.${DOMAIN}_nginx/poraris-meeting.${DOMAIN}_bundle.crt;
+    ssl_certificate_key /etc/nginx/certs/poraris-meeting.${DOMAIN}/poraris-meeting.${DOMAIN}_nginx/poraris-meeting.${DOMAIN}.key;
+    ssl_protocols TLSv1.2 TLSv1.3;
+    client_max_body_size 20m;
+    gzip on;
+    gzip_types text/css application/javascript application/json image/svg+xml;
+
+    root /opt/polaris/www/meeting;
     index index.html;
 
     include /etc/nginx/snippets/polaris-api.inc;

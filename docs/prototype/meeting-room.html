@@ -1,0 +1,1105 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>会议室管理 - Polaris 静态设计稿</title>
+<style>
+  *{box-sizing:border-box;}
+  :root{
+    --primary:#2f54eb;--primary-soft:rgba(47,84,235,.12);
+    --success:#2eb872;--warning:#e8a33d;--danger:#e05252;--purple:#7c5cff;--cyan:#13a8a8;
+    --radius:10px;--shadow:0 6px 24px rgba(0,0,0,.06);
+  }
+  :root,:root[data-theme='light']{
+    --bg-page:#f5f6f8;--bg-surface:#fff;--text-base:#1f2329;--muted:#8a9099;
+    --border:#e8e8e8;--border-subtle:#f0f1f4;--th-bg:#fafafa;--row-hover:#f7f9ff;
+    --track:#eef0f4;--logo-grad:linear-gradient(135deg,#7c5cff,#2f54eb);
+    --tag-bg:rgba(47,84,235,.08);--card-shadow:0 2px 10px rgba(0,0,0,.04);
+  }
+  :root[data-theme='dark']{
+    --bg-page:#0f1115;--bg-surface:#161a22;--text-base:rgba(255,255,255,.88);--muted:#9aa6b2;
+    --border:rgba(255,255,255,.10);--border-subtle:rgba(255,255,255,.06);--th-bg:rgba(255,255,255,.03);--row-hover:rgba(47,84,235,.10);
+    --track:rgba(255,255,255,.08);--logo-grad:linear-gradient(135deg,#8b6cff,#3b62f0);
+    --tag-bg:rgba(47,84,235,.18);--card-shadow:0 2px 14px rgba(0,0,0,.25);
+  }
+  body{margin:0;overflow-x:hidden;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','PingFang SC','Microsoft YaHei',sans-serif;
+    background:var(--bg-page);color:var(--text-base);font-size:13px;line-height:1.55;}
+  .shell{display:flex;min-height:100vh;}
+  /* ---------- 侧边栏 ---------- */
+  .sider{width:210px;flex:0 0 210px;background:var(--bg-surface);border-right:1px solid var(--border);
+    display:flex;flex-direction:column;position:sticky;top:0;height:100vh;}
+  .brand{height:60px;display:flex;align-items:center;gap:10px;padding:0 18px;border-bottom:1px solid var(--border);font-size:15px;font-weight:600;}
+  .brand-mark{width:28px;height:28px;border-radius:8px;background:var(--logo-grad);color:#fff;display:flex;align-items:center;justify-content:center;font-size:14px;}
+  .menu{padding:10px 8px;overflow:auto;flex:1;}
+  .menu-label{font-size:11px;color:var(--muted);padding:14px 12px 6px;letter-spacing:.5px;}
+  .menu-item{display:flex;align-items:center;gap:10px;height:40px;padding:0 12px;border-radius:8px;font-size:13px;cursor:pointer;margin-bottom:2px;}
+  .menu-item:hover{background:var(--row-hover);}
+  .menu-item.active{background:var(--primary-soft);color:var(--primary);font-weight:600;}
+  .menu-item .ico{width:18px;text-align:center;font-size:15px;}
+  .sider-foot{padding:12px 16px;border-top:1px solid var(--border);font-size:11px;color:var(--muted);}
+  /* ---------- 主区 ---------- */
+  .main{flex:1;min-width:0;display:flex;flex-direction:column;}
+  .header{height:60px;flex:0 0 60px;background:var(--bg-surface);border-bottom:1px solid var(--border);
+    display:flex;align-items:center;padding:0 22px;gap:14px;position:sticky;top:0;z-index:20;}
+  .crumb{font-size:13px;color:var(--muted);}.crumb b{color:var(--text-base);font-weight:600;}
+  .header .right{margin-left:auto;display:flex;align-items:center;gap:12px;}
+  .theme-btn,.icon-btn{height:32px;min-width:32px;padding:0 9px;border:1px solid var(--border);background:transparent;
+    color:var(--text-base);border-radius:7px;cursor:pointer;font-size:12px;}
+  .avatar{width:28px;height:28px;border-radius:50%;background:var(--logo-grad);color:#fff;display:flex;align-items:center;justify-content:center;font-size:11px;}
+  .who{font-size:12px;color:var(--muted);}
+  .content{flex:1;padding:20px 22px;max-width:1500px;width:100%;}
+  .page{display:none;}.page.show{display:block;}
+  .page-head{display:flex;align-items:flex-end;gap:12px;margin-bottom:18px;flex-wrap:wrap;}
+  .page-title{font-size:20px;font-weight:600;}
+  .page-desc{font-size:12px;color:var(--muted);margin-top:4px;}
+  .page-head .spacer{flex:1;}
+  .btn{height:34px;padding:0 15px;border:1px solid var(--border);background:var(--bg-surface);color:var(--text-base);
+    border-radius:7px;cursor:pointer;font-size:13px;white-space:nowrap;}
+  .btn.primary{background:var(--primary);border-color:var(--primary);color:#fff;}
+  .btn:disabled{opacity:.5;cursor:not-allowed;}
+  .input:disabled,.select:disabled,textarea:disabled{opacity:.55;cursor:not-allowed;}
+  .btn.ghost{border-color:transparent;background:var(--primary-soft);color:var(--primary);}
+  .btn.sm{height:28px;padding:0 10px;font-size:12px;}
+  .btn:hover{opacity:.86;}
+  .card{background:var(--bg-surface);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--card-shadow);margin-bottom:16px;overflow:hidden;}
+  .card-h{padding:13px 16px;border-bottom:1px solid var(--border);font-size:14px;font-weight:600;display:flex;align-items:center;gap:8px;}
+  .card-h .sub{font-size:11px;color:var(--muted);font-weight:400;}
+  .card-h .right{margin-left:auto;display:flex;gap:8px;align-items:center;}
+  .card-b{padding:16px;}
+  /* 我的预定：页签分组（对齐平台审批页签样式：文字 + 选中下划线 + 数量角标） */
+  .status-tabs{display:flex;align-items:center;gap:26px;border-bottom:1px solid var(--border);margin-bottom:16px;overflow-x:auto;scrollbar-width:none;}
+  .status-tabs::-webkit-scrollbar{display:none;}
+  .status-tab{position:relative;flex:none;display:flex;align-items:center;gap:6px;padding:10px 2px 12px;font-size:14px;color:var(--muted);cursor:pointer;white-space:nowrap;}
+  .status-tab:hover{color:var(--primary);}
+  .status-tab.active{color:var(--primary);font-weight:600;}
+  .status-tab.active::after{content:'';position:absolute;left:0;right:0;bottom:-1px;height:2px;background:var(--primary);border-radius:2px 2px 0 0;}
+  .status-tab .badge{display:inline-flex;align-items:center;justify-content:center;min-width:18px;height:18px;padding:0 5px;border-radius:9px;background:var(--track);color:var(--muted);font-size:11px;line-height:1;}
+  .status-tab.active .badge{background:var(--primary-soft);color:var(--primary);}
+  /* 权限矩阵弹窗内表格：整行铺满 + 固定列宽 + 自动换行，避免第三列被裁切 */
+  #permMask .modal-b{display:block;}
+  #permMask .data{table-layout:fixed;width:100%;}
+  #permMask .data th:first-child,#permMask .data td:first-child{width:22%;}
+  #permMask .data th:nth-child(2),#permMask .data td:nth-child(2){width:38%;}
+  #permMask .data th:nth-child(3),#permMask .data td:nth-child(3){width:40%;}
+  #permMask .data th,#permMask .data td{white-space:normal;word-break:break-word;font-size:12px;padding:9px 10px;}
+  /* 统计卡 */
+  .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:16px;}
+  .stat{background:var(--bg-surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px 18px;box-shadow:var(--card-shadow);}
+  .stat .label{font-size:12px;color:var(--muted);display:flex;align-items:center;gap:7px;}
+  .stat .dot{width:8px;height:8px;border-radius:50%;display:inline-block;}
+  .stat .num{font-size:28px;font-weight:700;margin-top:8px;line-height:1.2;}
+  .stat .sub{font-size:11px;color:var(--muted);margin-top:4px;}
+  /* 概览两栏 */
+  .grid2{display:grid;grid-template-columns:1.4fr 1fr;gap:16px;}
+  .cal-nav{display:flex;align-items:center;gap:8px;}
+  .cal-nav .t{font-weight:600;font-size:14px;}
+  .cal{width:100%;border-collapse:collapse;table-layout:fixed;}
+  .cal th{font-size:11px;color:var(--muted);font-weight:500;padding:8px 4px;text-align:center;border-bottom:1px solid var(--border-subtle);}
+  .cal td{border:1px solid var(--border-subtle);height:64px;vertical-align:top;padding:5px 6px;font-size:12px;cursor:pointer;}
+  .cal td.out{color:var(--muted);opacity:.45;}
+  .cal td.today{background:var(--primary-soft);}
+  .cal td.today .d{color:var(--primary);font-weight:700;}
+  .cal td:hover{background:var(--row-hover);}
+  .cal .d{font-weight:600;}
+  .cal .mini{display:inline-block;width:6px;height:6px;border-radius:50%;margin:2px 2px 0 0;}
+  .cal .cnt{font-size:10px;color:var(--muted);margin-top:3px;}
+  .agenda-row{display:flex;gap:10px;padding:11px 16px;border-bottom:1px solid var(--border-subtle);align-items:flex-start;}
+  .agenda-row:last-child{border-bottom:none;}
+  .agenda-time{flex:0 0 96px;font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums;}
+  .agenda-main{flex:1;min-width:0;}
+  .agenda-main .t{font-weight:600;font-size:13px;}
+  .agenda-main .m{font-size:11px;color:var(--muted);margin-top:2px;}
+  .legend{display:flex;gap:14px;flex-wrap:wrap;font-size:11px;color:var(--muted);padding:0 16px 12px;}
+  .legend i{width:8px;height:8px;border-radius:2px;display:inline-block;margin-right:5px;}
+  /* 树 + 列表 */
+  .tree-layout{display:grid;grid-template-columns:250px 1fr;gap:16px;}
+  .tree{padding:10px 8px;font-size:13px;}
+  .tree-node{padding:7px 10px;border-radius:7px;cursor:pointer;display:flex;align-items:center;gap:6px;}
+  .tree-node:hover{background:var(--row-hover);}
+  .tree-node.active{background:var(--primary-soft);color:var(--primary);font-weight:600;}
+  .tree-node .arw{width:12px;color:var(--muted);font-size:10px;}
+  .tree-node.lv2{padding-left:24px;}.tree-node.lv3{padding-left:40px;}.tree-node.lv4{padding-left:56px;}
+  .tree-count{margin-left:auto;font-size:11px;color:var(--muted);}
+  /* 表格 */
+  .tbl-wrap{overflow-x:auto;}
+  table.data{width:100%;border-collapse:collapse;font-size:13px;min-width:640px;}
+  table.data th{background:var(--th-bg);text-align:left;font-size:12px;color:var(--muted);font-weight:500;
+    padding:10px 14px;border-bottom:1px solid var(--border);white-space:nowrap;}
+  table.data td{padding:11px 14px;border-bottom:1px solid var(--border-subtle);white-space:nowrap;}
+  table.data tr:hover td{background:var(--row-hover);}
+  table.data td.ops{white-space:nowrap;}
+  .link{color:var(--primary);cursor:pointer;margin-right:10px;font-size:12px;}
+  .link.danger{color:var(--danger);}
+  .tag{display:inline-block;padding:2px 9px;border-radius:12px;font-size:11px;background:var(--tag-bg);color:var(--primary);margin:1px 3px 1px 0;}
+  .tag.g{background:rgba(46,184,114,.14);color:var(--success);}
+  .tag.o{background:rgba(232,163,61,.16);color:var(--warning);}
+  .tag.r{background:rgba(224,82,82,.14);color:var(--danger);}
+  .tag.gray{background:var(--track);color:var(--muted);}
+  .dot-s{width:7px;height:7px;border-radius:50%;display:inline-block;margin-right:6px;}
+  .toolbar{padding:14px 16px;display:flex;flex-wrap:wrap;gap:10px;align-items:center;border-bottom:1px solid var(--border);}
+  .input,.select{height:34px;border:1px solid var(--border);background:transparent;color:var(--text-base);
+    border-radius:7px;padding:0 10px;font-size:13px;outline:none;}
+  .input:focus,.select:focus{border-color:var(--primary);}
+  /* 预约时间轴（00:00–24:00，不跨天） */
+  .timeline-wrap{overflow-x:auto;padding:14px 16px;}
+  .timeline{min-width:760px;}
+  .tl-axis,.tl-row{display:grid;grid-template-columns:104px 1fr;gap:10px;align-items:center;}
+  .tl-axis{margin-bottom:8px;}
+  .tl-scale{position:relative;height:20px;border-bottom:1px solid var(--border);}
+  .tl-scale span{position:absolute;top:0;transform:translateX(-50%);font-size:10px;color:var(--muted);white-space:nowrap;}
+  .tl-row{margin-bottom:8px;}
+  .tl-name{font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .tl-track{position:relative;height:30px;border-radius:6px;background:var(--track);}
+  .tl-track.off{background:var(--th-bg);border:1px dashed var(--border);}
+  .tl-block{position:absolute;top:3px;height:24px;border-radius:4px;color:#fff;font-size:10px;line-height:24px;
+    padding:0 6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:default;}
+  .tl-block.mine{background:var(--cyan);}.tl-block.other{background:var(--primary);}
+  .tl-off{position:absolute;left:10px;top:0;line-height:28px;font-size:11px;color:var(--muted);}
+  .tl-past{position:absolute;left:0;top:0;bottom:0;z-index:2;pointer-events:none;
+    background:repeating-linear-gradient(135deg,rgba(120,120,140,.2) 0 5px,transparent 5px 11px);}
+  .tl-legend{display:flex;gap:14px;flex-wrap:wrap;font-size:11px;color:var(--muted);padding:10px 16px 0;}
+  .tl-legend i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:5px;vertical-align:-1px;}
+  /* 新建预定弹窗内的选段时间轴：点击空闲格选开始，再点一格选结束 */
+  .slot-picker-wrap{overflow-x:auto;padding:8px 0 4px;}
+  .slot-picker{min-width:680px;}
+  .slot-scale{position:relative;height:18px;margin-left:0;border-bottom:1px solid var(--border);}
+  .slot-scale span{position:absolute;top:0;transform:translateX(-50%);font-size:10px;color:var(--muted);white-space:nowrap;}
+  .slot-scale span:first-child{transform:none;}
+  .slot-grid{display:grid;grid-template-columns:repeat(48,1fr);gap:1px;margin-top:5px;}
+  .slot-cell{height:26px;border-radius:3px;background:var(--track);cursor:pointer;border:1px solid transparent;position:relative;}
+  .slot-cell:hover{outline:1px solid var(--primary);}
+  .slot-cell.busy{background:var(--primary);cursor:not-allowed;}
+  .slot-cell.mine{background:var(--cyan);cursor:not-allowed;}
+  .slot-cell.past,.slot-cell.limit{background:repeating-linear-gradient(135deg,rgba(120,120,140,.28) 0 3px,transparent 3px 7px);cursor:not-allowed;}
+  .slot-cell.pick{background:var(--success);}
+  .slot-cell.sel{background:var(--success);opacity:.72;}
+  .slot-picker-hint{font-size:11px;color:var(--muted);margin-top:8px;line-height:1.6;}
+  /* 房间卡片（手机端） */
+  .room-cards{display:none;padding:12px;gap:12px;flex-direction:column;}
+  .room-card{border:1px solid var(--border);border-radius:10px;padding:14px;background:var(--bg-surface);}
+  .room-card .h{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;}
+  .room-card .h b{font-size:14px;}
+  .room-card .meta{font-size:12px;color:var(--muted);line-height:1.8;}
+  .room-card .acts{display:flex;gap:8px;margin-top:10px;}
+  .room-card .acts .btn{flex:1;}
+  /* 位置维护列表 */
+  .loc-row-floor td:first-child{padding-left:38px;}
+  .lock-tip{display:block;font-size:11px;color:var(--muted);margin-top:2px;}
+  .loc-cards{display:none;padding:12px;gap:12px;flex-direction:column;}
+  .loc-card{border:1px solid var(--border);border-radius:10px;padding:14px;}
+  .loc-card .h{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
+  .loc-card .h b{font-size:14px;}
+  .loc-card .meta{font-size:12px;color:var(--muted);margin-top:6px;line-height:1.7;}
+  .loc-card .acts{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;}
+  .loc-card .acts .btn{flex:1;min-width:74px;}
+  .loc-card .floors{margin-top:10px;border-top:1px dashed var(--border);padding-top:8px;}
+  .loc-floor{display:flex;align-items:center;gap:8px;padding:7px 0;flex-wrap:wrap;border-bottom:1px solid var(--border-subtle);}
+  .loc-floor:last-child{border-bottom:none;}
+  .loc-floor .fn{flex:1;min-width:80px;font-weight:500;}
+  /* 手机底部 tab */
+  .tabbar{display:none;}
+  /* 提示条 */
+  .notice{background:var(--primary-soft);border:1px solid var(--primary);color:var(--primary);
+    border-radius:8px;padding:10px 14px;font-size:12px;margin-bottom:16px;display:flex;gap:8px;align-items:center;}
+  .notice>span:last-child{min-width:0;flex:1;word-break:break-word;}
+  .design-badge{font-size:10px;border:1px dashed var(--muted);color:var(--muted);border-radius:6px;padding:2px 7px;}
+  /* 房间维护弹窗 */
+  .mask{display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:50;align-items:center;justify-content:center;padding:20px;}
+  .mask.show{display:flex;}
+  .modal{width:min(720px,100%);max-height:88vh;overflow:hidden;display:flex;flex-direction:column;
+    background:var(--bg-surface);border:1px solid var(--border);border-radius:12px;box-shadow:0 20px 60px rgba(0,0,0,.25);}
+  .modal-h{padding:14px 18px;border-bottom:1px solid var(--border);display:flex;align-items:center;font-weight:600;}
+  .modal-h .x{margin-left:auto;cursor:pointer;color:var(--muted);font-size:18px;line-height:1;}
+  .modal-b{padding:18px;display:grid;grid-template-columns:1fr 1fr;gap:14px;overflow:auto;}
+  .field{display:flex;flex-direction:column;gap:6px;min-width:0;}
+  .field>label{font-size:12px;color:var(--muted);}
+  .field .input,.field .select{width:100%;}
+  .field.full{grid-column:1/-1;}
+  .field textarea{min-height:60px;border:1px solid var(--border);background:transparent;color:var(--text-base);
+    border-radius:7px;padding:8px 10px;font-size:13px;resize:vertical;font-family:inherit;outline:none;}
+  .field textarea:focus{border-color:var(--primary);}
+  .dev-list{display:flex;flex-direction:column;gap:8px;}
+  .dev-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap;border:1px solid var(--border-subtle);
+    border-radius:8px;padding:8px 10px;}
+  .dev-row .nm{min-width:90px;font-size:12px;}
+  .dev-row .qty{width:58px;height:28px;padding:0 6px;flex:0 0 58px;}
+  .dev-row .select.sm-sel{width:88px;height:28px;font-size:12px;flex:0 0 88px;}
+  .dev-row .input.remark{flex:1;min-width:90px;width:auto;}
+  .hint{font-size:11px;color:var(--muted);line-height:1.6;}
+  .hint code{font-size:11px;color:var(--primary);}
+  .chips{display:flex;flex-wrap:wrap;gap:6px;min-height:36px;border:1px solid var(--border);border-radius:7px;padding:6px;align-items:center;}
+  .chip{display:inline-flex;align-items:center;gap:6px;background:var(--tag-bg);color:var(--primary);border-radius:12px;padding:3px 9px;font-size:12px;}
+  .chip .x{cursor:pointer;font-size:13px;line-height:1;opacity:.7;}
+  .people-pick{position:relative;}
+  .people-menu{display:none;position:absolute;left:0;right:0;top:100%;z-index:5;background:var(--bg-surface);
+    border:1px solid var(--border);border-radius:8px;box-shadow:var(--shadow);max-height:180px;overflow:auto;margin-top:4px;padding:4px;}
+  .people-menu.show{display:block;}
+  .people-menu div{padding:7px 9px;border-radius:6px;cursor:pointer;font-size:12px;}
+  .people-menu div:hover{background:var(--row-hover);}
+  .people-menu small{color:var(--muted);margin-left:8px;}
+  .lock-path{background:var(--track);border-radius:8px;padding:9px 12px;font-size:12px;}
+  .field .input[readonly]{background:var(--track);color:var(--muted);cursor:not-allowed;}
+  .cap-line{font-size:12px;color:var(--muted);}
+  .cap-line b{color:var(--text-base);}
+  .modal-f{padding:12px 18px;border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:10px;}
+  /* ---------- 响应式 ---------- */
+  @media (max-width:1200px){.stats{grid-template-columns:repeat(2,1fr);}}
+  @media (max-width:1023px){
+    .sider{width:64px;flex-basis:64px;}
+    .sider .brand span,.sider .menu-label,.sider .menu-item span.txt,.sider-foot{display:none;}
+    .sider .brand{justify-content:center;padding:0;}
+    .sider .menu-item{justify-content:center;padding:0;}
+    .sider .menu-item .ico{font-size:17px;}
+    .grid2{grid-template-columns:1fr;}
+    .tree-layout{grid-template-columns:200px 1fr;}
+  }
+  @media (max-width:767px){
+    .sider{display:none;}
+    .header{padding:0 14px;height:52px;flex-basis:52px;}
+    .header .who{display:none;}
+    .content{padding:14px 12px 76px;}
+    .page-title{font-size:18px;}
+    .stats{grid-template-columns:repeat(2,1fr);gap:10px;}
+    .stat{padding:13px;}.stat .num{font-size:22px;}
+    .status-tabs{gap:20px;}
+    .status-tab{font-size:13px;padding:9px 1px 11px;}
+    .tree-layout{grid-template-columns:1fr;}
+    .tree-layout .tree-card{display:none;}
+    .tbl-wrap{display:none;}
+    .room-cards{display:flex;}
+    #page-location .loc-cards{display:flex;}
+    .cal td{height:46px;padding:3px;}
+    .cal .cnt{font-size:9px;}
+    .agenda-time{flex-basis:78px;font-size:11px;}
+    .tabbar{display:flex;position:fixed;bottom:0;left:0;right:0;height:60px;background:var(--bg-surface);
+      border-top:1px solid var(--border);z-index:30;align-items:center;justify-content:space-around;}
+    .tabbar .tab{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;font-size:11px;color:var(--muted);cursor:pointer;}
+    .tabbar .tab.active{color:var(--primary);font-weight:600;}
+    .tabbar .tab .ico{font-size:18px;}
+    .mask{padding:10px;}
+    .modal{max-height:92vh;}
+    .modal-b{grid-template-columns:1fr;gap:12px;padding:14px;}
+    .dev-row .nm{min-width:100%;}
+    .modal-f .btn{flex:1;}
+  }
+</style>
+</head>
+<body>
+<div class="shell">
+  <!-- 侧边栏 -->
+  <aside class="sider">
+    <div class="brand"><div class="brand-mark">◈</div><span>北极星会务</span></div>
+    <nav class="menu">
+      <div class="menu-label">工作台</div>
+      <div class="menu-item active" data-page="overview"><span class="ico">▦</span><span class="txt">概览</span></div>
+      <div class="menu-label">会议管理</div>
+      <div class="menu-item" data-page="location"><span class="ico">🏢</span><span class="txt">位置维护</span></div>
+      <div class="menu-item" data-page="rooms"><span class="ico">⌂</span><span class="txt">会议室维护</span></div>
+      <div class="menu-item" data-page="booking"><span class="ico">▤</span><span class="txt">会议室预定</span></div>
+      <div class="menu-item" data-page="mybookings"><span class="ico">◷</span><span class="txt">我的预定</span></div>
+    </nav>
+    <div class="sider-foot">Polaris · 静态设计稿 v0.1<br />独立应用 9013 / 5187</div>
+  </aside>
+
+  <!-- 主区 -->
+  <div class="main">
+    <header class="header">
+      <div class="crumb">会议管理 / <b id="crumb">概览</b></div>
+      <div class="right">
+        <span class="design-badge">静态设计稿</span>
+        <button class="theme-btn" id="permBtn" title="查看所有菜单与按钮的权限码">🔑 权限矩阵</button>
+        <button class="theme-btn" id="themeBtn" title="切换主题">☀ 浅色</button>
+        <div class="who">wanghaoran</div><div class="avatar">王</div>
+      </div>
+    </header>
+
+    <div class="content">
+      <div class="notice"><span>ⓘ</span><span>这是静态设计稿：仅展示布局与交互形态，数据为示意。手机端请缩窄窗口或直接用手机打开，侧边栏会自动变为底部导航。</span></div>
+
+      <!-- ========== 概览 ========== -->
+      <section class="page show" id="page-overview">
+        <div class="page-head">
+          <div><div class="page-title">概览</div><div class="page-desc">今日会议安排与会议室使用情况</div></div>
+          <div class="spacer"></div>
+          <button class="btn primary" data-goto="booking">＋ 我要预定</button>
+        </div>
+        <div class="stats">
+          <div class="stat"><div class="label"><span class="dot" style="background:var(--primary)"></span>今日会议</div><div class="num">8</div><div class="sub">较昨日 +2</div></div>
+          <div class="stat"><div class="label"><span class="dot" style="background:var(--warning)"></span>待我签到</div><div class="num">2</div><div class="sub">最近一场 10:00</div></div>
+          <div class="stat"><div class="label"><span class="dot" style="background:var(--success)"></span>进行中</div><div class="num">3</div><div class="sub">占用至 11:30</div></div>
+          <div class="stat"><div class="label"><span class="dot" style="background:var(--cyan)"></span>可用会议室</div><div class="num">14<span style="font-size:14px;color:var(--muted)">/18</span></div><div class="sub">当前时段空闲 · 1 间维护中不可约</div></div>
+        </div>
+        <div class="grid2">
+          <div class="card">
+            <div class="card-h">会议日历
+              <div class="card-h right cal-nav">
+                <button class="btn sm" onclick="shiftMonth(-1)">‹</button>
+                <span class="t" id="calTitle">2026 年 11 月</span>
+                <button class="btn sm" onclick="shiftMonth(1)">›</button>
+              </div>
+            </div>
+            <div class="card-b" style="padding-bottom:4px;">
+              <table class="cal"><thead><tr><th>一</th><th>二</th><th>三</th><th>四</th><th>五</th><th>六</th><th>日</th></tr></thead>
+                <tbody id="calBody"></tbody></table>
+            </div>
+            <div class="legend"><span><i style="background:var(--primary)"></i>我的会议</span><span><i style="background:var(--cyan)"></i>他人会议</span><span><i style="background:var(--warning)"></i>待签到</span></div>
+          </div>
+          <div class="card">
+            <div class="card-h">我的日程 <span class="sub" id="agendaDate">11 月 25 日 · 周二</span>
+              <div class="card-h right"><button class="btn sm ghost" data-goto="booking">查看全部</button></div></div>
+            <div>
+              <div class="agenda-row"><div class="agenda-time">09:00–10:00</div><div class="agenda-main">
+                <div class="t">产品周会 <span class="tag g">已签到</span></div><div class="m">西安 · 高新总部 12F · 天府厅（8人）</div></div></div>
+              <div class="agenda-row"><div class="agenda-time">10:00–11:30</div><div class="agenda-main">
+                <div class="t">Q4 复盘 <span class="tag o">待签到</span></div><div class="m">西安 · 高新总部 12F · 海洋厅（12人）</div></div></div>
+              <div class="agenda-row"><div class="agenda-time">14:00–15:00</div><div class="agenda-main">
+                <div class="t">候选人面试 <span class="tag">待开始</span></div><div class="m">西安 · 高新总部 15F · 洽谈室（4人）</div></div></div>
+              <div class="agenda-row"><div class="agenda-time">16:30–17:30</div><div class="agenda-main">
+                <div class="t">技术方案评审 <span class="tag">待开始</span></div><div class="m">西安 · 高新总部 12F · 星辰厅（20人）</div></div></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ========== 位置维护（独立页面） ========== -->
+      <section class="page" id="page-location">
+        <div class="page-head">
+          <div><div class="page-title">位置维护</div><div class="page-desc">选城市查看大楼 / 楼层列表；房间到会议室维护页维护</div></div>
+          <div class="spacer"></div>
+          <button class="btn" id="locDictBtn">⚙ 城市字典在 settings 维护</button>
+          <button class="btn primary" id="addBuildingBtn">＋ 新增大楼</button>
+        </div>
+        <div class="notice"><span>ⓘ</span><span>城市来自 settings 字典，本页只读。<b>新增按层级：当前城市下只能新增大楼，大楼下只能新增楼层；已维护会议室的大楼 / 楼层不能删除和停用。</b></span></div>
+        <div class="card" style="margin:0;">
+          <div class="toolbar">
+            <span style="font-size:12px;color:var(--muted);">城市</span>
+            <select class="select" id="citySelect"><option>西安</option><option>北京</option><option>广州</option><option>上海</option></select>
+            <span class="sub" id="locSummary" style="font-size:12px;color:var(--muted);"></span>
+            <span style="margin-left:auto;font-size:11px;color:var(--muted);">城市只读 · 大楼 / 楼层可维护</span>
+          </div>
+          <div class="tbl-wrap">
+            <table class="data">
+              <thead><tr><th>大楼 / 楼层</th><th>地址</th><th>会议室</th><th>状态</th><th>操作</th></tr></thead>
+              <tbody id="locTbody"></tbody>
+            </table>
+          </div>
+          <div class="loc-cards" id="locCards"></div>
+        </div>
+      </section>
+
+      <!-- ========== 会议室维护 ========== -->
+      <section class="page" id="page-rooms">
+        <div class="page-head">
+          <div><div class="page-title">会议室维护</div><div class="page-desc">维护房间台账（容量 / 设备 / 图片）；城市 → 大楼 → 楼层到「位置维护」页维护</div></div>
+          <div class="spacer"></div>
+          <button class="btn" id="dictBtn" title="城市/容量档位/房间类型/房间状态/位置状态/设备类型/座位布局/预定状态筛选共 8 个字典，均从 settings 只读">⚙ 字典在 settings 维护</button>
+          <button class="btn primary" id="addRoomBtn">＋ 新增房间</button>
+        </div>
+        <div class="notice"><span>ⓘ</span><span>房间状态「维护 / 停用」均<strong>不可预约</strong>；维护用于临时检修、可快速恢复可用，已有预定不自动取消。</span></div>
+        <div class="card" style="margin:0;">
+          <div class="toolbar">
+            <select class="select" title="字典 ehr.job_city"><option>全部城市</option><option>西安</option><option>北京</option><option>广州</option><option>上海</option></select>
+            <select class="select" title="主数据 meeting_building 查询接口"><option>全部大楼</option><option>高新总部</option></select>
+            <select class="select" title="主数据 meeting_floor 查询接口"><option>全部楼层</option><option>12F</option><option>15F</option></select>
+            <select class="select" title="字典 meeting.room_type：多功能/专用/常规/圆桌会议室"><option>全部类型</option><option>多功能会议室</option><option>专用会议室</option><option>常规会议室</option><option>圆桌会议室</option></select>
+              <input class="input" placeholder="搜索房间名称 / 设备" style="width:210px;" />
+              <select class="select" title="字典 meeting.room_status"><option>全部状态</option><option>可用</option><option>维护</option><option>停用</option></select>
+              <select class="select" title="字典 meeting.room_capacity"><option>全部容量档位</option><option>小型（≤8）</option><option>中型（9-20）</option><option>大型（21-50）</option><option>特大（>50）</option></select>
+              <select class="select" title="字典 meeting.device"><option>全部设备</option><option>投影</option><option>视频会议</option><option>白板</option><option>电话</option></select>
+              <button class="btn primary sm">查询</button>
+            </div>
+            <div class="tbl-wrap">
+              <table class="data">
+                <thead><tr><th>房间</th><th>位置</th><th>类型</th><th>容量（档位 / 上限 / 舒适）</th><th>设备清单</th><th>图片</th><th>状态</th><th>操作</th></tr></thead>
+                <tbody>
+                  <tr><td><b>天府厅</b></td><td>西安 / 高新总部 / 12F</td><td><span class="tag">多功能会议室</span></td><td><span class="tag gray">中型</span>8 / 6</td><td><span class="tag">投影 ×1</span><span class="tag">视频会议 ×1</span><span class="tag">白板 ×1</span></td><td><span class="link">查看</span></td><td><span class="dot-s" style="background:var(--success)"></span>可用</td><td class="ops"><span class="link" onclick="openRoomModal('天府厅')">编辑</span><span class="link">停用</span><span class="link danger">删除</span></td></tr>
+                  <tr><td><b>海洋厅</b></td><td>西安 / 高新总部 / 12F</td><td><span class="tag">常规会议室</span></td><td><span class="tag gray">中型</span>12 / 8</td><td><span class="tag">投影 ×1</span><span class="tag">白板 ×2</span></td><td><span class="link">查看</span></td><td><span class="dot-s" style="background:var(--success)"></span>可用</td><td class="ops"><span class="link" onclick="openRoomModal('海洋厅')">编辑</span><span class="link">停用</span><span class="link danger">删除</span></td></tr>
+                  <tr><td><b>星辰厅</b></td><td>西安 / 高新总部 / 15F</td><td><span class="tag">多功能会议室</span></td><td><span class="tag gray">大型</span>20 / 14</td><td><span class="tag">投影 ×1</span><span class="tag">视频会议 ×1</span><span class="tag">白板 ×2</span><span class="tag">电视屏幕 ×1</span></td><td><span class="link">查看</span></td><td><span class="dot-s" style="background:var(--success)"></span>可用</td><td class="ops"><span class="link" onclick="openRoomModal('星辰厅')">编辑</span><span class="link">停用</span><span class="link danger">删除</span></td></tr>
+                  <tr><td><b>洽谈室</b></td><td>西安 / 高新总部 / 15F</td><td><span class="tag">圆桌会议室</span></td><td><span class="tag gray">小型</span>4 / 4</td><td><span class="tag">电话 ×1</span></td><td><span class="tag gray">未上传</span></td><td><span class="dot-s" style="background:var(--muted)"></span>停用</td><td class="ops"><span class="link" onclick="openRoomModal('洽谈室')">编辑</span><span class="link">启用</span><span class="link danger">删除</span></td></tr>
+                  <tr><td><b>贵宾室</b></td><td>西安 / 高新总部 / 12F</td><td><span class="tag">专用会议室</span></td><td><span class="tag gray">小型</span>6 / 4</td><td><span class="tag">电视屏幕 ×1</span></td><td><span class="link">查看</span></td><td><span class="dot-s" style="background:var(--warning)"></span>维护</td><td class="ops"><span class="link" onclick="openRoomModal('贵宾室')">编辑</span><span class="link">恢复可用</span><span class="link danger">删除</span></td></tr>
+                </tbody>
+              </table>
+            </div>
+            <div class="room-cards">
+              <div class="room-card"><div class="h"><b>天府厅</b><span class="tag g">可用</span></div>
+                <div class="meta">📍 西安 / 高新总部 / 12F　🏷 多功能会议室　👥 中型 · 上限 8 / 舒适 6<br />设备：投影×1、视频会议×1、白板×1</div>
+                <div class="acts"><button class="btn sm" onclick="openRoomModal('天府厅')">编辑</button><button class="btn sm">停用</button></div></div>
+              <div class="room-card"><div class="h"><b>海洋厅</b><span class="tag g">可用</span></div>
+                <div class="meta">📍 西安 / 高新总部 / 12F　🏷 常规会议室　👥 中型 · 上限 12 / 舒适 8<br />设备：投影×1、白板×2</div>
+                <div class="acts"><button class="btn sm" onclick="openRoomModal('海洋厅')">编辑</button><button class="btn sm">停用</button></div></div>
+              <div class="room-card"><div class="h"><b>星辰厅</b><span class="tag g">可用</span></div>
+                <div class="meta">📍 西安 / 高新总部 / 15F　🏷 多功能会议室　👥 大型 · 上限 20 / 舒适 14<br />设备：投影×1、视频会议×1、白板×2、电视屏幕×1</div>
+                <div class="acts"><button class="btn sm" onclick="openRoomModal('星辰厅')">编辑</button><button class="btn sm">停用</button></div></div>
+              <div class="room-card"><div class="h"><b>贵宾室</b><span class="tag o">维护</span></div>
+                <div class="meta">📍 西安 / 高新总部 / 12F　🏷 专用会议室　👥 小型 · 上限 6 / 舒适 4<br />设备：电视屏幕×1<br /><span style="color:var(--warning)">维护中不可预约，恢复可用后自动回池</span></div>
+                <div class="acts"><button class="btn sm" onclick="openRoomModal('贵宾室')">编辑</button><button class="btn sm">恢复可用</button></div></div>
+            </div>
+          </div>
+      </section>
+
+      <!-- ========== 会议室预定 ========== -->
+      <section class="page" id="page-booking">
+        <div class="page-head">
+          <div><div class="page-title">会议室预定</div><div class="page-desc">按城市查看房间占用时间轴并新建预定；我的预定记录已拆到「我的预定」菜单</div></div>
+          <div class="spacer"></div>
+          <button class="btn" id="embedBtn" title="settings 埋点 meeting.booking.max_advance_days，0=仅当天">⚙ 埋点：最多 7 天</button>
+          <button class="btn primary" id="newBookingBtn">＋ 新建预定</button>
+        </div>
+        <div class="card" style="margin:0;">
+          <div class="toolbar">
+            <span style="font-size:12px;color:var(--muted);">城市</span>
+            <select class="select" title="城市取字典 ehr.job_city；默认自动取当前人所在部门城市（EHR 组织节点，二级单位继承）">
+              <option selected>西安（当前部门 · 自动）</option><option>北京</option><option>广州</option><option>上海</option>
+            </select>
+            <span class="tag g" style="font-size:10px;padding:2px 7px;">已按当前人城市过滤</span>
+            <input class="input" type="date" id="tlDate" value="2026-11-25" />
+            <span style="margin-left:auto;font-size:11px;color:var(--muted);">单日 00:00–24:00 · 不跨天</span>
+          </div>
+        </div>
+        <div class="card" style="margin:0;">
+          <div class="card-h">房间时间轴 <span class="sub" id="tlDateText">2026-11-25 · 默认 24 小时可用 · 已预约时段着色</span></div>
+          <div class="tl-legend"><span><i style="background:var(--cyan)"></i>我的预定</span><span><i style="background:var(--primary)"></i>他人预定</span><span><i style="background:var(--track)"></i>空闲</span><span><i style="background:repeating-linear-gradient(135deg,#9aa0aa 0 3px,transparent 3px 6px);"></i>已过去（不可预约）</span><span>维护 / 停用灰底不可约 · 单日 00:00–24:00 · 30 分钟步长 · 不跨天</span></div>
+          <div class="timeline-wrap"><div class="timeline" id="timelineRows"></div></div>
+        </div>
+      </section>
+
+      <!-- ========== 我的预定（从预定页拆出） ========== -->
+      <section class="page" id="page-mybookings">
+        <div class="page-head">
+          <div><div class="page-title">我的预定</div><div class="page-desc">只显示本人创建的预定（服务端按创建人过滤）；释放归入「已取消」，不单列</div></div>
+          <div class="spacer"></div>
+          <button class="btn primary" data-goto="booking">＋ 新建预定</button>
+        </div>
+        <div class="status-tabs" id="myStatusTabs" role="tablist">
+          <div class="status-tab active" role="tab" data-group="PENDING" title="包含：待开始 / 待签到">已预约<span class="badge" id="cntPending">0</span></div>
+          <div class="status-tab" role="tab" data-group="CHECKED_IN" title="包含：进行中 / 已签到">已开始<span class="badge" id="cntChecked">0</span></div>
+          <div class="status-tab" role="tab" data-group="COMPLETED" title="包含：已完成">已结束<span class="badge" id="cntCompleted">0</span></div>
+          <div class="status-tab" role="tab" data-group="CANCELLED" title="包含：已取消 + 已释放（释放归入取消，不单列）">已取消<span class="badge" id="cntCancelled">0</span></div>
+        </div>
+        <div class="card" style="margin:0;">
+          <div class="toolbar">
+            <span style="font-size:12px;color:var(--muted);">城市</span>
+            <select class="select" title="城市取字典 ehr.job_city"><option>全部城市</option><option selected>西安</option><option>北京</option><option>广州</option><option>上海</option></select>
+            <input class="input" id="myKeyword" placeholder="会议主题" style="width:140px;" />
+            <select class="select" id="myStatus" title="字典 meeting.booking_status（仅展示/筛选，状态机仍用代码常量）"><option>全部状态</option><option>待开始</option><option>待签到</option><option>进行中</option><option>已签到</option><option>已完成</option><option>已取消</option><option>已释放</option></select>
+            <input class="input" type="date" id="myDate" title="可预约天数上限来自 settings 埋点 meeting.booking.max_advance_days；历史记录可查，不受上限限制" />
+            <button class="btn primary sm" id="myQueryBtn">查询</button>
+            <span style="margin-left:auto;font-size:11px;color:var(--muted);" id="myCount">共 0 条 · 仅本人</span>
+          </div>
+          <div class="tbl-wrap">
+            <table class="data">
+              <thead><tr><th>会议主题</th><th>会议室</th><th>日期 / 时段</th><th>人数</th><th>状态</th><th style="text-align:left;">操作</th></tr></thead>
+              <tbody id="myTableBody"></tbody>
+            </table>
+          </div>
+          <div class="room-cards" id="myCards"></div>
+        </div>
+      </section>
+    </div>
+  </div>
+</div>
+
+<!-- 手机底部导航 -->
+<nav class="tabbar">
+  <div class="tab active" data-page="overview"><span class="ico">▦</span>概览</div>
+  <div class="tab" data-page="location"><span class="ico">🏢</span>位置</div>
+  <div class="tab" data-page="rooms"><span class="ico">⌂</span>会议室</div>
+  <div class="tab" data-page="booking"><span class="ico">▤</span>预定</div>
+  <div class="tab" data-page="mybookings"><span class="ico">◷</span>我的</div>
+</nav>
+
+<!-- 房间维护弹窗：容量 + 设备清单 -->
+<div class="mask" id="roomMask">
+  <div class="modal">
+    <div class="modal-h"><span id="roomModalTitle">新增房间</span><span class="x" onclick="closeRoomModal()">×</span></div>
+    <div class="modal-b">
+      <div class="field"><label>房间名称 *</label><input class="input" value="天府厅" /></div>
+      <div class="field"><label>房间号</label><input class="input" value="A12-03" /></div>
+      <div class="field"><label>房间类型（字典 meeting.room_type）</label><select class="select" id="rmType"><option>多功能会议室</option><option>专用会议室</option><option>常规会议室</option><option>圆桌会议室</option></select></div>
+      <div class="field"><label>城市（settings 字典 ehr.job_city，只读）</label><select class="select"><option>西安</option><option>北京</option><option>广州</option><option>上海</option></select></div>
+      <div class="field"><label>大楼 / 楼层</label><input class="input" value="高新总部 / 12F" /></div>
+      <div class="field"><label>容量档位（settings 字典 meeting.room_capacity）</label><select class="select"><option>中型（9-20）</option><option>小型（≤8）</option><option>大型（21-50）</option><option>特大（>50）</option></select></div>
+      <div class="field"><label>最大容纳人数（硬性上限）*</label><input class="input" type="number" value="8" /></div>
+      <div class="field"><label>舒适人数（建议值）</label><input class="input" type="number" value="6" /></div>
+      <div class="field"><label>座位布局（字典 meeting.seat_layout，预留字段）</label><select class="select"><option>圆桌式</option><option>剧院式</option><option>董事会式</option></select></div>
+      <div class="field"><label>房间状态（字典 meeting.room_status：可用 / 维护 / 停用）</label>
+        <select class="select" id="rmStatus"><option>可用</option><option>维护</option><option>停用</option></select>
+        <div class="hint">默认 24 小时可预约，不再配置开放时段；维护 / 停用不可预约，维护可随时切回可用，已有预定不自动取消。</div></div>
+      <div class="field full">
+        <label>设备清单 *（类型取 settings 字典 meeting.device；只维护类型、数量、备注，不维护设备状态）</label>
+        <div class="dev-list">
+          <div class="dev-row"><span class="nm">投影仪</span><input class="input qty" type="number" value="1" title="数量" /><input class="input remark" placeholder="备注（型号等）" /><span class="link danger" onclick="this.parentNode.remove()">移除</span></div>
+          <div class="dev-row"><span class="nm">视频会议</span><input class="input qty" type="number" value="1" title="数量" /><input class="input remark" placeholder="备注（型号等）" /><span class="link danger" onclick="this.parentNode.remove()">移除</span></div>
+          <div class="dev-row"><span class="nm">白板</span><input class="input qty" type="number" value="2" title="数量" /><input class="input remark" value="备注（型号等）" /><span class="link danger" onclick="this.parentNode.remove()">移除</span></div>
+        </div>
+        <div class="hint">＋ 添加设备行（从字典下拉选类型）。设备只记录"有什么、几台"；房间临时不可用时把房间状态改为「维护」。</div>
+      </div>
+      <div class="field full"><label>房间图片（走 FileApi，存 file_id，可多张）</label><button class="btn sm" style="align-self:flex-start;">＋ 上传图片（静态稿占位）</button></div>
+      <div class="field full"><label>备注</label><textarea placeholder="如：靠窗、靠近电梯、需提前找行政开门……"></textarea></div>
+    </div>
+    <div class="modal-f"><button class="btn" onclick="closeRoomModal()">取消</button><button class="btn primary" onclick="closeRoomModal()">保存（静态稿）</button></div>
+  </div>
+</div>
+
+<!-- 位置维护新增弹窗：层级归属固定，其余字段可填 -->
+<div class="mask" id="locMask">
+  <div class="modal" style="width:min(560px,100%);">
+    <div class="modal-h"><span id="locModalTitle">新增楼层</span><span class="x" onclick="closeLocModal()">×</span></div>
+    <div class="modal-b">
+      <div class="field full"><label>层级归属（由当前位置带入，固定不可修改）</label><div class="lock-path" id="locModalPath">🏙 西安　›　🏢 高新总部　›　＋ 新增楼层</div></div>
+      <div class="field"><label>城市 *（只读）</label><input class="input" id="lmCity" value="西安" readonly /></div>
+      <div class="field" id="lmBuildingField"><label>所属大楼 *（只读）</label><input class="input" id="lmBuilding" value="高新总部" readonly /></div>
+      <div class="field"><label id="lmNameLabel">楼层号 *</label><input class="input" id="lmName" placeholder="如 16F" /></div>
+      <div class="field" id="lmAddrField"><label>地址</label><input class="input" id="lmAddr" placeholder="大楼地址" /></div>
+      <div class="field"><label>排序</label><input class="input" id="lmSort" type="number" value="3" /></div>
+      <div class="field"><label>状态（字典 meeting.location_status）</label><select class="select" id="lmStatus"><option>可用</option><option>停用</option></select></div>
+      <div class="field full"><label>备注</label><textarea id="lmRemark" placeholder="楼层分布、门禁说明等"></textarea></div>
+      <div class="hint full" id="lmHint">城市与所属大楼由当前位置固定带入，不可修改；只需填写其余内容。</div>
+    </div>
+    <div class="modal-f"><button class="btn" onclick="closeLocModal()">取消</button><button class="btn primary" onclick="closeLocModal()">保存（静态稿）</button></div>
+  </div>
+</div>
+
+<!-- 新建预定弹窗：邀请参会人 + 消息模板提示 -->
+<div class="mask" id="bookingMask">
+  <div class="modal" style="width:min(720px,100%);">
+    <div class="modal-h"><span>新建预定（静态设计）</span><span class="x" onclick="closeBookingModal()">×</span></div>
+    <div class="modal-b">
+      <div class="field full"><label>会议主题 *</label><input class="input" id="bkTitle" value="产品周会" /></div>
+      <div class="field"><label>城市（默认当前人部门城市，只读）</label><input class="input" value="西安（当前部门 · 自动）" readonly /></div>
+      <div class="field"><label>大楼 / 楼层 / 房间 *（主数据接口，仅「可用」可预约）</label><select class="select" id="bkRoom" title="大楼 / 楼层 / 房间为主数据，走查询接口，不是字典"><option>高新总部 / 12F / 天府厅（多功能 · 上限 8 人）</option><option>高新总部 / 12F / 海洋厅（常规 · 上限 12 人）</option><option>高新总部 / 15F / 星辰厅（多功能 · 上限 20 人）</option><option disabled>高新总部 / 12F / 贵宾室（专用 · 维护中，不可预约）</option><option disabled>高新总部 / 15F / 洽谈室（圆桌 · 停用，不可预约）</option></select></div>
+      <div class="field full"><label>日期 / 时段 *（在时间轴上直接点选，30 分钟步长，不跨天）</label>
+        <div style="display:flex;gap:6px;align-items:center;"><input class="input" type="date" id="bkDate" value="2026-11-25" style="min-width:0;flex:1;" /><span class="tag g" id="bkSlotText">点击时间轴选择开始与结束时段</span></div>
+        <input type="hidden" id="bkStart" /><input type="hidden" id="bkEnd" />
+        <div class="slot-picker-wrap"><div class="slot-picker">
+          <div class="slot-scale" id="bkSlotScale"></div><div class="slot-grid" id="bkSlotGrid"></div>
+        </div></div>
+        <div class="slot-picker-hint"><span class="tag" style="background:var(--track);">空闲</span> <span class="tag" style="background:var(--primary);color:#fff;">已被预约</span> <span class="tag" style="background:var(--cyan);color:#fff;">我的预约</span> <span class="tag" style="background:repeating-linear-gradient(135deg,rgba(120,120,140,.28) 0 3px,transparent 3px 7px);">已过去</span> <span class="tag" style="background:var(--success);color:#fff;">本次选择</span>　先点开始格、再点结束格；占用 / 过去时段不可选，结束最晚 23:30。</div>
+        <div class="hint" id="bkRangeHint">可约范围由 settings 埋点 meeting.booking.max_advance_days 控制；房间默认 24 小时可预约。</div>
+      </div>
+      <div class="field"><label>参会人数（选人后自动回填，可修正；≤ 房间上限）</label><input class="input" id="bkCount" type="number" value="2" /></div>
+      <div class="field full people-pick">
+        <label>邀请参会人（多选；创建人默认不重复邀请）</label>
+        <div class="chips" id="bkChips">
+          <span class="chip">张伟 · 产品部<span class="x" data-rm="张伟" title="移除">×</span></span>
+          <span class="chip">李娜 · 研发部<span class="x" data-rm="李娜" title="移除">×</span></span>
+        </div>
+        <input class="input" id="bkSearch" placeholder="输入姓名 / 账号搜索员工，例如 王强 / wangqiang" autocomplete="off" />
+        <div class="people-menu" id="bkPeople"></div>
+        <div class="hint">提交后按模板 <code>meeting.booking.invite</code> 给每位被邀请人发站内信（可在 settings 通知规则勾选同时发邮件）；模板在 settings「通知规则管理」页配置，通知失败不影响预定。</div>
+      </div>
+      <div class="field full"><label>消息模板预览（settings.cfg_notice_rule）</label>
+        <div class="notice" style="margin:0;"><span>模板</span><span>标题：会议邀请：{title}<br />内容：{inviterName} 邀请你参加「{title}」，时间 {startTime}–{endTime}，地点 {location}（{roomName}），预定单号 {bookingNo}。详情：{link}<br />变量由服务端写入 vars：inviterName / title / roomName / location / startTime / endTime / bookingNo / attendeeCount / link</span></div>
+      </div>
+    </div>
+    <div class="modal-f"><button class="btn" onclick="closeBookingModal()">取消</button><button class="btn primary" onclick="submitBooking()">提交预定（静态稿）</button></div>
+  </div>
+</div>
+
+<!-- 权限矩阵：所有菜单 / 按钮所需权限码（静态设计稿） -->
+<div class="mask" id="permMask">
+  <div class="modal" style="width:min(760px,100%);">
+    <div class="modal-h"><span>权限矩阵 · 菜单与按钮</span><span class="x" onclick="closePermModal()">×</span></div>
+    <div class="modal-b">
+      <div class="hint" style="margin-bottom:10px;">前端按权限隐藏菜单与按钮（按钮悬停可见所需权限码）；服务端每个接口独立校验权限，不能只靠前端。四联动：common 常量 → account 内置码 → data.sql 授权 → 前端路由 meta.perm / 按钮 hasPerm。</div>
+      <div class="tbl-wrap">
+        <table class="data">
+          <thead><tr><th>位置</th><th>菜单 / 按钮</th><th>权限码</th></tr></thead>
+          <tbody>
+            <tr><td>侧边栏 / 底部 Tab</td><td>概览</td><td><code>meeting:overview:view</code></td></tr>
+            <tr><td>侧边栏 / 底部 Tab</td><td>位置维护、会议室维护（只读列表 / 筛选 / 字典说明 / 查看图片）</td><td><code>meeting:room:list</code></td></tr>
+            <tr><td>侧边栏 / 底部 Tab</td><td>会议室预定（时间轴 / 筛选 / 埋点说明）</td><td><code>meeting:booking:view</code></td></tr>
+            <tr><td>侧边栏 / 底部 Tab</td><td>我的预定（页签 / 筛选 / 详情）</td><td><code>meeting:booking:list</code></td></tr>
+            <tr><td>位置维护</td><td>＋新增大楼 / ＋楼层 / 编辑 / 停用 / 删除 / 保存</td><td><code>meeting:room:edit</code></td></tr>
+            <tr><td>会议室维护</td><td>＋新增房间 / 编辑 / 停用 / 恢复可用 / 删除 / 上传图片 / 保存</td><td><code>meeting:room:edit</code></td></tr>
+            <tr><td>预定页</td><td>＋新建预定 / 邀请参会人 / 提交</td><td><code>meeting:booking:create</code></td></tr>
+            <tr><td>我的预定</td><td>修改</td><td><code>meeting:booking:create</code></td></tr>
+            <tr><td>我的预定</td><td>签到 / 延时 / 取消 / 释放</td><td><code>meeting:booking:checkin</code> / <code>:extend</code> / <code>:cancel</code> / <code>:release</code></td></tr>
+            <tr><td>header</td><td>🔑 权限矩阵 / 主题切换</td><td>无业务权限（纯界面）</td></tr>
+            <tr><td>settings（另一个应用）</td><td>埋点维护、字典维护、消息模板配置</td><td><code>embed:manage</code> / <code>dict:manage</code> / <code>notice:manage</code>，会议应用不重复定义</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <div class="modal-f"><button class="btn primary" onclick="closePermModal()">关闭</button></div>
+  </div>
+</div>
+
+<script>
+  // ---- 权限标注：给所有菜单 / 按钮补 data-perm 与提示，静态稿不实际拦截 ----
+  const PAGE_PERM={overview:'meeting:overview:view',location:'meeting:room:list',rooms:'meeting:room:list',booking:'meeting:booking:view',mybookings:'meeting:booking:list'};
+  const PERM_SELECTORS=[
+    ['#page-overview [data-goto="booking"]','meeting:booking:create'],
+    ['#page-overview [data-goto="mybookings"]','meeting:booking:list'],
+    ['#page-overview .cal-nav button','meeting:overview:view'],
+    ['#page-location #locDictBtn','meeting:room:list'],
+    ['#page-location #addBuildingBtn','meeting:room:edit'],
+    ['#page-rooms #dictBtn','meeting:room:list'],
+    ['#page-rooms #addRoomBtn','meeting:room:edit'],
+    ['#page-rooms .toolbar button','meeting:room:list'],
+    ['#page-rooms .ops .link, #page-rooms .acts .btn','meeting:room:edit'],
+    ['#page-booking #embedBtn','meeting:booking:view'],
+    ['#page-booking #newBookingBtn','meeting:booking:create'],
+    ['#page-booking .toolbar button','meeting:booking:view'],
+    ['#page-mybookings [data-goto="booking"]','meeting:booking:create'],
+    ['#page-mybookings #myQueryBtn','meeting:booking:list'],
+    ['#roomMask .modal-f button, #roomMask .btn.sm','meeting:room:edit'],
+    ['#locMask .modal-f button','meeting:room:edit'],
+    ['#bookingMask .modal-f button','meeting:booking:create'],
+    ['#bookingMask #bkSearch, #bookingMask .chip .x, #bookingMask #bkSlotGrid','meeting:booking:create']
+  ];
+  function closePermModal(){document.getElementById('permMask').classList.remove('show');}
+  function markPerm(el,code){
+    if(!el||!code) return;
+    el.setAttribute('data-perm',code);
+    if(!el.getAttribute('title')) el.setAttribute('title','需权限 '+code);
+  }
+  function annotatePerms(){
+    document.querySelectorAll('.menu-item[data-page], .tabbar .tab[data-page]').forEach(el=>markPerm(el,PAGE_PERM[el.dataset.page]));
+    PERM_SELECTORS.forEach(([sel,code])=>document.querySelectorAll(sel).forEach(el=>markPerm(el,code)));
+    document.querySelectorAll('#page-rooms .tbl-wrap td .link').forEach(el=>{
+      if(el.textContent.trim()==='查看') markPerm(el,'meeting:room:list');
+    });
+    document.querySelectorAll('#myStatusTabs .status-tab').forEach(el=>markPerm(el,'meeting:booking:list'));
+  }
+  document.getElementById('permBtn').addEventListener('click',()=>document.getElementById('permMask').classList.add('show'));
+  document.getElementById('permMask').addEventListener('click',e=>{if(e.target.id==='permMask') closePermModal();});
+  annotatePerms();
+
+  // ---- 可预约天数上限：模拟 settings 埋点 meeting.booking.max_advance_days（0=仅当天）----
+  const MAX_ADVANCE_DAYS = 7;
+  function isoDate(d){
+    return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+  }
+  function shiftDays(base,days){
+    const p=base.split('-').map(Number);
+    const d=new Date(p[0],p[1]-1,p[2]);
+    d.setDate(d.getDate()+days);
+    return isoDate(d);
+  }
+  function dateBounds(){
+    const today=isoDate(new Date());
+    return {today, min:today, max:shiftDays(today,MAX_ADVANCE_DAYS)};
+  }
+  const BOUNDS=dateBounds();
+  ['bkDate','tlDate'].forEach(id=>{
+    const el=document.getElementById(id);
+    el.min=BOUNDS.min;
+    el.max=BOUNDS.max;
+    el.value=BOUNDS.today;
+  });
+  const rangeText=BOUNDS.min===BOUNDS.max
+    ? BOUNDS.min+'（埋点 0，仅当天）'
+    : BOUNDS.min+' ~ '+BOUNDS.max;
+  document.getElementById('bkRangeHint').textContent=
+    '可约范围：'+rangeText+'（settings 埋点 meeting.booking.max_advance_days='+MAX_ADVANCE_DAYS+'，0=仅当天）。在上方时间轴点选时段，30 分钟步长、所选房间的占用实时可见；当天已过时段不可选，结束最晚 23:30，不跨天。';
+
+  // ---- 预约时段：30 分钟步长 + 过去时段不可选 ----
+  function hhmm(m){ return String(Math.floor(m/60)).padStart(2,'0')+':'+String(m%60).padStart(2,'0'); }
+  function minsOf(s){ if(!s) return -1; const p=s.split(':').map(Number); return p[0]*60+p[1]; }
+  function nowMinutes(){ const d=new Date(); return d.getHours()*60+d.getMinutes(); }
+  function earliestSlot(){ return Math.ceil(nowMinutes()/30)*30; }
+
+  // ---- 页面切换 ----
+  function goto(page){
+    document.querySelectorAll('.page').forEach(p=>p.classList.remove('show'));
+    document.getElementById('page-'+page).classList.add('show');
+    const names={overview:'概览',location:'位置维护',rooms:'会议室维护',booking:'会议室预定',mybookings:'我的预定'};
+    document.getElementById('crumb').textContent=names[page];
+    document.querySelectorAll('.menu-item,.tabbar .tab').forEach(el=>{
+      el.classList.toggle('active',el.dataset.page===page);
+    });
+    window.scrollTo(0,0);
+  }
+  document.querySelectorAll('[data-page],[data-goto]').forEach(el=>{
+    el.addEventListener('click',()=>goto(el.dataset.page||el.dataset.goto));
+  });
+  // ---- 预约时间轴：单日 00:00–24:00，已预约着色 ----
+  const TL_ROOMS=[
+    {name:'天府厅',status:'可用',blocks:[{s:9,e:10,label:'产品周会',mine:true},{s:13,e:15,label:'已占用',mine:false}]},
+    {name:'海洋厅',status:'可用',blocks:[{s:10,e:11.5,label:'Q4 复盘',mine:true},{s:14,e:15,label:'已占用',mine:false}]},
+    {name:'星辰厅',status:'可用',blocks:[{s:16.5,e:17.5,label:'技术方案评审',mine:true},{s:19,e:20,label:'已占用',mine:false}]},
+    {name:'贵宾室',status:'维护',blocks:[]},
+    {name:'洽谈室',status:'停用',blocks:[]}
+  ];
+  function fmtHour(h){
+    const hh=Math.floor(h),mm=Math.round((h-hh)*60);
+    return String(hh).padStart(2,'0')+':'+String(mm).padStart(2,'0');
+  }
+  function renderTimeline(){
+    const scale=[0,4,8,12,16,20,24].map(h=>
+      '<span style="left:'+(h/24*100)+'%'+(h===24?';transform:translateX(-100%)':'')+'">'+String(h).padStart(2,'0')+':00</span>').join('');
+    const now=new Date();
+    const isToday=document.getElementById('tlDate').value===isoDate(now);
+    const pastPct=isToday?(now.getHours()*60+now.getMinutes())/1440*100:0;
+    const pastMask=isToday?'<div class="tl-past" style="width:'+pastPct+'%" title="已过去，不可预约"></div>':'';
+    let html='<div class="tl-axis"><span></span><div class="tl-scale">'+scale+'</div></div>';
+    TL_ROOMS.forEach(r=>{
+      const off=r.status!=='可用';
+      const blocks=r.blocks.map(b=>
+        '<div class="tl-block '+(b.mine?'mine':'other')+'" style="left:'+(b.s/24*100)+'%;width:'+((b.e-b.s)/24*100)+'%" title="'+b.label+' '+fmtHour(b.s)+'–'+fmtHour(b.e)+'">'+b.label+'</div>').join('');
+      html+='<div class="tl-row"><div class="tl-name">'+r.name+(off?' <span class="tag o">'+r.status+'</span>':'')+'</div>'
+        +'<div class="tl-track'+(off?' off':'')+'">'+(off?'<span class="tl-off">'+r.status+' · 不可预约（恢复可用后回池）</span>':blocks)+pastMask+'</div></div>';
+    });
+    document.getElementById('timelineRows').innerHTML=html;
+  }
+  renderTimeline();
+
+  // ---- 新建预定弹窗：在同一套时间轴上点选时段（30 分钟格） ----
+  let BK_PICK={start:-1,end:-1};
+  function busyMapForRoom(){
+    const label=document.getElementById('bkRoom').value;
+    const room=TL_ROOMS.find(r=>label.indexOf(r.name)>=0);
+    const map={};
+    if(room) room.blocks.forEach(b=>{
+      for(let i=Math.round(b.s*2);i<Math.round(b.e*2);i++) map[i]=b.mine?'mine':'busy';
+    });
+    return map;
+  }
+  function slotEarliest(){
+    const date=document.getElementById('bkDate').value;
+    return date===isoDate(new Date())?Math.ceil(earliestSlot()/30):0;
+  }
+  function renderSlotPicker(){
+    const scale=[0,4,8,12,16,20,24].map(h=>
+      '<span style="left:'+(h/24*100)+'%'+(h===24?';transform:translateX(-100%)':'')+'">'+String(h).padStart(2,'0')+':00</span>').join('');
+    document.getElementById('bkSlotScale').innerHTML=scale;
+    const earliest=slotEarliest(), map=busyMapForRoom();
+    let html='';
+    for(let i=0;i<48;i++){
+      let cls='slot-cell';
+      const busy=map[i];
+      if(busy) cls+=' '+busy;
+      else if(i<earliest) cls+=' past';
+      else if(i>46) cls+=' limit';
+      if(BK_PICK.start>=0&&i>=BK_PICK.start&&i<=BK_PICK.end) cls+=i===BK_PICK.start?' pick':' sel';
+      const title=hhmm(i*30)+'–'+hhmm((i+1)*30)+(busy?(busy==='mine'?' · 我的预约':' · 已被预约'):(i<earliest?' · 已过去':(i>46?' · 结束最晚 23:30':' · 空闲')));
+      html+='<div class="'+cls+'" data-i="'+i+'" title="'+title+'"></div>';
+    }
+    document.getElementById('bkSlotGrid').innerHTML=html;
+    const txt=document.getElementById('bkSlotText');
+    if(BK_PICK.start<0) txt.textContent='点击时间轴选择开始与结束时段';
+    else if(BK_PICK.end<0) txt.textContent='已选开始 '+hhmm(BK_PICK.start*30)+'，再点一个更晚的空闲格作为结束';
+    else txt.textContent='已选 '+hhmm(BK_PICK.start*30)+'–'+hhmm((BK_PICK.end+1)*30);
+    document.getElementById('bkStart').value=BK_PICK.start<0?'':hhmm(BK_PICK.start*30);
+    document.getElementById('bkEnd').value=BK_PICK.end<0?'':hhmm((BK_PICK.end+1)*30);
+  }
+  function clearBkPick(){BK_PICK={start:-1,end:-1};renderSlotPicker();}
+  document.getElementById('bkSlotGrid').addEventListener('click',e=>{
+    const cell=e.target.closest('.slot-cell'); if(!cell) return;
+    const i=Number(cell.dataset.i), map=busyMapForRoom(), earliest=slotEarliest();
+    if(map[i]){alert('静态设计稿：该时段已被预约（'+(map[i]==='mine'?'我的预约':'他人预定')+'），请选其它时段；服务端同样会做冲突检测。');return;}
+    if(i<earliest){alert('静态设计稿：该时段已过去，不可预约。');return;}
+    if(i>46){alert('静态设计稿：不跨天，结束最晚 23:30，23:30–24:00 不可选。');return;}
+    if(BK_PICK.start<0||BK_PICK.end>=0||i<=BK_PICK.start){BK_PICK={start:i,end:-1};}
+    else{
+      let conflict=-1;
+      for(let k=BK_PICK.start;k<=i;k++){if(map[k]||k<earliest){conflict=k;break;}}
+      if(conflict>=0){alert('静态设计稿：所选区间包含已占用 / 已过去时段（'+hhmm(conflict*30)+' 起），请重新选择。');BK_PICK={start:i,end:-1};}
+      else BK_PICK.end=i;
+    }
+    renderSlotPicker();
+  });
+  function renderTlDateText(){
+    document.getElementById('tlDateText').textContent=
+      document.getElementById('tlDate').value+' · 默认 24 小时可用 · '+
+      (MAX_ADVANCE_DAYS===0?'仅当天可约（settings 埋点=0）':'最多可约 '+MAX_ADVANCE_DAYS+' 天后（settings 埋点；0=仅当天）');
+  }
+  renderTlDateText();
+  document.getElementById('tlDate').addEventListener('change',()=>{renderTlDateText();renderTimeline();});
+  // ---- 主题切换 ----
+  document.getElementById('themeBtn').addEventListener('click',function(){
+    const dark=document.documentElement.dataset.theme==='dark';
+    document.documentElement.dataset.theme=dark?'light':'dark';
+    this.textContent=dark?'☀ 浅色':'☾ 深色';
+  });
+  // ---- 日历渲染 ----
+  let calYear=2026,calMonth=10; // 0-based: 10 = 11月
+  const busyDays=[3,5,10,12,17,19,24,25,26,27];
+  function renderCal(){
+    document.getElementById('calTitle').textContent=calYear+' 年 '+(calMonth+1)+' 月';
+    const first=new Date(calYear,calMonth,1);
+    let start=(first.getDay()+6)%7; // 周一为第一天
+    const days=new Date(calYear,calMonth+1,0).getDate();
+    let html='';let day=1;
+    for(let w=0;w<6;w++){
+      html+='<tr>';
+      for(let d=0;d<7;d++){
+        if(w===0&&d<start){html+='<td class="out"></td>';continue;}
+        if(day>days){html+='<td class="out"></td>';continue;}
+        const today=(calYear===2026&&calMonth===10&&day===25);
+        const has=busyDays.indexOf(day)>=0;
+        let mini='';
+        if(has){mini='<span class="mini" style="background:var(--primary)"></span>'+
+          (day%2===0?'<span class="mini" style="background:var(--cyan)"></span>':'')+
+          (today?'<span class="mini" style="background:var(--warning)"></span>':'');}
+        html+='<td class="'+(today?'today':'')+'" onclick="pickDay('+day+')">'+
+          '<span class="d">'+day+'</span><div>'+mini+'</div>'+
+          (has?'<div class="cnt">'+(today?'4 场':(day%3+1)+' 场')+'</div>':'')+'</td>';
+        day++;
+      }
+      html+='</tr>';
+      if(day>days)break;
+    }
+    document.getElementById('calBody').innerHTML=html;
+  }
+  function shiftMonth(n){calMonth+=n;if(calMonth>11){calMonth=0;calYear++;}if(calMonth<0){calMonth=11;calYear--;}renderCal();}
+  function pickDay(d){document.getElementById('agendaDate').textContent=(calMonth+1)+' 月 '+d+' 日';}
+  renderCal();
+  // ---- 房间维护弹窗 ----
+  function openRoomModal(name){
+    document.getElementById('roomModalTitle').textContent=name?'编辑房间 · '+name:'新增房间';
+    document.getElementById('rmStatus').value=name==='贵宾室'?'维护':(name==='洽谈室'?'停用':'可用');
+    document.getElementById('rmType').value=
+      name==='贵宾室'?'专用会议室':(name==='洽谈室'?'圆桌会议室':(name==='海洋厅'?'常规会议室':'多功能会议室'));
+    document.getElementById('roomMask').classList.add('show');
+  }
+  function closeRoomModal(){document.getElementById('roomMask').classList.remove('show');}
+  document.getElementById('roomMask').addEventListener('click',e=>{
+    if(e.target.id==='roomMask') closeRoomModal();
+  });
+  document.getElementById('addRoomBtn').addEventListener('click',()=>openRoomModal(''));
+  // ---- 位置维护：选城市 → 大楼/楼层列表 ----
+  const LOC_DATA={
+    '西安':[
+      {name:'高新总部',addr:'西安市高新区高新路 88 号',status:'可用',floors:[{name:'12F',rooms:2,status:'可用'},{name:'15F',rooms:2,status:'可用'}]},
+      {name:'曲江分部',addr:'西安市曲江新区曲江路 18 号',status:'可用',floors:[{name:'3F',rooms:0,status:'可用'}]}
+    ],
+    '北京':[{name:'中关村总部',addr:'北京市海淀区中关村大街 1 号',status:'可用',floors:[{name:'8F',rooms:0,status:'可用'}]}],
+    '广州':[{name:'天河分部',addr:'广州市天河区珠江新城 6 号',status:'可用',floors:[{name:'5F',rooms:0,status:'可用'}]}],
+    '上海':[{name:'浦东总部',addr:'上海市浦东新区世纪大道 100 号',status:'可用',floors:[{name:'20F',rooms:0,status:'可用'}]}]
+  };
+  function roomCount(b){return b.floors.reduce((s,f)=>s+f.rooms,0);}
+  function statusTag(s){return '<span class="tag '+(s==='可用'?'g':'gray')+'">'+s+'</span>';}
+  function opsHtml(name,rooms,isBuilding){
+    const locked=rooms>0;
+    const P=' data-perm="meeting:room:edit" title="需权限 meeting:room:edit"';
+    let h=isBuilding?'<button class="btn sm" data-act="floor" data-name="'+name+'"'+P+'>＋楼层</button>':'';
+    h+='<button class="btn sm" data-act="edit" data-name="'+name+'"'+P+'>编辑</button>';
+    h+='<button class="btn sm" data-act="status" data-name="'+name+'"'+P+(locked?' disabled title="已维护会议室，不可停用"':'')+'>停用</button>';
+    h+='<button class="btn sm danger" data-act="del" data-name="'+name+'"'+P+(locked?' disabled title="已维护会议室，不可删除"':'')+'>删除</button>';
+    return h;
+  }
+  function renderLoc(){
+    const city=document.getElementById('citySelect').value;
+    const list=LOC_DATA[city]||[];
+    let tb='',cards='',fc=0,rc=0;
+    list.forEach(b=>{
+      const br=roomCount(b);fc+=b.floors.length;rc+=br;
+      const bt=br?'<span class="lock-tip">已维护会议室，停用/删除已锁定</span>':'';
+      tb+='<tr><td><b>🏢 '+b.name+'</b></td><td>'+b.addr+'</td><td>'+br+' 间'+bt+'</td><td>'+statusTag(b.status)+'</td><td class="ops">'+opsHtml(b.name,br,true)+'</td></tr>';
+      let fh='';
+      b.floors.forEach(f=>{
+        const ft=f.rooms?'<span class="lock-tip">已维护会议室，停用/删除已锁定</span>':'';
+        tb+='<tr class="loc-row-floor"><td>└ '+f.name+'</td><td>同大楼</td><td>'+f.rooms+' 间'+ft+'</td><td>'+statusTag(f.status)+'</td><td class="ops">'+opsHtml(f.name,f.rooms,false)+'</td></tr>';
+        fh+='<div class="loc-floor"><span class="fn">└ '+f.name+' · '+f.rooms+' 间'+(f.rooms?' 🔒':'')+'</span>'+statusTag(f.status)+opsHtml(f.name,f.rooms,false)+'</div>';
+      });
+      cards+='<div class="loc-card"><div class="h"><b>🏢 '+b.name+'</b>'+statusTag(b.status)+'</div>'
+        +'<div class="meta">📍 '+b.addr+'<br/>会议室 '+br+' 间'+(br?' · 已维护会议室，停用/删除已锁定':'')+'</div>'
+        +'<div class="acts">'+opsHtml(b.name,br,true)+'</div><div class="floors">'+fh+'</div></div>';
+    });
+    document.getElementById('locTbody').innerHTML=tb||'<tr><td colspan="5" style="text-align:center;color:var(--muted);">该城市暂无大楼，点「＋ 新增大楼」开始维护</td></tr>';
+    document.getElementById('locCards').innerHTML=cards||'<div class="hint" style="padding:20px;text-align:center;">该城市暂无大楼，点「＋ 新增大楼」开始维护</div>';
+    document.getElementById('locSummary').textContent='共 '+list.length+' 栋大楼 · '+fc+' 个楼层 · '+rc+' 间会议室';
+  }
+  document.getElementById('citySelect').addEventListener('change',renderLoc);
+  renderLoc();
+  function openLocModal(type,city,building){
+    const isFloor=type==='floor';
+    document.getElementById('locModalTitle').textContent=isFloor?'新增楼层':'新增大楼';
+    document.getElementById('lmCity').value=city;
+    document.getElementById('lmBuilding').value=building||'';
+    document.getElementById('lmBuildingField').style.display=isFloor?'':'none';
+    document.getElementById('lmNameLabel').textContent=isFloor?'楼层号 *':'大楼名称 *';
+    document.getElementById('lmName').value='';
+    document.getElementById('lmName').placeholder=isFloor?'如 16F':'如 高新总部';
+    document.getElementById('lmAddrField').style.display=isFloor?'none':'';
+    document.getElementById('lmAddr').value='';
+    document.getElementById('lmSort').value=isFloor?'3':'1';
+    document.getElementById('lmStatus').value='可用';
+    document.getElementById('lmRemark').value='';
+    document.getElementById('locModalPath').innerHTML='🏙 '+city+(isFloor?'　›　🏢 '+building+'　›　＋ 新增楼层':'　›　＋ 新增大楼');
+    document.getElementById('lmHint').textContent=isFloor
+      ?'城市「'+city+'」和所属大楼「'+building+'」由当前位置固定带入，不可修改；只需填写楼层号、排序、状态与备注。'
+      :'城市「'+city+'」由当前选择固定带入，不可修改；只需填写大楼名称、地址、排序、状态与备注。';
+    document.getElementById('locMask').classList.add('show');
+  }
+  function closeLocModal(){document.getElementById('locMask').classList.remove('show');}
+  document.getElementById('locMask').addEventListener('click',e=>{if(e.target.id==='locMask') closeLocModal();});
+  document.getElementById('addBuildingBtn').addEventListener('click',()=>{
+    openLocModal('building',document.getElementById('citySelect').value,'');
+  });
+  document.getElementById('page-location').addEventListener('click',e=>{
+    const btn=e.target.closest('button[data-act]');
+    if(!btn) return;
+    const act=btn.dataset.act,name=btn.dataset.name;
+    if(act==='floor'){openLocModal('floor',document.getElementById('citySelect').value,name);return;}
+    const msg=act==='edit'?'编辑「'+name+'」字段表单占位，开发阶段实现。'
+      :act==='status'?'停用「'+name+'」：不影响历史预定；已维护会议室时此按钮禁用。'
+      :'删除「'+name+'」：下方还有楼层或会议室时禁止删除；已维护会议室时此按钮禁用。';
+    alert('静态设计稿：'+msg);
+  });
+  ['dictBtn','locDictBtn'].forEach(id=>{
+    document.getElementById(id).addEventListener('click',()=>{
+      const msg=id==='dictBtn'
+        ?'本应用只读 settings 字典，共 8 个：ehr.job_city（城市）、meeting.room_capacity（容量档位）、meeting.room_type（房间类型：多功能/专用/常规/圆桌会议室）、meeting.room_status（房间状态：可用/维护/停用）、meeting.location_status（大楼/楼层状态：可用/停用）、meeting.device（设备类型）、meeting.seat_layout（座位布局）、meeting.booking_status（预定状态筛选）。由会议服务通过 settings-client 内部字典接口批量拉取；大楼/楼层/房间/人员是主数据，走查询接口不进字典。'
+        :'城市来自 settings 字典 ehr.job_city，本页只读；新增城市请到 settings 维护。';
+      alert('静态设计稿：'+msg);
+    });
+  });
+  // ---- 我的预定：四页签分组（释放归入已取消）----
+  const MY_BOOKINGS=[
+    {group:'PENDING',status:'待开始',title:'候选人面试',room:'洽谈室 · B座3F',date:'2026-11-25',time:'14:00–15:00',count:3,invite:0},
+    {group:'PENDING',status:'待签到',title:'Q4 复盘',room:'海洋厅 · A座12F',date:'2026-11-25',time:'10:00–11:30',count:10,invite:6},
+    {group:'PENDING',status:'待开始',title:'技术方案评审',room:'星辰厅 · A座15F',date:'2026-11-25',time:'16:30–17:30',count:15,invite:0},
+    {group:'CHECKED_IN',status:'已签到',title:'产品周会',room:'天府厅 · A座12F',date:'2026-11-25',time:'09:00–10:00',count:6,invite:3},
+    {group:'COMPLETED',status:'已完成',title:'上周例会',room:'天府厅 · A座12F',date:'2026-11-20',time:'09:00–10:00',count:8,invite:2},
+    {group:'CANCELLED',status:'已释放',title:'客户接待',room:'贵宾室 · A座12F',date:'2026-11-22',time:'15:00–16:00',count:5,invite:0},
+    {group:'CANCELLED',status:'已取消',title:'周计划',room:'星辰厅 · A座15F',date:'2026-11-24',time:'11:00–12:00',count:4,invite:0}
+  ];
+  const GROUP_COUNT_IDS={PENDING:'cntPending',CHECKED_IN:'cntChecked',COMPLETED:'cntCompleted',CANCELLED:'cntCancelled'};
+  Object.keys(GROUP_COUNT_IDS).forEach(g=>{
+    document.getElementById(GROUP_COUNT_IDS[g]).textContent=MY_BOOKINGS.filter(b=>b.group===g).length;
+  });
+  function myStatusTag(s){
+    const cls=s==='已签到'||s==='已完成'?'g':(s==='待签到'?'o':((s==='已取消'||s==='已释放')?'r':''));
+    return '<span class="tag '+cls+'">'+(s==='已释放'?'已取消（释放）':s)+'</span>';
+  }
+  const ACTION_PERM={'修改':'meeting:booking:create','签到':'meeting:booking:checkin','延时':'meeting:booking:extend','取消':'meeting:booking:cancel','释放':'meeting:booking:release','详情':'meeting:booking:list'};
+  function myOpsHtml(b,mobile){
+    let ops;
+    if(b.group==='PENDING') ops=[['修改',''],['签到',''],['取消','danger']];
+    else if(b.group==='CHECKED_IN') ops=[['延时',''],['释放','danger']];
+    else ops=[['详情','']];
+    return ops.map(x=>{
+      const p=' data-perm="'+ACTION_PERM[x[0]]+'" title="需权限 '+ACTION_PERM[x[0]]+'"';
+      return mobile?'<button class="btn sm '+x[1]+'"'+p+'>'+x[0]+'</button>':'<span class="link '+x[1]+'"'+p+'>'+x[0]+'</span>';
+    }).join('');
+  }
+  function renderMyBookings(){
+    const active=document.querySelector('#myStatusTabs .status-tab.active');
+    const group=active?active.dataset.group:'PENDING';
+    const kw=document.getElementById('myKeyword').value.trim();
+    const st=document.getElementById('myStatus').value;
+    const dt=document.getElementById('myDate').value;
+    const rows=MY_BOOKINGS.filter(b=>b.group===group
+      &&(!kw||b.title.indexOf(kw)>=0)
+      &&(st==='全部状态'||b.status===st)
+      &&(!dt||b.date===dt));
+    const empty='<div style="padding:24px;text-align:center;color:var(--muted);font-size:12px;">该分组下暂无符合条件的预定</div>';
+    document.getElementById('myTableBody').innerHTML=rows.map(b=>
+      '<tr><td><b>'+b.title+'</b></td><td>'+b.room+'</td><td>'+b.date.slice(5)+'　'+b.time+'</td>'
+      +'<td>'+b.count+(b.invite?'<div class="hint">受邀 '+b.invite+' 人</div>':'')+'</td>'
+      +'<td>'+myStatusTag(b.status)+'</td><td class="ops">'+myOpsHtml(b,false)+'</td></tr>').join('')
+      || '<tr><td colspan="6" style="text-align:center;color:var(--muted);padding:24px;">该分组下暂无符合条件的预定</td></tr>';
+    document.getElementById('myCards').innerHTML=rows.map(b=>
+      '<div class="room-card"><div class="h"><b>'+b.title+'</b>'+myStatusTag(b.status)+'</div>'
+      +'<div class="meta">📍 '+b.room+'　🕘 '+b.date.slice(5)+' '+b.time+'　👥 '+b.count+' 人'+(b.invite?'（受邀 '+b.invite+' 人）':'')+'</div>'
+      +'<div class="acts">'+myOpsHtml(b,true)+'</div></div>').join('') || empty;
+    document.getElementById('myCount').textContent='共 '+rows.length+' 条 · 仅本人';
+  }
+  document.getElementById('myStatusTabs').addEventListener('click',e=>{
+    const tab=e.target.closest('.status-tab');
+    if(!tab) return;
+    document.querySelectorAll('#myStatusTabs .status-tab').forEach(c=>c.classList.toggle('active',c===tab));
+    document.getElementById('myStatus').value='全部状态';
+    renderMyBookings();
+  });
+  document.getElementById('myStatus').addEventListener('change',e=>{
+    const map={'待开始':'PENDING','待签到':'PENDING','进行中':'CHECKED_IN','已签到':'CHECKED_IN','已完成':'COMPLETED','已取消':'CANCELLED','已释放':'CANCELLED'};
+    const g=map[e.target.value];
+    if(g) document.querySelectorAll('#myStatusTabs .status-tab').forEach(c=>c.classList.toggle('active',c.dataset.group===g));
+    renderMyBookings();
+  });
+  document.getElementById('myQueryBtn').addEventListener('click',renderMyBookings);
+  renderMyBookings();
+  // ---- 埋点配置说明（settings 维护，会议服务只读）----
+  const embedBtn=document.getElementById('embedBtn');
+  embedBtn.textContent='⚙ 埋点：'+(MAX_ADVANCE_DAYS===0?'仅当天':'最多 '+MAX_ADVANCE_DAYS+' 天');
+  embedBtn.addEventListener('click',()=>{
+    alert('静态设计稿：settings「埋点管理」维护 meeting.booking.max_advance_days = '+MAX_ADVANCE_DAYS+
+      '（value 为 {"maxDays":'+MAX_ADVANCE_DAYS+'}，0=只能约当天）。会议服务通过 settings-client 读取（60s 缓存），'+
+      '前端限制日期 '+rangeText+'，服务端提交时强校验；改埋点后最多 60 秒生效，不用重启。');
+  });
+  // ---- 新建预定：邀请参会人 + 消息模板 ----
+  const BK_CANDIDATES=[
+    {name:'王强',account:'wangqiang',dept:'研发部'},
+    {name:'陈静',account:'chenjing',dept:'市场部'},
+    {name:'刘洋',account:'liuyang',dept:'设计部'},
+    {name:'赵敏',account:'zhaomin',dept:'行政部'}
+  ];
+  function openBookingModal(){
+    document.getElementById('bookingMask').classList.add('show');
+    document.getElementById('bkSearch').value='';
+    document.getElementById('bkPeople').classList.remove('show');
+    clearBkPick();
+  }
+  document.getElementById('bkDate').addEventListener('change',clearBkPick);
+  document.getElementById('bkRoom').addEventListener('change',clearBkPick);
+  function closeBookingModal(){document.getElementById('bookingMask').classList.remove('show');}
+  document.getElementById('bookingMask').addEventListener('click',e=>{
+    if(e.target.id==='bookingMask') closeBookingModal();
+  });
+  document.getElementById('newBookingBtn').addEventListener('click',openBookingModal);
+  function syncBkCount(){
+    const n=document.querySelectorAll('#bkChips .chip').length;
+    document.getElementById('bkCount').value=n;
+  }
+  function renderBkPeople(){
+    const q=document.getElementById('bkSearch').value.trim().toLowerCase();
+    const chosen=[...document.querySelectorAll('#bkChips .chip .x')].map(x=>x.dataset.rm);
+    const list=BK_CANDIDATES.filter(p=>!chosen.includes(p.name) &&
+      (!q||p.name.toLowerCase().includes(q)||p.account.includes(q)));
+    document.getElementById('bkPeople').innerHTML=list.length
+      ? list.map(p=>'<div data-name="'+p.name+'">'+p.name+'<small>'+p.account+' · '+p.dept+'</small></div>').join('')
+      : '<div style="color:var(--muted);cursor:default;">无匹配人员</div>';
+    document.getElementById('bkPeople').classList.add('show');
+  }
+  function addBkPerson(name){
+    const p=BK_CANDIDATES.find(x=>x.name===name);
+    if(!p) return;
+    document.getElementById('bkChips').insertAdjacentHTML('beforeend',
+      '<span class="chip">'+p.name+' · '+p.dept+'<span class="x" data-rm="'+p.name+'" title="移除">×</span></span>');
+    document.getElementById('bkSearch').value='';
+    document.getElementById('bkPeople').classList.remove('show');
+    syncBkCount();
+  }
+  document.getElementById('bkSearch').addEventListener('focus',renderBkPeople);
+  document.getElementById('bkSearch').addEventListener('input',renderBkPeople);
+  document.getElementById('bkPeople').addEventListener('click',e=>{
+    const item=e.target.closest('[data-name]');
+    if(item) addBkPerson(item.dataset.name);
+  });
+  document.getElementById('bkChips').addEventListener('click',e=>{
+    const x=e.target.closest('[data-rm]');
+    if(x){x.parentNode.remove();syncBkCount();}
+  });
+  function submitBooking(){
+    const date=document.getElementById('bkDate').value;
+    const bounds=dateBounds();
+    if(!date||date<bounds.min||date>bounds.max){
+      alert('静态设计稿：可预约日期为 '+rangeText+'（settings 埋点 meeting.booking.max_advance_days='+MAX_ADVANCE_DAYS+'），服务端强校验同样拦截。');
+      return;
+    }
+    const start=document.getElementById('bkStart').value;
+    const end=document.getElementById('bkEnd').value;
+    if(!start||!end){
+      alert('静态设计稿：请先在时间轴上点选开始与结束时段（先点开始格，再点更晚的空闲格）。');
+      return;
+    }
+    if(!start||!end||minsOf(start)%30!==0||minsOf(end)%30!==0||minsOf(end)<=minsOf(start)||minsOf(end)>1410){
+      alert('静态设计稿：时段须按 30 分钟步长（09:00 / 09:30 / 10:00 …），结束晚于开始且不跨天（最晚 23:30）。');
+      return;
+    }
+    if(date===bounds.today&&minsOf(start)<earliestSlot()){
+      alert('静态设计稿：当天 '+hhmm(earliestSlot())+' 之前的时段已过去，不可预约；服务端同样强校验。');
+      return;
+    }
+    const n=document.querySelectorAll('#bkChips .chip').length;
+    alert('静态设计稿：预定已提交（'+document.getElementById('bkDate').value+' '+start+'–'+end+'，不跨天），将按 meeting.booking.invite 模板通知 '+n+' 位被邀请人；模板变量由服务端 vars 渲染，通知失败不影响预定结果。');
+    closeBookingModal();
+  }
+</script>
+</body>
+</html>

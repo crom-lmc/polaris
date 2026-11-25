@@ -8,6 +8,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestParam;
 
 import java.util.List;
+import java.util.Map;
 
 /**
  * EHR 组织维度的服务间 API（原 sso-account EhrOrgClient 的 RestTemplate 调用收敛到这里）。
@@ -26,4 +27,8 @@ public interface EhrOrgApi {
     /** 该组织编码（scopeCode LIKE 前缀）下所有员工对应的账号 ID（数据权限引擎用） */
     @GetMapping("/internal/orgs/account-ids-by-code")
     R<List<String>> accountIdsByCode(@RequestParam String scopeCode);
+
+    /** 在职员工简要信息（会议室邀请参会人选择器用）：id 为字符串化账号 ID */
+    @GetMapping("/internal/orgs/employees/active")
+    R<List<Map<String, Object>>> activeEmployees();
 }

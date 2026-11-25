@@ -25,13 +25,22 @@
 
 - 审批 SLA 不写死在代码常量或裸 JSON：阈值放 settings 埋点配置，由 `EmbedPointView.vue` 提供结构化编辑器并登记 code。
 - 流程步骤的 `sla_hours` 在实例中用快照固化，改阈值不影响历史实例。
-- 新增埋点 key 未登记结构化编辑器时页面只读，不能绕开页面直接改库。
+- **每个埋点都必须有结构化维护表单**：新增 key 同步在 `EmbedPointView.vue` 的 `EDITOR_BY_CODE` 登记 editor，并按本 key 的 JSON 字段/默认值/范围实现；未登记只读或裸 JSON 编辑视为缺陷，不能绕开页面直接改库。
 
 ## 4. 数据权限现状（不要照抄缺口）
 
 - 已接入：common 的 `DataScope` / `DataScopeHelper` / `ScopeCodeCache`，EHR / CMS 的 `applyOrgScope`。
 - 未接入：forum / job / settings / portal / openapi。
 - 已知缺口：CMS 的 applyOrgScope 存在 fail-open、薪资未脱敏；新功能不要复用这些缺口，**空范围一律返回空集**。
+
+### 4.1 组织字段口径（MUST，新建表必看）
+
+- 平台数据权限判断的是**组织编码前缀**：`DataScopeHelper.canAccessOrg(scopeCode, orgCode)` 内部为 `orgCode.startsWith(scopeCode)`（`polaris-common/.../security/DataScopeHelper.java:24-33`）。
+- `scopeCode` 是账号级数据权限根组织编码（如 `XC00010001`），**支持逗号分隔多值**；它不是 `SELF / ORG / DEPT / ALL` 这类范围枚举（仓库里的 `SELF` 只是 `ResignApply.SOURCE_SELF` 单据来源常量）。禁止在方案或代码里假设这类枚举存在。
+- **业务表凡涉及组织归属，预留字段一律命名 `org_code`，存 orgCode（如 `XC000100010001`），MUST NOT 用 `org_id`、MUST NOT 存组织名称或自造字典 code。**
+- 即使本期只按 `creator_id` 查本人数据，也要预留 `org_code`：将来接组织数据权限时只加过滤逻辑、不改表结构；本期不因此改动 common / account 的数据权限代码。
+- 空 scopeCode 或空 orgCode 一律 fail-closed（返回空集 / 403），不得放行全量。
+- 实证位置：`common/DataScope.java:15-27`、`common/DataScopeHelper.java:24-33`、EHR `security/DataScopeService.applyOrgScope`、account `AccountContext.getDataScopeOrgCode()` 与 `data_scope_org_code` 表字段。
 
 ## 5. 应用登记与正式名称
 

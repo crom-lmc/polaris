@@ -262,6 +262,7 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
+import dayjs from 'dayjs'
 import { message, Modal } from 'ant-design-vue'
 import {
   batchApproveTasks,
@@ -506,7 +507,8 @@ const opsLoading = ref(false)
 const stats = ref<ApprovalStats | null>(null)
 const approverRows = ref<ApprovalApproverStats[]>([])
 const backlogRows = ref<ApprovalBacklogItem[]>([])
-const opsRange = ref<string[] | null>(null)
+/** 查询类日期范围默认最近 7 天（含今天），与平台规范一致 */
+const opsRange = ref<string[] | null>([dayjs().subtract(6, 'day').format('YYYY-MM-DD'), dayjs().format('YYYY-MM-DD')])
 
 const backlogColumns = [
   { title: '单据', key: 'spec', width: 280, ellipsis: true },

@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>com.laimengchao.sso</groupId>
+        <artifactId>polaris-server</artifactId>
+        <version>1.0.0</version>
+        <relativePath>../pom.xml</relativePath>
+    </parent>
+
+    <artifactId>polaris-meeting</artifactId>
+    <packaging>pom</packaging>
+    <name>polaris-meeting</name>
+    <description>会议室管理：位置台账、会议室台账、预定时间轴与我的预定（端口 9013，独立库 polaris_meetingroom）</description>
+
+    <modules>
+        <module>polaris-meeting-service</module>
+    </modules>
+</project>

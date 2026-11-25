@@ -9,7 +9,7 @@ polaris/
 ├── README.md            # 本文件：总览与快速入口
 ├── polaris-server/      # 后端：Java 17 + Spring Boot 3 + Spring Cloud，多模块 Maven
 │   └── README.md        # 后端说明：本地部署、生产部署、模块、环境变量、FAQ
-└── polaris-web/         # 前端：Vue 3 + TypeScript + Vite，11 个独立应用
+└── polaris-web/         # 前端：Vue 3 + TypeScript + Vite，12 个独立应用
     └── README.md        # 前端说明：本地部署、生产部署、应用与端口、FAQ
 ```
 
@@ -30,6 +30,7 @@ polaris/
 | 内容门户 | https://polaris-cms.laimengchao.site/portal/ |
 | 统一文件服务（北极星云） | https://polaris-file.laimengchao.site/ |
 | 审计中心（北极星眼） | https://polaris-audit.laimengchao.site/ |
+| 北极星会（会议室管理） | https://poraris-meeting.laimengchao.site/ |
 
 **演示账号**：`yanshi` / `yanshi`
 
@@ -39,7 +40,7 @@ polaris/
 
 ## 界面预览
 
-以下截图共 **92 张**，覆盖全部 11 个前端应用的每个应用 / 模块 / 菜单，均来自生产环境（[polaris-sso.laimengchao.site](https://polaris-sso.laimengchao.site/)），原图见 [docs/screenshots/](docs/screenshots/)。
+以下截图共 **97 张**，覆盖全部 12 个前端应用的每个应用 / 模块 / 菜单，均来自生产环境（[polaris-sso.laimengchao.site](https://polaris-sso.laimengchao.site/)），原图见 [docs/screenshots/](docs/screenshots/)。
 
 **快速预览**
 
@@ -59,9 +60,13 @@ polaris/
 |:---:|:---:|:---:|
 | ![业务点配置](docs/screenshots/51-settings-bizpoints.png) | ![抽奖配置](docs/screenshots/70-forumadmin-lottery.png) | ![考勤管理](docs/screenshots/41-ehr-attendance.png) |
 
-| 统一文件服务-概览 | 审计中心-审计事件 | 审计中心-全局设置 |
+| 统一文件服务-概览 | 审计中心-审计事件 | 北极星会-会议室概览 |
 |:---:|:---:|:---:|
-| ![文件服务](docs/screenshots/81-file-overview.png) | ![审计事件](docs/screenshots/88-audit-events.png) | ![审计设置](docs/screenshots/92-audit-settings.png) |
+| ![文件服务](docs/screenshots/81-file-overview.png) | ![审计事件](docs/screenshots/88-audit-events.png) | ![北极星会概览](docs/screenshots/93-meeting-overview.png) |
+
+| 北极星会-位置维护 | 北极星会-会议室预定 | 北极星会-我的预定 |
+|:---:|:---:|:---:|
+| ![位置维护](docs/screenshots/94-meeting-locations.png) | ![会议室预定](docs/screenshots/96-meeting-booking.png) | ![我的预定](docs/screenshots/97-meeting-mybookings.png) |
 
 **完整截图索引（点击展开各应用）**
 
@@ -224,6 +229,19 @@ polaris/
 
 </details>
 
+<details>
+<summary>⑫ 北极星会 meeting-web（5 张，按菜单）</summary>
+
+| 概览 | 位置维护 | 会议室维护 |
+|:---:|:---:|:---:|
+| ![会议室概览](docs/screenshots/93-meeting-overview.png) | ![位置维护](docs/screenshots/94-meeting-locations.png) | ![会议室维护](docs/screenshots/95-meeting-rooms.png) |
+
+| 会议室预定 | 我的预定 |
+|:---:|:---:|
+| ![会议室预定](docs/screenshots/96-meeting-booking.png) | ![我的预定](docs/screenshots/97-meeting-mybookings.png) |
+
+</details>
+
 ## 快速开始
 
 ```bash
@@ -236,7 +254,7 @@ cd polaris
 
 ## 平台能力
 
-平台由 10 个业务域 / 平台组成，每个域都有独立的后端服务与前端应用，经 Gateway 统一接入、共享 SSO 登录与 RBAC 权限体系。
+平台由 12 个业务域 / 平台组成，每个域都有独立的后端服务与前端应用，经 Gateway 统一接入、共享 SSO 登录与 RBAC 权限体系。
 
 | 业务域 | 后端服务（端口） | 前端应用（开发端口） | 核心能力 |
 |---|---|---|---|
@@ -250,6 +268,7 @@ cd polaris
 | **接口开放平台** | openapi 9010（独立库 `polaris_openapi`） | `polaris-openapi-web` (5184) | 第三方 `appCode+appSecret` 换票、接口级授权、入/出站调用、限流防重放、调用日志与统计、出站渠道凭证托管 |
 | **统一文件服务** | file 9011（独立库 `polaris_file`） | `polaris-file-web` (5185) | 附件/合同/档案统一存储，PUBLIC 直链与 PRIVATE 签名，分享提取码、回收站、配额、在线预览，图片/PDF/SVG/OFFICE 水印与下载留痕 |
 | **统一审计中心** | audit 9012（独立库 `polaris_audit`） | `polaris-audit-web` (5186) | 全量审计事件与系统日志、登录/敏感操作留痕、全局配置与保留期、CSV 导出，网关异步兜底上报 |
+| **北极星会（会议室管理）** | meeting 9013（独立库 `polaris_meetingroom`） | `polaris-meeting-web` (5187) | 大楼/楼层/会议室台账、24 小时时间轴选时与冲突检测、参会邀请与站内信、签到/延时/释放、未签到自动释放与爽约禁约规则，移动端兼容 |
 
 四条横向能力贯穿所有业务域：
 

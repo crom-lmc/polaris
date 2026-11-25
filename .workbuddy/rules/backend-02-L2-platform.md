@@ -24,7 +24,7 @@ level: L2
 ## 接入契约
 
 - MUST 判断顺序：先查可复用的字典/主数据，再决定是否新建；选项型无额外字段用字典，有独立字段需关联用主数据。
-- MUST 埋点 key 在 `EmbedPointView.vue` 登记结构化编辑器；未登记的埋点页面只读，MUST NOT 绕开页面改库。
+- MUST 每个埋点都有结构化维护表单：新增 key 时先在 settings `EmbedPointView.vue` 的 `EDITOR_BY_CODE` 登记 editor，且该 editor 的 JSON 字段名、默认值、取值范围必须按本 key 实现（MUST NOT 复用别的 key 的字段名）。未登记、只读预览或裸 JSON 编辑均视为缺陷，MUST NOT 交付。
 - MUST 单号未配置返回空串时调用方兜底；埋点 `data` 可能为 null 时调用方兜底。
 - MUST 消息参数使用 `ruleCode` / `accountIds` / `bizType` / `bizId` / `vars`，MUST NOT 自造字段名。
 - MUST 审批回调用 `instanceId` + 状态校验幂等；重复投递返回 200，真异常返回 5xx 才触发 settings 重试。
@@ -38,6 +38,8 @@ level: L2
 - MUST 审计全局设置的每一项都有真实代码引用；没有实际功能的配置 MUST 去掉，不留空开关。
 - MUST 导出行为强制留痕（手工记一条 SENSITIVE），MUST NOT 暴露关闭开关；导出权限码 `audit:events:export` 四联动。
 - MUST 数据范围服务端注入；已知缺口（CMS fail-open、薪资未脱敏、forum/job/settings/portal/openapi 未接入）MUST NOT 照抄。
+- MUST 新建业务表若数据天然归属组织（即使本期只按创建人过滤），预留的字段一律命名 **`org_code`**（存平台组织编码，如 `XC000100010001`），MUST NOT 用 `org_id` 或自造枚举代替；与 `DataScopeHelper.canAccessOrg(scopeCode, orgCode)` 的前缀匹配口径保持一致。
+- MUST NOT 把 `scopeCode` 当成 `SELF / ORG / DEPT / ALL` 枚举：平台 `scopeCode` 是账号级数据权限根组织编码（如 `XC00010001`，支持逗号多值），空值一律 fail-closed 返回空集。详见 `../skills/polaris-backend-development/references/platform-capabilities.md` 第 4 节。
 
 ## 不存在的后端能力（不要假设存在）
 

@@ -125,7 +125,7 @@
 
 <script setup lang="ts">
 import { computed, nextTick, onMounted, ref } from 'vue'
-import type { Dayjs } from 'dayjs'
+import dayjs, { type Dayjs } from 'dayjs'
 import { message } from 'ant-design-vue'
 import { exportLogs, listLogs, logDetail, type CallLog, type LogQuery } from '@/api/openapi'
 import { useUserStore } from '@/stores/user'
@@ -146,7 +146,7 @@ const direction = ref('')
 const appCode = ref('')
 const apiCode = ref('')
 const channel = ref('')
-const range = ref<[Dayjs, Dayjs] | undefined>()
+const range = ref<[Dayjs, Dayjs] | undefined>([dayjs().subtract(6, 'day').startOf('day'), dayjs()])
 const onlyFailed = ref(false)
 
 const size = ref(20)

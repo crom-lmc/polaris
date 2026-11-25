@@ -107,7 +107,7 @@
 
 <script setup lang="ts">
 import { computed, nextTick, onMounted, ref } from 'vue'
-import type { Dayjs } from 'dayjs'
+import dayjs, { type Dayjs } from 'dayjs'
 import { useRouter } from 'vue-router'
 import {
   fetchLogFileGroups, fetchLogStream, fetchSystemLogApps,
@@ -147,7 +147,7 @@ const appOptions = ref<Array<{ label: string; value: string }>>([{ label: 'å…¨éƒ
 const loading = ref(false)
 const errorMsg = ref('')
 const app = ref('')
-const dateRange = ref<[Dayjs, Dayjs] | null>(null)
+const dateRange = ref<[Dayjs, Dayjs] | null>([dayjs().subtract(6, 'day').startOf('day'), dayjs()])
 
 const drawerOpen = ref(false)
 const drawerWidth = 'min(1100px, 92vw)'

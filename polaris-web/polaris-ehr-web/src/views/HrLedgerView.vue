@@ -1234,11 +1234,11 @@ function monthOffset(offset: number) {
   date.setMonth(date.getMonth() + offset)
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`
 }
+/** 查询类日期范围默认最近 7 天（含今天），与平台规范一致 */
 function defaultDateRange() {
   const now = new Date()
-  const start = new Date(now.getFullYear(), now.getMonth() - 11, 1)
-  const end = new Date(now.getFullYear(), now.getMonth() + 1, 0)
-  return [formatDate(start), formatDate(end)]
+  const start = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 6)
+  return [formatDate(start), formatDate(now)]
 }
 function formatDate(date: Date) {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`

@@ -95,6 +95,11 @@ spring:
           uri: ${AUDIT_ROUTE:http://127.0.0.1:9012}
           predicates:
             - Path=/api/audit/**
+        # 会议室管理（北极星会）：所有 API 均需登录，不在网关白名单放行
+        - id: meeting
+          uri: ${MEETING_ROUTE:http://127.0.0.1:9013}
+          predicates:
+            - Path=/api/meetingroom/**
 
 sso:
   gateway:

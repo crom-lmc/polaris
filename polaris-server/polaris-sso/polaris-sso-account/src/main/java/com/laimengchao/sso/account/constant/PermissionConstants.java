@@ -303,6 +303,41 @@ public final class PermissionConstants {
             new PermDef("设置-导出与合规", AUDIT_SETTING_EXPORT, PermissionType.BUTTON, AUDIT_MENU_SETTING, 7)
     );
 
+    /* ---------- 业务应用 meeting（会议室管理）的内置权限 ---------- */
+
+    /** 会议室管理的权限域（sso_application.code / sso_permission.app_code） */
+    public static final String MEETING_APP = "meeting";
+    /* —— 菜单（页面级：概览 / 位置维护 / 会议室维护 / 会议室预定 / 我的预定） —— */
+    public static final String MEETING_OVERVIEW_VIEW = "meeting:overview:view";
+    public static final String MEETING_ROOM_LIST = "meeting:room:list";
+    public static final String MEETING_ROOM_EDIT = "meeting:room:edit";
+    public static final String MEETING_BOOKING_VIEW = "meeting:booking:view";
+    public static final String MEETING_BOOKING_LIST = "meeting:booking:list";
+    /* —— 按钮级 —— */
+    public static final String MEETING_BOOKING_CREATE = "meeting:booking:create";
+    public static final String MEETING_BOOKING_CHECKIN = "meeting:booking:checkin";
+    public static final String MEETING_BOOKING_EXTEND = "meeting:booking:extend";
+    public static final String MEETING_BOOKING_CANCEL = "meeting:booking:cancel";
+    public static final String MEETING_BOOKING_RELEASE = "meeting:booking:release";
+
+    /**
+     * 会议室管理内置权限：4 个菜单 + 6 个按钮。
+     * <p>位置维护与会议室维护共用 room:list 父级；预定页按钮挂 booking:view；
+     * 我的预定页按钮挂 booking:list。超管全量授权由 initSuperAdmin 覆盖。
+     */
+    public static final java.util.List<PermDef> MEETING_BUILTIN = java.util.List.of(
+            new PermDef("概览", MEETING_OVERVIEW_VIEW, PermissionType.MENU, null, 1),
+            new PermDef("位置与会议室维护", MEETING_ROOM_LIST, PermissionType.MENU, null, 2),
+            new PermDef("会议室预定", MEETING_BOOKING_VIEW, PermissionType.MENU, null, 3),
+            new PermDef("我的预定", MEETING_BOOKING_LIST, PermissionType.MENU, null, 4),
+            new PermDef("维护位置与会议室", MEETING_ROOM_EDIT, PermissionType.BUTTON, MEETING_ROOM_LIST, 1),
+            new PermDef("新建/修改预定", MEETING_BOOKING_CREATE, PermissionType.BUTTON, MEETING_BOOKING_VIEW, 1),
+            new PermDef("签到", MEETING_BOOKING_CHECKIN, PermissionType.BUTTON, MEETING_BOOKING_LIST, 1),
+            new PermDef("延时", MEETING_BOOKING_EXTEND, PermissionType.BUTTON, MEETING_BOOKING_LIST, 2),
+            new PermDef("取消预定", MEETING_BOOKING_CANCEL, PermissionType.BUTTON, MEETING_BOOKING_LIST, 3),
+            new PermDef("释放会议室", MEETING_BOOKING_RELEASE, PermissionType.BUTTON, MEETING_BOOKING_LIST, 4)
+    );
+
     /* ---------- 业务应用 forum（社区论坛）的内置权限 ---------- */
 
     public static final String FORUM_APP = "forum";

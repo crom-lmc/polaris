@@ -65,7 +65,7 @@
                 <span v-else class="ac-app-logo ac-app-logo-fallback" :style="{ background: app.bg, color: app.fg }">{{ app.mark }}</span>
                 <span class="ac-app-text">
                   <span class="ac-app-name">
-                    {{ app.name }}
+                    {{ appNames[app.code] || app.name }}
                     <span v-if="app.code === currentCode" class="ac-current-tag">当前</span>
                   </span>
                   <span class="ac-app-code">{{ app.code }}</span>
@@ -120,6 +120,7 @@ const ALL_APPS: AppItem[] = [
   { code: 'openapi', name: '北极星桥', desc: '接口开放平台', icon: 'openapi', mark: '桥', bg: '#eaf6f7', fg: '#1f9096', url: 'https://polaris-openapi.laimengchao.site/', callback: 'https://polaris-openapi.laimengchao.site/callback' },
   { code: 'file', name: '北极星云', desc: '统一文件存储', icon: 'file', mark: '云', bg: '#eaf1ff', fg: '#3f6fd8', url: 'https://polaris-file.laimengchao.site/', callback: 'https://polaris-file.laimengchao.site/callback' },
   { code: 'audit', name: '北极星眼', desc: '统一审计与日志', icon: 'audit', mark: '眼', bg: '#f6efe6', fg: '#b07a3e', url: 'https://polaris-audit.laimengchao.site/', callback: 'https://polaris-audit.laimengchao.site/callback' },
+  { code: 'meeting', name: '北极星会', desc: '会议室预定与维护', icon: 'meeting', mark: '会', bg: '#e9f7f3', fg: '#149e7a', url: 'https://poraris-meeting.laimengchao.site/', callback: 'https://poraris-meeting.laimengchao.site/callback' },
   { code: 'ehr', name: '北极星宿', desc: '人力中心', icon: 'ehr', mark: '宿', bg: '#e9f2ff', fg: '#2f6fd0', url: 'https://polaris-ehr.laimengchao.site/', callback: 'https://polaris-ehr.laimengchao.site/callback' },
   { code: 'cms', name: '北极星源', desc: '内容中心', icon: 'cms', mark: '源', bg: '#fff3e8', fg: '#e08434', url: 'https://polaris-cms.laimengchao.site/', callback: 'https://polaris-cms.laimengchao.site/callback' },
   { code: 'forum-admin', name: '北极星核', desc: '论坛管理后台', icon: 'forum-admin', mark: '核', bg: '#fceef4', fg: '#d04a86', url: 'https://polaris-forum.laimengchao.site/admin/', callback: 'https://polaris-forum.laimengchao.site/admin/callback' },
@@ -130,7 +131,7 @@ const ALL_APPS: AppItem[] = [
 /** 与「我的应用」app_type 字典同口径：SYSTEM / MANAGEMENT / PORTAL；标题在线跟随字典，离线时用生产口径兜底 */
 const GROUP_DEFS = [
   { type: 'SYSTEM', label: '太空基地', codes: ['sso-center', 'settings', 'job', 'openapi', 'file', 'audit'] },
-  { type: 'MANAGEMENT', label: '指挥调度', codes: ['ehr', 'cms', 'forum-admin'] },
+  { type: 'MANAGEMENT', label: '指挥调度', codes: ['ehr', 'cms', 'forum-admin', 'meeting'] },
   { type: 'PORTAL', label: '星辰生活区', codes: ['portal', 'forum'] }
 ]
 
@@ -145,6 +146,8 @@ const error = ref('')
 const searchRef = ref<HTMLInputElement | null>(null)
 const bodyRef = ref<HTMLElement | null>(null)
 const iconErrors = ref<Record<string, boolean>>({})
+/** 应用名以 sso_application.name（账号中心接口）为准；请求失败时保留 ALL_APPS 里的兜底名 */
+const appNames = ref<Record<string, string>>({})
 
 /** 图标来自账号中心静态目录，跨应用统一使用 SSO 域名绝对地址 */
 const SSO_ORIGIN = ((import.meta.env.VITE_SSO_ORIGIN as string) ||
@@ -153,15 +156,44 @@ function iconUrl(app: AppItem) {
   return `${SSO_ORIGIN}/icons/${app.icon}.svg`
 }
 
+function resolvedName(app: AppItem) {
+  return appNames.value[app.code] || app.name
+}
+
 const filteredGroups = computed<Group[]>(() => {
   const kw = keyword.value.trim().toLowerCase()
-  const match = (a: AppItem) => !kw || `${a.name} ${a.code} ${a.desc} ${a.mark}`.toLowerCase().includes(kw)
+  const match = (a: AppItem) => !kw || `${resolvedName(a)} ${a.code} ${a.desc} ${a.mark}`.toLowerCase().includes(kw)
   return GROUP_DEFS.map(g => ({
     type: g.type,
     label: groupLabels.value[g.type] || g.label,
     apps: g.codes.map(c => ALL_APPS.find(a => a.code === c)).filter((a): a is AppItem => !!a && match(a))
   })).filter(g => g.apps.length > 0)
 })
+
+/**
+ * 应用名与「我的应用」同源，取 sso_application.name；各应用响应壳有两种：
+ * { code:0, data:[{code,name}] } 与 { code:0, data:{ data:[...] } }，两种都兼容。
+ */
+async function loadAppNames() {
+  try {
+    const token = findAccessToken()
+    const headers: Record<string, string> = {}
+    if (token) headers.Authorization = `Bearer ${token}`
+    const res = await fetch('/api/accounts/me/apps', { credentials: 'include', headers })
+    const body = await res.json()
+    const raw = body?.data
+    const list = Array.isArray(raw) ? raw : Array.isArray(raw?.data) ? raw.data : []
+    const names: Record<string, string> = {}
+    for (const item of list) {
+      if (item?.code && typeof item.name === 'string' && item.name.trim()) {
+        names[item.code] = item.name.trim()
+      }
+    }
+    if (Object.keys(names).length) appNames.value = names
+  } catch {
+    // 接口不可用时保留兜底名称，不影响应用跳转
+  }
+}
 
 /** 分组标题与「我的应用」同源，字典改了标题自动同步，失败则保留兜底文案 */
 async function loadGroupLabels() {
@@ -284,6 +316,7 @@ onMounted(() => {
   document.addEventListener('click', onDocClick)
   document.addEventListener('keydown', onKey)
   void loadGroupLabels()
+  void loadAppNames()
 })
 onBeforeUnmount(() => {
   document.removeEventListener('click', onDocClick)

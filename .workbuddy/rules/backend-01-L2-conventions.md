@@ -20,6 +20,7 @@ level: L2
 ## 响应与状态码
 
 - MUST 返回 `R.ok(data)` / `PageResult`，分页壳与本服务既有接口一致（`PageResult{records,...}` 或 `R.Page{list,total}`），新增接口前先确认调用方口径。
+- **雪花 ID 全字段口径**：MUST 所有返回给前端的 Long 字段（主键、外键如 `roomId`/`buildingId`/`accountId`、`List<Long>` 如 `attendeeIds`）都加 `@JsonSerialize(using = ToStringSerializer.class)`（集合用 `contentUsing`）；只给 `BaseEntity.id` 加注解会让外键被 JS 当 number 丢精度，导致下拉显示裸 ID、编辑查不到对应数据（meeting 修改预定弹窗曾因此时段不可选、参会人显示 ID）。
 - MUST 业务异常抛 `BizException`，MUST NOT 在 Controller 手动 `R.fail()` 后继续执行。
 - MUST 启动类 `scanBasePackages` 含 `com.laimengchao.sso.common`（网关是唯一例外，刻意不扫）。
 

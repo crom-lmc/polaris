@@ -15,7 +15,7 @@ level: L2
 | 需求特征 | MUST 接入 | MUST NOT |
 |---|---|---|
 | 选项型数据（下拉/单选） | settings `dict`，`GET /api/settings/public/dicts/<typeCode>` | 写死在前端常量、每个应用各建一份本地列表 |
-| 可配参数/阈值/SLA 展示 | 由后端接口随业务数据返回；阈值在 settings 有结构化编辑页面 | 前端直读 settings 内部接口、裸 JSON 编辑入口 |
+| 可配参数/阈值/SLA 展示 | 由后端接口随业务数据返回；**每个**阈值/开关埋点都在 settings 有结构化编辑表单并登记 `EDITOR_BY_CODE` | 前端直读 settings 内部接口、裸 JSON 编辑入口、未登记埋点只读兜底 |
 | 业务编号/审批/消息 | 只展示结果与发起动作，配置与调用全在后端 | 前端自行生成编号、拼接审批流、自建通知 |
 | 文件附件 | `file_id` + `/api/file/{public,secure,admin,legacy}/**` | 另存 URL、自建附件上传页 |
 | 水印展示/下载 | 复用已有水印链路 | 只在预览加水印而下载不带 |
@@ -32,7 +32,7 @@ level: L2
 - MUST 应用中心用 `_shared/AppCenterNav.vue`，签码先同步开窗再请求，callback 用完整 `redirect_uri`。
 - MUST 水印覆盖图片/PDF/SVG/DOCX/XLSX/PPTX，下载链路同样带水印。
 - MUST 审计设置页每一项都有真实代码引用；无实际功能的配置不展示。
-- MUST SLA 阈值在列表/统计页可见可改（结构化编辑页），未登记编辑器时只读。
+- MUST SLA 阈值在列表/统计页可见可改；所有埋点 MUST 在 `EmbedPointView.vue` 登记结构化表单，字段名/默认值/范围与本 key 对齐，禁止"未登记只读"作为交付状态。
 
 ## 不存在的前端能力（不要假设存在）
 

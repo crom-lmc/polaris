@@ -13,7 +13,7 @@
 | 需求 | 前端读取方式 |
 |---|---|
 | 选项型数据（下拉/单选） | `GET /api/settings/public/dicts/<typeCode>`，匿名白名单无需改网关；类型按 `域.业务` 命名 |
-| 埋点配置（阈值/开关） | 由后端接口随业务数据返回，前端不直接读 settings 内部接口 |
+| 埋点配置（阈值/开关） | 由后端接口随业务数据返回，前端不直接读 settings 内部接口；settings 侧**每个**埋点都要在 `EmbedPointView.vue` 登记结构化表单，禁止裸 JSON 编辑/只读兜底 |
 | 单号/审批/消息 | 前端只展示结果与发起动作，配置与调用全在后端 |
 
 ### 1.1 读取字典（注意本应用解包口径）
@@ -44,18 +44,37 @@ const options = (await request.get<never, { data: DictOption[] }>(...)).data
 
 ### 3.1 列表页：分页固定 + 操作列固定 + 表头对齐
 
-1. **分页固定在右下角**：用 `<section class="ft-scroll ft-bottom">` 包住 `a-table`，分页 `sticky bottom:0`，z-index 5（高于 sticky 操作列的 3）。空数据 `.tbl-empty` 铺满内容区。
+1. **分页固定在右下角**：用 `<section class="ft-scroll ft-bottom">` 包住 `a-table`，分页 `sticky bottom:0`，z-index 5（高于 sticky 操作列的 3）。
+
+2. **空数据铺满高度（必须与空态插槽同时落地）**：在 `a-table` 上绑 `:class="{ 'tbl-empty-mode': !loading && !list.length }"`，`#emptyText` 用 `<div class="tbl-empty"><a-empty v-if="!loading" description="暂无数据" /></div>`；并在本应用 `global.css`（或页面 scoped `:deep()`）定义 `.tbl-empty-mode` 表格链 + `.tbl-empty`，否则空态只占一行、下方大片留白。**只写插槽不绑触发类/不定义样式是最常见漏项**（meeting 会议室维护页曾因此返工）。
 
 ```vue
 <section class="ft-scroll ft-bottom">
-  <a-table :columns="columns" :data-source="list" :pagination="false">
+  <a-table :columns="columns" :data-source="list" :pagination="false"
+           :class="{ 'tbl-empty-mode': !loading && !list.length }">
     <template #bodyCell="{ column, record }"> ... </template>
+    <template #emptyText>
+      <div class="tbl-empty"><a-empty v-if="!loading" description="暂无数据" /></div>
+    </template>
   </a-table>
 </section>
 ```
 
-2. **操作列固定在右侧且左对齐不换行**：给表格加 `class="ft-table"`，由全局 CSS 把最后一列 `position:sticky; right:0; z-index:3` 固定；**不要用 antd 的 `fixed:'right'`**（它会在表格内部再开一层横向滚动，与 `ft-scroll` 整页滚动冲突；审计 `EventsView.vue` 是历史例外）。按钮左对齐不换行靠 `.ft-table .ant-btn-link` 的 padding 规则，多个按钮用间距而非挤一行。
-3. **表头与列文字对齐**：`align` 必须和实际内容一致——数字/金额 `align:'right'`、状态/标记 `align:'center'`、文本默认左；**表头和数据不能一个居中一个左对齐**；带排序的列用同一 `align`。
+```css
+/* global.css（全局版）；若在 <style scoped> 用 :deep() 包裹内层选择器 */
+.tbl-empty-mode .ant-table-container,
+.tbl-empty-mode .ant-table-content { flex: 1 0 auto; display: flex; flex-direction: column; }
+.tbl-empty-mode .ant-table-content > table { height: 100%; }
+.tbl-empty-mode .ant-table-placeholder > td { height: 100%; padding: 0; border-bottom: none; }
+.tbl-empty { height: 100%; min-height: 240px; display: flex; align-items: center; justify-content: center; }
+```
+
+> 有分页的页面用 `ft-bottom`（分页条 sticky 贴底）；无分页页（`pagination="false"`）同样要铺满空态，只是不显示分页条。
+
+> **空态不出现横向滚动条**：固定写 `:scroll="{ x: 1080 }"` 会在零数据时仍渲染横向滚动条。MUST 按数据条件绑定 `:scroll="list.length ? { x: 1080 } : undefined"`，并在空态 CSS 兜底 `.tbl-empty-mode .ant-table-content { overflow-x: hidden }`；MUST NOT 让空表出现横向滚动条。
+
+3. **操作列固定在右侧且左对齐不换行**：给表格加 `class="ft-table"`，由全局 CSS 把最后一列 `position:sticky; right:0; z-index:3` 固定；**不要用 antd 的 `fixed:'right'`**（它会在表格内部再开一层横向滚动，与 `ft-scroll` 整页滚动冲突；审计 `EventsView.vue` 是历史例外）。按钮左对齐不换行靠 `.ft-table .ant-btn-link` 的 padding 规则，多个按钮用间距而非挤一行。
+4. **表头与列文字对齐**：`align` 必须和实际内容一致——数字/金额 `align:'right'`、状态/标记 `align:'center'`、文本默认左；**表头和数据不能一个居中一个左对齐**；带排序的列用同一 `align`。
 
 ```ts
 const columns = [
@@ -66,13 +85,14 @@ const columns = [
 ]
 ```
 
-4. **长文本列：列宽内省略显示 + 悬浮浮层展示完整内容**（对应"显示 ...、鼠标滑过用 pop 展示全文"的口径）：
+5. **长文本列：列宽内省略显示 + 悬浮浮层展示完整内容**（对应"显示 ...、鼠标滑过用 pop 展示全文"的口径）：
    - 用全局 `.cell-ellipsis`（`_shared/styles/responsive.css`：`display:block; max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap`）让文本在列宽内以省略号收尾；外层包 `<a-tooltip :title="完整值">`，鼠标悬浮时以浮层完整展示。
    - 标准写法：`<a-tooltip :title="record.xxx"><span class="cell-ellipsis">{{ record.xxx }}</span></a-tooltip>`；空值用 `v-if` + `v-else` 显示 `-`。
    - tooltip 的 `title` 必须绑定**被省略的同一字段**，不要显示 A 字段却悬浮展示 B 字段。
    - 禁止 JS `slice()` 硬截断长文本；禁止用原生 `title` 属性代替 `a-tooltip`（样式/延迟/移动端表现不一致）。flex 行内补 `flex:1 1 auto; min-width:0` 否则省略号不生效。
    - 堆栈、入参/响应等超长内容用"行内省略 + 展开行 `<pre>` 看全文"双层策略。
-5. 弹窗改抽屉、确认框 `centered:true`、抽屉内表格用 `.drawer-body-flex`（分页贴底、空态铺满）。label 与 hint 之间用 `&nbsp;`。禁用按钮配合 `a-tooltip` 说明原因。
+6. 弹窗改抽屉、确认框 `centered:true`、抽屉内表格用 `.drawer-body-flex`（分页贴底、空态铺满）。label 与 hint 之间用 `&nbsp;`。禁用按钮配合 `a-tooltip` 说明原因。
+7. **查询类日期范围默认最近一周**：搜索/筛选/统计用途的 `a-range-picker`（含弹窗/抽屉内统计范围）初始值与重置值都设为「含今天的最近 7 个自然日」——`[dayjs().subtract(6,'day').startOf('day'), dayjs()]`；字符串口径用 `dayjs().subtract(6,'day').format('YYYY-MM-DD')` ~ `dayjs().format('YYYY-MM-DD')`。首次进入即有数据，不要留 `null`/空数组/仅今天让用户无结果可看。仅表单录入类（请假申请、教育/工作经历、合同）与按月统计 `picker="month"` 可保留自定义默认或空值。已有参考：meeting `MyBookingsView.vue`、audit `EventsView.vue`、openapi `StatView.vue`/`LogView.vue`/`DashboardView.vue`、file `OverviewView.vue` 趋势抽屉、sso `ApprovalListView.vue` 运营统计、ehr `HrLedgerView.vue` 台账。
 
 ### 3.2 响应式：至少兼容 PC / Pad
 
@@ -95,11 +115,16 @@ const columns = [
 - [ ] 请求集中在 `src/api/`，确认本应用解包口径、401 行为、token 键名
 - [ ] 19 位雪花 ID 用字符串或本应用已有的 `quoteLongIntegers()` 转换，不用 number 承载
 - [ ] 菜单/按钮权限码与后端一致，未新建 `v-perm`
-- [ ] 表格 `ft-scroll ft-bottom` 分页固定右下；`.ft-table` sticky 固定操作列，左对齐不换行
+- [ ] 本应用 `public/favicon.svg` 与应用中心 `icons/<code>.svg` 图形/配色一致，Nginx 对 `favicon.svg` 禁缓存；应用中心卡片名从 `/api/accounts/me/apps` 动态取，不写死 `ALL_APPS.name`（meeting 改名后曾仍显示旧名）
+- [ ] 表格 `ft-scroll ft-bottom` 分页固定右下；`.ft-table` sticky 固定操作列，左对齐不换行；页签角标与列表共用筛选条件并同步刷新（范围内无数据时角标为 0）；空表无横向滚动条（`:scroll` 按数据条数条件绑定）
 - [ ] 表头 `align` 与列内容一致，无错位
+- [ ] 状态/枚举比较与提交值同后端常量、字典 value 一致，未在前端另造编码
 - [ ] 长文本省略 + tooltip，无 JS 硬截断；label 与 hint 用 `&nbsp;`
+- [ ] 查询/筛选/统计日期范围默认最近 7 天（含今天），重置同样回到最近 7 天；表单录入类与月份统计除外；单日期统计过滤默认今天且不可选过去日期、最大可选日期来自配置（meeting 概览曾因此统计为 0）
 - [ ] PC / Pad 下验证过，无横向溢出，侧栏抽屉正常
 - [ ] 浅色/深色两套主题都验证过，颜色走 CSS 变量
 - [ ] SSO 回调用注册的完整 `redirect_uri`，state 与 `expired=1` 分支保留
 - [ ] 监听器在 `onBeforeUnmount` 成对清理
 - [ ] `vue-tsc --noEmit` + `vite build` 通过；改 `_shared/` 时 11 个应用全量验证
+- [ ] 站点 Nginx 入口 HTML 禁缓存、`/assets/` 长缓存 immutable；发版后旧入口浏览器需硬刷新一次
+- [ ] 增量发布静态资源未用 `rsync --delete` 删除旧 hash 资源，旧资源保留至少 7 天再按 mtime 清理

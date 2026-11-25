@@ -293,7 +293,7 @@ function bizLabel(type: string) {
 
 function openTrendDrawer() {
   trendError.value = ''
-  trendRange.value = [dayjs().subtract(9, 'day').startOf('day'), dayjs().startOf('day')]
+  trendRange.value = [dayjs().subtract(6, 'day').startOf('day'), dayjs()]
   trendDrawerOpen.value = true
   void loadTrend()
 }
