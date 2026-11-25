@@ -537,7 +537,10 @@
           <a-table :columns="familyCols" :data-source="familyRows" row-key="_key" size="small" :pagination="false">
             <template #bodyCell="{ column, record }">
               <template v-if="column.key === 'relation'">{{ optLabel(dicts.familyRelation, record.relation) }}</template>
-              <template v-else-if="column.key === 'name'"><b>{{ record.name }}</b></template>
+              <template v-else-if="column.key === 'name'">
+                <a-tooltip v-if="record.name" :title="record.name"><b class="cell-ellipsis">{{ record.name }}</b></a-tooltip>
+                <b v-else>-</b>
+              </template>
               <template v-else-if="column.key === 'action'">
                 <a-space size="small">
                   <a @click="openFamilyModal(record)">编辑</a>

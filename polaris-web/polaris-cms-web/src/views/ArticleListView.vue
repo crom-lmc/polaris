@@ -234,8 +234,10 @@ const toggleFlag = (r: ArticleItem, flag: 'pin' | 'recommend') =>
       <template #bodyCell="{ column, record }">
         <template v-if="column.key === 'title'">
           <div class="title-cell">
-            <span class="t">{{ record.title }}</span>
-            <span class="s">{{ record.summary }}</span>
+            <a-tooltip v-if="record.title" :title="record.title"><span class="t cell-ellipsis">{{ record.title }}</span></a-tooltip>
+            <span v-else class="t">-</span>
+            <a-tooltip v-if="record.summary" :title="record.summary"><span class="s">{{ record.summary }}</span></a-tooltip>
+            <span v-else class="s">-</span>
           </div>
         </template>
 
@@ -331,6 +333,8 @@ const toggleFlag = (r: ArticleItem, flag: 'pin' | 'recommend') =>
 .title-cell {
   display: flex;
   flex-direction: column;
+  min-width: 0;
+  max-width: 100%;
 }
 
 .title-cell .t {

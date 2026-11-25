@@ -12,7 +12,7 @@
           v-model:open="noticeOpen"
           trigger="click"
           placement="bottomRight"
-          :overlay-style="{ width: '380px' }"
+          :overlay-style="{ width: 'min(380px, calc(100vw - 24px))' }"
         >
           <template #content>
             <div class="notice-pop">
@@ -171,7 +171,9 @@ const store = useUserStore()
 const theme = useThemeStore()
 
 // 侧栏可折叠：由顶栏汉堡图标点击切换（底部原生触发器已置 null 隐藏）
-const collapsed = ref(false)
+import { useResponsiveCollapsed } from '@shared/useResponsiveCollapsed'
+
+const collapsed = useResponsiveCollapsed()
 
 function toggleCollapse() {
   collapsed.value = !collapsed.value

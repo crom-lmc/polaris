@@ -26,11 +26,14 @@
             </a-tag>
           </template>
           <template v-else-if="column.key === 'name'">
-            <span class="name-cell">
-              <img v-if="record.thumbUrl" :src="record.thumbUrl" class="thumb" @error="onThumbError" />
-              <span>{{ record.originalName }}</span>
-              <a-tag v-if="record.deduplicated" color="cyan" style="margin-left: 6px">秒传</a-tag>
-            </span>
+            <a-tooltip v-if="record.originalName" :title="record.originalName">
+              <span class="name-cell">
+                <img v-if="record.thumbUrl" :src="record.thumbUrl" class="thumb" @error="onThumbError" />
+                <span class="cell-ellipsis">{{ record.originalName }}</span>
+                <a-tag v-if="record.deduplicated" color="cyan" class="dupe-tag">秒传</a-tag>
+              </span>
+            </a-tooltip>
+            <span v-else class="name-cell">-</span>
           </template>
           <template v-else-if="column.key === 'size'">
             {{ formatSize(record.size) }}
@@ -466,7 +469,9 @@ function formatSize(size: number) {
 <style scoped>
 .toolbar { display: flex; gap: 8px; align-items: center; margin-bottom: 16px; flex-wrap: wrap; }
 .danger { color: #ff4d4f; }
-.name-cell { display: inline-flex; align-items: center; gap: 6px; }
+.name-cell { display: inline-flex; align-items: center; gap: 6px; max-width: 100%; min-width: 0; }
+.name-cell .cell-ellipsis { flex: 1 1 auto; min-width: 0; }
+.dupe-tag { flex: none; margin-left: 0; }
 .thumb { width: 28px; height: 28px; object-fit: cover; border-radius: 4px; flex: none; }
 .preview-placeholder { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 300px; color: #999; gap: 12px; }
 .preview-img { max-width: 100%; max-height: 70vh; object-fit: contain; display: block; margin: 0 auto; }

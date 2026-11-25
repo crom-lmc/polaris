@@ -62,7 +62,8 @@
             <template v-else-if="column.key === 'title'">
               <div class="cell-title">
                 <a-tag v-if="record.pinned" color="red" class="pin-tag">置顶</a-tag>
-                <span>{{ record.title }}</span>
+                <a-tooltip v-if="record.title" :title="record.title"><span class="cell-ellipsis">{{ record.title }}</span></a-tooltip>
+                <span v-else>-</span>
               </div>
               <div v-if="record.summary" class="muted cell-sub">{{ record.summary }}</div>
               <div v-if="record.attachments?.length" class="muted cell-sub">附件 {{ record.attachments.length }}</div>
@@ -629,7 +630,9 @@ onMounted(() => {
   align-items: center;
   gap: 6px;
   font-weight: 500;
+  min-width: 0;
 }
+.cell-title .cell-ellipsis { flex: 1 1 auto; min-width: 0; }
 
 .pin-tag {
   margin-inline-end: 0;

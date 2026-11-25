@@ -75,7 +75,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import {
   DashboardOutlined,
@@ -103,7 +103,9 @@ const route = useRoute()
 const store = useUserStore()
 const theme = useThemeStore()
 
-const collapsed = ref(false)
+import { useResponsiveCollapsed } from '@shared/useResponsiveCollapsed'
+
+const collapsed = useResponsiveCollapsed()
 useSessionGuard()
 
 function toggleCollapse() {

@@ -67,7 +67,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { Modal } from 'ant-design-vue'
 import {
@@ -100,7 +100,9 @@ const router = useRouter()
 const route = useRoute()
 const store = useUserStore()
 const theme = useThemeStore()
-const collapsed = ref(false)
+import { useResponsiveCollapsed } from '@shared/useResponsiveCollapsed'
+
+const collapsed = useResponsiveCollapsed()
 const selectedKeys = computed(() => [route.path])
 
 useSessionGuard()

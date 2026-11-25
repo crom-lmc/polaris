@@ -140,8 +140,10 @@ const askDelete = (r: FriendLinkItem) =>
             <a-avatar v-if="record.logo" :src="record.logo" shape="square" :size="34" />
             <a-avatar v-else shape="square" :size="34" class="ph">{{ (record.name || '?').slice(0, 1) }}</a-avatar>
             <div class="site-meta">
-              <div class="site-name">{{ record.name }}</div>
-              <div class="site-desc">{{ record.description || '—' }}</div>
+              <a-tooltip v-if="record.name" :title="record.name"><div class="site-name cell-ellipsis">{{ record.name }}</div></a-tooltip>
+              <div v-else class="site-name">-</div>
+              <a-tooltip v-if="record.description" :title="record.description"><div class="site-desc">{{ record.description }}</div></a-tooltip>
+              <div v-else class="site-desc">—</div>
             </div>
           </div>
         </template>

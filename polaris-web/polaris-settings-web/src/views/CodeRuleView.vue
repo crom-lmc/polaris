@@ -89,8 +89,9 @@
             </a-form-item>
           </a-col>
           <a-col :span="12">
-            <a-form-item label="数据库表名" name="tableName" :rules="[{ required: true, message: '请选择数据库表名' }]">
+            <a-form-item label="数据库表名" name="tableName" :rules="[{ required: true, message: '请填写数据库表名' }]">
               <a-select
+                v-if="hasEntityMeta(form.appCode)"
                 v-model:value="form.tableName"
                 placeholder="选择表"
                 show-search
@@ -99,6 +100,15 @@
                 :options="tableOptions"
                 :disabled="!!editing"
               />
+              <a-input
+                v-else
+                v-model:value="form.tableName"
+                placeholder="输入业务表名，如 order_apply"
+                :disabled="!!editing"
+              />
+              <template v-if="form.appCode && !hasEntityMeta(form.appCode)" #extra>
+                <span class="muted">该应用未开通实体元数据，手动填业务表名即可配置取号规则</span>
+              </template>
             </a-form-item>
           </a-col>
         </a-row>
@@ -280,12 +290,15 @@ function remarkOf(record: CodeRule) {
   return remarkMap.value[record.tableName] || REMARK_FALLBACK[record.tableName] || '—'
 }
 
-/** 只保留「已开通实体元数据」的应用，避免选了表读不出来 */
-const appOptions = computed(() => {
-  const readable = Object.keys(entityApps.value || {})
-  const list = apps.value.filter((a) => !readable.length || readable.includes(a.code))
-  return list.map((a) => ({ value: a.code, label: `${a.name}（${a.code}）` }))
-})
+/** 单号规则取号用 appCode + 表名，不依赖实体元数据，所以下拉必须展示全部启用应用 */
+const appOptions = computed(() =>
+  apps.value.map((a) => ({ value: a.code, label: `${a.name}（${a.code}）` }))
+)
+
+/** 有实体元数据的应用可以从库表清单里选；没有的走手动输入，避免把应用从下拉里砍掉 */
+function hasEntityMeta(code: string) {
+  return !!code && Object.prototype.hasOwnProperty.call(entityApps.value || {}, code)
+}
 
 const tableOptions = computed(() =>
   tables.value.map((t) => ({ value: t.table, label: t.comment ? `${t.table}（${t.comment}）` : t.table }))
@@ -402,7 +415,7 @@ async function load() {
 
 async function loadTables(appCode: string) {
   tables.value = []
-  if (!appCode) return
+  if (!appCode || !hasEntityMeta(appCode)) return
   tableLoading.value = true
   try {
     tables.value = await fetchEntityTables(appCode)

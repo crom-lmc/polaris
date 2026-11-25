@@ -11,6 +11,10 @@
           <template v-else-if="column.key === 'operationType'">
             <a-tag>{{ operationLabel(record.operationType) }}</a-tag>
           </template>
+          <template v-else-if="column.key === 'path'">
+            <a-tooltip v-if="record.path" :title="record.path"><span class="cell-ellipsis mono">{{ record.path }}</span></a-tooltip>
+            <span v-else>-</span>
+          </template>
           <template v-else-if="column.key === 'status'">
             <a-tag :color="record.status === 1 ? 'green' : 'default'">
               {{ record.status === 1 ? '启用' : '停用' }}

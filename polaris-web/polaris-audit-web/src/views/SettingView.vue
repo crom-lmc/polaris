@@ -176,8 +176,8 @@
 
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, h, watch } from 'vue'
-import { message } from 'ant-design-vue'
-import { SaveOutlined, ReloadOutlined } from '@ant-design/icons-vue'
+import { message, Tooltip } from 'ant-design-vue'
+import { SaveOutlined, ReloadOutlined, QuestionCircleOutlined } from '@ant-design/icons-vue'
 import { getAuditSettings, saveAuditSettings, resetAuditSettings, type AuditSettings } from '@/api/audit'
 import { useUserStore } from '@/stores/user'
 
@@ -197,12 +197,16 @@ const visibleTabs = computed(() => [
   { key: 'export', ok: canExport.value }
 ].filter(t => t.ok).map(t => t.key))
 
-/** 通用设置行：左侧标题+说明，右侧控件插槽（具名插槽 control） */
+/** 通用设置行：标题与控件同一行，说明收进问号提示，避免每行说明把页面撑高 */
 const SettingRow = (props: { label: string; desc?: string }, { slots }: any) =>
   h('div', { class: 'setting-row' }, [
     h('div', { class: 'row-info' }, [
-      h('div', { class: 'row-label' }, props.label),
-      props.desc ? h('div', { class: 'row-desc' }, props.desc) : null
+      h('span', { class: 'row-label' }, props.label),
+      props.desc
+        ? h(Tooltip, { title: props.desc, placement: 'top' }, {
+            default: () => h(QuestionCircleOutlined, { class: 'hint-icon' })
+          })
+        : null
     ]),
     h('div', { class: 'row-control' }, slots.control?.())
   ])
@@ -423,10 +427,10 @@ code { background: var(--code-bg, rgba(127,127,127,.12)); padding: 1px 6px; bord
 .add-row .ant-input { max-width: 320px; }
 .manual-clean { margin-top: 14px; }
 .kw-wrap { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
-.setting-row { display: flex; align-items: center; gap: 18px; padding: 13px 0; border-bottom: 1px solid var(--border-subtle, rgba(127,127,127,.15)); min-height: 58px; }
+.setting-row { display: flex; align-items: center; gap: 18px; padding: 10px 0; border-bottom: 1px solid var(--border-subtle, rgba(127,127,127,.15)); min-height: 44px; }
 .setting-row:last-child { border-bottom: none; }
-.setting-row .row-info { flex: 1; min-width: 0; }
-.setting-row .row-label { font-size: 13px; margin-bottom: 4px; }
-.setting-row .row-desc { font-size: 12px; color: var(--muted); line-height: 1.55; }
+.setting-row .row-info { flex: 1; min-width: 0; display: flex; align-items: center; gap: 6px; }
+.setting-row .row-label { font-size: 13px; }
+.setting-row .hint-icon { color: var(--muted); font-size: 12px; cursor: help; }
 .setting-row .row-control { flex: 0 0 auto; display: flex; align-items: center; }
 </style>

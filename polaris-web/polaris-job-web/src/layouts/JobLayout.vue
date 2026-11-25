@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import {
   BellOutlined,
@@ -21,7 +21,9 @@ const router = useRouter()
 const user = useUserStore()
 const theme = useThemeStore()
 
-const collapsed = ref(false)
+import { useResponsiveCollapsed } from '@shared/useResponsiveCollapsed'
+
+const collapsed = useResponsiveCollapsed()
 
 onMounted(async () => {
   await resolveAppName('job')

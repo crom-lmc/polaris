@@ -69,7 +69,7 @@
           </template>
           <template v-else-if="column.key === 'params'">
             <a-tooltip v-if="record.requestParams" :title="record.requestParams">
-              <span class="muted">{{ short(record.requestParams) }}</span>
+              <span class="cell-ellipsis muted">{{ record.requestParams }}</span>
             </a-tooltip>
             <span v-else class="muted">-</span>
           </template>
@@ -80,10 +80,12 @@
             <span class="muted">{{ record.costMs != null ? record.costMs + 'ms' : '-' }}</span>
           </template>
           <template v-else-if="column.key === 'detail'">
-            <a-tooltip :title="record.detail"><span class="muted">{{ short(record.detail) }}</span></a-tooltip>
+            <a-tooltip v-if="record.detail" :title="record.detail"><span class="cell-ellipsis muted">{{ record.detail }}</span></a-tooltip>
+            <span v-else class="muted">-</span>
           </template>
           <template v-else-if="column.key === 'userAgent'">
-            <a-tooltip :title="record.userAgent"><span class="ua">{{ short(record.userAgent) }}</span></a-tooltip>
+            <a-tooltip v-if="record.userAgent" :title="record.userAgent"><span class="cell-ellipsis ua">{{ record.userAgent }}</span></a-tooltip>
+            <span v-else class="muted">-</span>
           </template>
           <template v-else-if="column.key === 'operation'">
             <a-space :size="4">
@@ -221,8 +223,6 @@ function statusClass(status?: number) {
   if (status >= 400) return 'status-warn'
   return 'status-ok'
 }
-function short(s?: string) { return !s ? '-' : s.length > 36 ? `${s.slice(0, 36)}…` : s }
-
 // 操作列抽屉：查看入参/响应，JSON 字符串漂亮打印，非 JSON 回退原文
 const drawerOpen = ref(false)
 const drawerTitle = ref('')
@@ -280,6 +280,8 @@ async function copyJson() {
 .app-cell { font-weight: 600; white-space: nowrap; }
 .muted { color: var(--muted); }
 .ua { font-size: 12px; }
+/* 长文本按列宽自适应省略，完整内容由 a-tooltip 悬浮展示 */
+.cell-ellipsis { display: block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .action-cell { font-family: ui-monospace, monospace; font-size: 12px; }
 .status-ok { color: #52c41a; }
 .status-warn { color: #faad14; }

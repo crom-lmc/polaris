@@ -1,0 +1,292 @@
+/**
+ * Polaris 后台应用统一响应式兼容层
+ *
+ * 作用范围：使用 .shell / .header / .body / .sider / .content 骨架的 9 个后台应用。
+ * forum-web / portal-web 是前台站点，有各自的断点，选择器以 .shell 限定，不会误伤。
+ *
+ * 断点：
+ *   1024px  侧栏转抽屉（默认收起），顶栏压缩
+ *    768px  平板：卡片两列、表格可横向滚动、表单/弹窗限宽
+ *    640px  手机：卡片单列、隐藏次要信息
+ *    480px  小屏：进一步压缩内边距
+ *
+ * 引入顺序：必须在各应用自己的 global.css / theme.css 之后，保证覆盖。
+ */
+
+/* ---------------- 基础防溢出（所有宽度） ---------------- */
+.shell {
+  width: 100%;
+  max-width: 100vw;
+}
+.shell .body,
+.shell .content {
+  min-width: 0;
+  max-width: 100%;
+}
+.shell .content > * {
+  min-width: 0;
+  max-width: 100%;
+}
+
+/* 表格/列表长文本：在列宽内显示省略号，完整内容统一交给 a-tooltip 悬浮展示 */
+.cell-ellipsis {
+  display: block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* AntD 组件在窄容器里不允许撑破父级 */
+.shell .ant-card,
+.shell .ant-form,
+.shell .ant-table-wrapper,
+.shell .ant-tabs,
+.shell .ant-descriptions,
+.shell .ant-list,
+.shell .ant-row,
+.shell .ant-col {
+  max-width: 100%;
+  min-width: 0;
+}
+.shell .ant-table-content,
+.shell .ant-table-body {
+  overflow-x: auto;
+}
+.shell .ant-table {
+  width: 100%;
+}
+.shell .ant-tabs-nav-wrap {
+  min-width: 0;
+}
+.shell .ant-radio-group,
+.shell .ant-checkbox-group,
+.shell .ant-btn-group {
+  max-width: 100%;
+  flex-wrap: wrap;
+}
+
+/* 弹层 teleport 到 body，不能用 .shell 限定 */
+.ant-modal,
+.ant-modal-content {
+  max-width: calc(100vw - 24px);
+}
+.ant-drawer-content-wrapper {
+  max-width: 100vw;
+}
+.ant-popover-inner {
+  max-width: calc(100vw - 24px);
+}
+.ant-select-dropdown,
+.ant-dropdown-menu {
+  max-width: calc(100vw - 24px);
+}
+
+/* ---------------- 1024px：侧栏抽屉化 ---------------- */
+@media (max-width: 1024px) {
+  .shell > .header {
+    height: 56px;
+    line-height: 56px;
+    padding: 0;
+  }
+  .shell .logo,
+  .shell .logo.is-collapsed {
+    padding-left: 12px !important;
+    gap: 4px;
+  }
+  .shell .logo-text {
+    font-size: 13px;
+  }
+  .shell .right {
+    gap: 4px;
+    padding-right: 8px !important;
+  }
+  .shell .right .who {
+    max-width: 104px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 12px;
+    padding: 4px 6px;
+  }
+  .shell .right .theme-toggle {
+    width: 28px;
+    min-width: 28px;
+    height: 28px;
+  }
+
+  /* 侧栏脱离文档流做抽屉：收起时完全移出屏幕，展开时覆盖内容 */
+  .shell .sider.ant-layout-sider {
+    position: fixed !important;
+    top: 56px;
+    left: 0;
+    bottom: 0;
+    height: calc(100vh - 56px);
+    z-index: 1001;
+    width: 208px !important;
+    min-width: 208px !important;
+    max-width: 208px !important;
+    flex: 0 0 208px !important;
+    transform: translateX(-100%);
+    transition: transform 0.22s ease;
+    box-shadow: none;
+  }
+  .shell .sider.ant-layout-sider:not(.ant-layout-sider-collapsed) {
+    transform: translateX(0);
+    box-shadow: 6px 0 24px rgba(0, 0, 0, 0.3);
+  }
+  .shell .sider.ant-layout-sider.ant-layout-sider-collapsed {
+    width: 0 !important;
+    min-width: 0 !important;
+    max-width: 0 !important;
+    flex-basis: 0 !important;
+    overflow: hidden;
+  }
+
+  /* 展开时给内容区盖一层遮罩（支持 :has 的浏览器生效，不支持也不影响功能） */
+  .shell .body:has(> .sider:not(.ant-layout-sider-collapsed))::before {
+    content: '';
+    position: fixed;
+    inset: 56px 0 0 0;
+    background: rgba(15, 18, 26, 0.48);
+    z-index: 1000;
+  }
+
+  .shell .content {
+    padding: 12px;
+  }
+}
+
+/* ---------------- 768px：平板 ---------------- */
+@media (max-width: 768px) {
+  .shell .content {
+    padding: 10px;
+  }
+
+  /* 常见多列网格降级为两列；只针对已知网格类名，避免误伤单列布局 */
+  .shell .stat-grid,
+  .shell .stats,
+  .shell .metric-grid,
+  .shell .chart-grid,
+  .shell .config-grid,
+  .shell .setting-grid,
+  .shell .five-columns {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+  /* main-grid / wm-layout 页面自身已有单列断点，不在 768px 改回两列 */
+
+  /* settings 审批类页面的二级侧栏：窄屏改为上方横向区块，不再吃掉 260px 宽度 */
+  .shell .approval-nav-sider {
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+    flex: 0 0 auto !important;
+    height: auto !important;
+    border-right: 0 !important;
+    border-bottom: 1px solid var(--border, rgba(128, 128, 128, 0.25));
+  }
+  .shell .at-root {
+    flex-direction: column;
+  }
+  .shell .approval-nav-tree {
+    max-height: 180px;
+    overflow-y: auto;
+  }
+  .shell .at-content {
+    min-width: 0;
+    width: 100%;
+  }
+
+  /* 描述列表/表单栅格在窄屏纵向排列 */
+  .shell .ant-descriptions-item {
+    padding-bottom: 8px;
+  }
+
+  /* 固定宽度表格允许横向滚动，不再强制撑开页面 */
+  .shell [style*='--ft-min-width'] {
+    --ft-min-width: 0px !important;
+  }
+}
+
+/* ---------------- 640px：手机 ---------------- */
+@media (max-width: 640px) {
+  .shell > .header {
+    height: 52px;
+    line-height: 52px;
+  }
+  .shell .sider.ant-layout-sider {
+    top: 52px;
+    height: calc(100vh - 52px);
+  }
+  .shell .body:has(> .sider:not(.ant-layout-sider-collapsed))::before {
+    inset: 52px 0 0 0;
+  }
+  .shell .right .who {
+    max-width: 76px;
+  }
+  .shell .right .caret {
+    display: none;
+  }
+  .shell .content {
+    padding: 8px;
+  }
+
+  /* 常见网格全部单列 */
+  .shell .stat-grid,
+  .shell .stats,
+  .shell .metric-grid,
+  .shell .chart-grid,
+  .shell .config-grid,
+  .shell .setting-grid,
+  .shell .five-columns,
+  .shell .main-grid,
+  .shell .wm-layout,
+  .shell .legend-row,
+  .shell .horizontal-row,
+  .shell .amount-row {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  /* 页面标题在手机上允许换行，不再 nowrap 截断 */
+  .shell .page-heading,
+  .shell .ant-page-header-heading-title {
+    white-space: normal !important;
+  }
+
+  /* 卡片内部左右分栏改为上下排列 */
+  .shell .ac-app-info {
+    min-width: 0;
+  }
+
+  /* settings 概览：六张统计卡不再占 180px 高 */
+  .shell .stat-card .ant-card-body {
+    min-height: 96px !important;
+    padding: 12px !important;
+  }
+
+  /* settings 概览：应用配置表在手机上只保留应用名/审批模板/状态，避免列宽叠加溢出 */
+  .shell .app-row {
+    grid-template-columns: minmax(0, 1fr) auto auto !important;
+    gap: 6px;
+  }
+  .shell .app-row > :nth-child(2),
+  .shell .app-row > :nth-child(4) {
+    display: none;
+  }
+}
+
+/* ---------------- 480px：小屏手机 ---------------- */
+@media (max-width: 480px) {
+  .shell .logo-text {
+    max-width: 84px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .shell .content {
+    padding: 6px;
+  }
+  .ant-modal,
+  .ant-modal-content {
+    max-width: calc(100vw - 12px);
+  }
+}

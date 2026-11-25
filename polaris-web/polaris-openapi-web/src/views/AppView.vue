@@ -43,7 +43,8 @@
             </a-tag>
           </template>
           <template v-else-if="column.key === 'remark'">
-            <span>{{ record.remark || '-' }}</span>
+            <a-tooltip v-if="record.remark" :title="record.remark"><span class="cell-ellipsis">{{ record.remark }}</span></a-tooltip>
+            <span v-else>-</span>
           </template>
           <template v-else-if="column.key === 'action'">
             <a-button v-if="canEdit" type="link" size="small" @click="openEdit(record)">编辑</a-button>

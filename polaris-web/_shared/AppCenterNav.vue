@@ -19,7 +19,7 @@
     <transition name="ac-fade">
       <div v-if="open" class="ac-panel" @click.stop>
         <div class="ac-head">
-          <div class="ac-head-title">应用中心 <span class="ac-count">共 {{ filteredGroups.reduce((n, g) => n + g.apps.length, 0) }} 个应用</span></div>
+          <h3 class="ac-head-title">应用中心 <span class="ac-count">共 {{ filteredGroups.reduce((n, g) => n + g.apps.length, 0) }} 个应用</span></h3>
           <button class="ac-close" type="button" title="关闭" @click="open = false">×</button>
         </div>
 
@@ -39,10 +39,10 @@
         </div>
 
         <div ref="bodyRef" class="ac-body">
-          <section v-for="group in filteredGroups" :key="group.label" class="ac-group">
+          <section v-for="group in filteredGroups" :key="group.type" class="ac-group">
             <div class="ac-group-head">
-              <span class="ac-group-name">{{ group.label }}</span>
-              <span class="ac-group-sub">{{ group.sub }}</span>
+              <h3>{{ group.label }}</h3>
+              <span>{{ group.apps.length }} 个应用</span>
             </div>
             <div class="ac-grid">
               <button
@@ -57,19 +57,19 @@
               >
                 <img
                   v-if="!iconErrors[app.code]"
-                  class="ac-app-icon ac-app-img"
+                  class="ac-app-logo"
                   :src="iconUrl(app)"
                   :alt="app.name"
-                  :style="{ background: app.bg }"
                   @error="iconErrors[app.code] = true"
                 />
-                <span v-else class="ac-app-icon" :style="{ background: app.bg, color: app.fg }">{{ app.mark }}</span>
-                <span class="ac-app-info">
+                <span v-else class="ac-app-logo ac-app-logo-fallback" :style="{ background: app.bg, color: app.fg }">{{ app.mark }}</span>
+                <span class="ac-app-text">
                   <span class="ac-app-name">
                     {{ app.name }}
                     <span v-if="app.code === currentCode" class="ac-current-tag">当前</span>
                   </span>
-                  <span class="ac-app-desc">{{ app.code }}</span>
+                  <span class="ac-app-code">{{ app.code }}</span>
+                  <span class="ac-app-remark">{{ app.desc }}</span>
                 </span>
               </button>
             </div>
@@ -107,7 +107,7 @@ type AppItem = {
   /** 注册在 sso_application.redirect_uri 的回跳地址，授权码必须送到这里才能换令牌 */
   callback: string
 }
-type Group = { label: string; sub: string; apps: AppItem[] }
+type Group = { type: string; label: string; apps: AppItem[] }
 
 /**
  * 11 个应用的权威清单：名称/图标/分类与 sso_application + 我的应用保持一致。
@@ -127,16 +127,19 @@ const ALL_APPS: AppItem[] = [
   { code: 'forum', name: '北极星空', desc: '社区论坛', icon: 'forum', mark: '空', bg: '#f0edff', fg: '#7c5cff', url: 'https://polaris-forum.laimengchao.site/', callback: 'https://polaris-forum.laimengchao.site/auth/callback' }
 ]
 
-/** 与「我的应用」app_type 字典同口径：SYSTEM / MANAGEMENT / PORTAL */
+/** 与「我的应用」app_type 字典同口径：SYSTEM / MANAGEMENT / PORTAL；标题在线跟随字典，离线时用生产口径兜底 */
 const GROUP_DEFS = [
-  { label: '平台系统', sub: '平台内置与运维', codes: ['sso-center', 'settings', 'job', 'openapi', 'file', 'audit'] },
-  { label: '管理应用', sub: '业务管理与办公', codes: ['ehr', 'cms', 'forum-admin'] },
-  { label: '门户应用', sub: '访问与社区入口', codes: ['portal', 'forum'] }
+  { type: 'SYSTEM', label: '太空基地', codes: ['sso-center', 'settings', 'job', 'openapi', 'file', 'audit'] },
+  { type: 'MANAGEMENT', label: '指挥调度', codes: ['ehr', 'cms', 'forum-admin'] },
+  { type: 'PORTAL', label: '星辰生活区', codes: ['portal', 'forum'] }
 ]
 
 const apps = ALL_APPS
 const open = ref(false)
 const keyword = ref('')
+const groupLabels = ref<Record<string, string>>(
+  Object.fromEntries(GROUP_DEFS.map(g => [g.type, g.label]))
+)
 const busy = ref('')
 const error = ref('')
 const searchRef = ref<HTMLInputElement | null>(null)
@@ -154,11 +157,30 @@ const filteredGroups = computed<Group[]>(() => {
   const kw = keyword.value.trim().toLowerCase()
   const match = (a: AppItem) => !kw || `${a.name} ${a.code} ${a.desc} ${a.mark}`.toLowerCase().includes(kw)
   return GROUP_DEFS.map(g => ({
-    label: g.label,
-    sub: g.sub,
+    type: g.type,
+    label: groupLabels.value[g.type] || g.label,
     apps: g.codes.map(c => ALL_APPS.find(a => a.code === c)).filter((a): a is AppItem => !!a && match(a))
   })).filter(g => g.apps.length > 0)
 })
+
+/** 分组标题与「我的应用」同源，字典改了标题自动同步，失败则保留兜底文案 */
+async function loadGroupLabels() {
+  try {
+    const res = await fetch('/api/settings/public/dicts/sso.application_type')
+    const body = await res.json()
+    const items = body?.data
+    if (!res.ok || body?.code !== 0 || !Array.isArray(items)) return
+    const labels: Record<string, string> = {}
+    for (const item of items) {
+      if (item && typeof item.value === 'string' && typeof item.label === 'string' && item.label.trim()) {
+        labels[item.value] = item.label.trim()
+      }
+    }
+    groupLabels.value = { ...groupLabels.value, ...labels }
+  } catch {
+    // 字典不可用时保留兜底，不影响应用跳转
+  }
+}
 
 function toggle() {
   open.value = !open.value
@@ -261,6 +283,7 @@ function onKey(e: KeyboardEvent) {
 onMounted(() => {
   document.addEventListener('click', onDocClick)
   document.addEventListener('keydown', onKey)
+  void loadGroupLabels()
 })
 onBeforeUnmount(() => {
   document.removeEventListener('click', onDocClick)
@@ -278,8 +301,8 @@ onBeforeUnmount(() => {
   --ac-muted: var(--muted, #8b93a7);
   --ac-border: var(--border, #dfe3ec);
   --ac-border-subtle: var(--border-subtle, var(--border, #eef0f5));
-  --ac-primary: var(--primary, #7c5cff);
-  --ac-hover: var(--header-hover, rgba(124, 92, 255, 0.12));
+  --ac-primary: var(--primary, #2f54eb);
+  --ac-hover: var(--header-hover, rgba(47, 84, 235, 0.12));
   position: relative;
   display: inline-flex;
 }
@@ -303,57 +326,89 @@ onBeforeUnmount(() => {
 .ac-trigger:hover, .ac-trigger.is-open { background: var(--ac-hover); color: var(--ac-primary); }
 .ac-panel {
   position: absolute; top: calc(100% + 10px); right: 0; z-index: 1000;
-  width: 620px; max-width: calc(100vw - 32px);
-  border: 1px solid var(--ac-border-subtle); border-radius: 14px;
+  width: 720px; max-width: calc(100vw - 32px);
+  border: 1px solid var(--ac-border-subtle); border-radius: 10px;
   background: var(--ac-bg); color: var(--ac-text);
-  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.28);
+  box-shadow: 0 12px 36px rgba(15, 23, 42, 0.18);
   overflow: hidden;
 }
-.ac-head { display: flex; align-items: center; justify-content: space-between; padding: 16px 18px 10px; }
-.ac-head-title { font-size: 16px; font-weight: 600; }
+.ac-head {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 16px 18px 10px;
+}
+.ac-head-title {
+  margin: 0; color: var(--ac-text);
+  font-size: 20px; font-weight: 600; line-height: 1.4;
+}
 .ac-count { margin-left: 8px; font-size: 12px; font-weight: 400; color: var(--ac-muted); }
 .ac-close { border: 0; background: transparent; cursor: pointer; font-size: 20px; line-height: 1; color: var(--ac-muted); padding: 0 2px; }
 .ac-close:hover { color: var(--ac-text); }
 .ac-search-wrap { position: relative; margin: 0 18px 12px; }
 .ac-search-icon { position: absolute; left: 11px; top: 50%; transform: translateY(-50%); color: var(--ac-muted); }
 .ac-search {
-  width: 100%; height: 36px; padding: 0 34px 0 34px; box-sizing: border-box;
-  border: 1px solid var(--ac-border); border-radius: 9px;
+  width: 100%; height: 36px; padding: 0 34px; box-sizing: border-box;
+  border: 1px solid var(--ac-border); border-radius: 8px;
   background: var(--ac-elevated); color: var(--ac-text);
   font-size: 13px; outline: none; transition: border-color 0.18s, box-shadow 0.18s;
 }
 .ac-search::placeholder { color: var(--ac-muted); }
-.ac-search:focus { border-color: var(--ac-primary); box-shadow: 0 0 0 3px rgba(124, 92, 255, 0.12); }
+.ac-search:focus { border-color: var(--ac-primary); box-shadow: 0 0 0 3px rgba(47, 84, 235, 0.12); }
 .ac-kbd {
   position: absolute; right: 10px; top: 50%; transform: translateY(-50%);
   font-size: 11px; color: var(--ac-muted); border: 1px solid var(--ac-border);
   border-radius: 4px; padding: 0 5px; line-height: 17px;
 }
 .ac-body { max-height: 420px; overflow-y: auto; padding: 0 18px 8px; }
-.ac-group { margin-bottom: 16px; }
-.ac-group-head { display: flex; align-items: baseline; gap: 8px; padding: 4px 0 8px; border-bottom: 1px solid var(--ac-border-subtle); margin-bottom: 10px; }
-.ac-group-name { font-size: 13px; font-weight: 600; }
-.ac-group-sub { font-size: 11px; color: var(--ac-muted); }
-.ac-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
-.ac-app {
-  display: flex; align-items: center; gap: 10px; text-align: left;
-  padding: 10px; border: 1px solid transparent; border-radius: 10px;
-  background: transparent; color: inherit; cursor: pointer; min-width: 0;
-  transition: background 0.16s, border-color 0.16s;
+.ac-group + .ac-group { margin-top: 24px; }
+.ac-group-head {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  margin-bottom: 12px;
 }
-.ac-app:hover:not(:disabled) { background: var(--ac-elevated); border-color: var(--ac-border-subtle); }
-.ac-app.is-current { cursor: default; opacity: 0.92; border-color: var(--ac-primary); background: var(--ac-elevated); }
+.ac-group-head h3 {
+  margin: 0; color: var(--ac-text);
+  font-size: 16px; font-weight: 600;
+}
+.ac-group-head span { color: var(--ac-muted); font-size: 12px; }
+.ac-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+.ac-app {
+  display: flex; flex-direction: column; gap: 10px; text-align: left;
+  min-width: 0; height: 100%; padding: 12px 14px;
+  border: 1px solid var(--ac-border-subtle); border-radius: 10px;
+  background: transparent; color: var(--ac-text); cursor: pointer;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+.ac-app:hover:not(:disabled), .ac-app:focus-visible:not(:disabled) {
+  border-color: var(--ac-primary);
+  box-shadow: 0 4px 16px rgba(47, 84, 235, 0.16);
+  outline: none;
+}
+.ac-app.is-current {
+  cursor: default; border-color: var(--ac-primary);
+  box-shadow: 0 4px 16px rgba(47, 84, 235, 0.12);
+}
 .ac-app.is-busy { opacity: 0.6; }
-/* 与「我的应用」卡片里的 app-logo 同尺寸同圆角，SVG 自带底色铺满，不再缩成小图标+浅底占位 */
-.ac-app-icon {
-  flex: 0 0 auto; width: 42px; height: 42px; border-radius: 10px;
+.ac-app-logo {
+  width: 42px; height: 42px; flex: 0 0 auto;
+  border-radius: 10px; object-fit: contain;
+}
+.ac-app-logo-fallback {
   display: inline-flex; align-items: center; justify-content: center;
   font-size: 16px; font-weight: 600;
 }
-.ac-app-img { padding: 0; object-fit: contain; }
-.ac-app-info { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
-.ac-app-name { font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.ac-app-desc { font-size: 11px; color: var(--ac-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ac-app-text { min-width: 0; display: flex; flex-direction: column; }
+.ac-app-name {
+  overflow: hidden; color: var(--ac-text);
+  font-size: 14px; font-weight: 600;
+  text-overflow: ellipsis; white-space: nowrap;
+}
+.ac-app-code {
+  margin-top: 4px; overflow: hidden; color: var(--ac-muted);
+  font-size: 12px; text-overflow: ellipsis; white-space: nowrap;
+}
+.ac-app-remark {
+  margin-top: 10px; overflow: hidden; color: var(--ac-muted);
+  font-size: 12px; text-overflow: ellipsis; white-space: nowrap;
+}
 .ac-current-tag { margin-left: 5px; font-size: 10px; font-weight: 500; color: var(--ac-primary); }
 .ac-empty { padding: 30px 0; text-align: center; color: var(--ac-muted); font-size: 13px; }
 .ac-error { margin: 0 18px 8px; padding: 7px 10px; border-radius: 7px; background: rgba(220, 53, 69, 0.1); color: #e56574; font-size: 11px; }
@@ -364,8 +419,12 @@ onBeforeUnmount(() => {
 }
 .ac-fade-enter-active, .ac-fade-leave-active { transition: opacity 0.14s, transform 0.14s; }
 .ac-fade-enter-from, .ac-fade-leave-to { opacity: 0; transform: translateY(-4px); }
+@media (max-width: 900px) {
+  .ac-panel { width: calc(100vw - 32px); right: -8px; }
+  .ac-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
 @media (max-width: 560px) {
-  .ac-panel { width: calc(100vw - 24px); right: -8px; }
-  .ac-grid { grid-template-columns: repeat(2, 1fr); }
+  .ac-grid { grid-template-columns: 1fr; }
+  .ac-body { max-height: min(62vh, 460px); }
 }
 </style>

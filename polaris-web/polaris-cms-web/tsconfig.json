@@ -23,6 +23,6 @@
       "vue/*": ["node_modules/vue/*"]
     }
   },
-  "include": ["src/**/*.ts", "src/**/*.d.ts", "src/**/*.tsx", "src/**/*.vue", "../_shared/**/*.vue"],
+  "include": ["src/**/*.ts", "src/**/*.d.ts", "src/**/*.tsx", "src/**/*.vue", "../_shared/**/*.vue", "../_shared/**/*.ts"],
   "references": [{ "path": "./tsconfig.node.json" }]
 }

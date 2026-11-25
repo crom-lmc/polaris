@@ -122,7 +122,9 @@ const route = useRoute()
 const store = useUserStore()
 const theme = useThemeStore()
 
-const collapsed = ref(false)
+import { useResponsiveCollapsed } from '@shared/useResponsiveCollapsed'
+
+const collapsed = useResponsiveCollapsed()
 
 /* ---------------- 主数据子菜单 ---------------- */
 

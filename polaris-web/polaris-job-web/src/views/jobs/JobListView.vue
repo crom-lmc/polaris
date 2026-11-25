@@ -541,9 +541,10 @@ async function removeJob() {
       >
         <template #bodyCell="{ column, record }">
           <template v-if="column.key === 'name'">
-            <div style="font-weight: 500">
-              {{ record.name }}
-              <a-tag color="blue" style="margin-left: 6px">{{ appLabel(record.appCode) }}</a-tag>
+            <div class="job-name">
+              <a-tooltip v-if="record.name" :title="record.name"><span class="cell-ellipsis">{{ record.name }}</span></a-tooltip>
+              <span v-else>-</span>
+              <a-tag color="blue" class="app-tag">{{ appLabel(record.appCode) }}</a-tag>
             </div>
             <div class="text-secondary mono">{{ record.handler }}</div>
           </template>
@@ -761,3 +762,9 @@ async function removeJob() {
     </a-drawer>
   </section>
 </template>
+
+<style scoped>
+.job-name { display: flex; align-items: center; gap: 6px; font-weight: 500; min-width: 0; }
+.job-name .cell-ellipsis { flex: 1 1 auto; min-width: 0; }
+.app-tag { flex: none; }
+</style>

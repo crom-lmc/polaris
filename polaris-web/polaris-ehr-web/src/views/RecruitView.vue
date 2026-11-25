@@ -312,7 +312,8 @@
           </template>
           <template #bodyCell="{ column, record }">
             <template v-if="column.key === 'title'">
-              <div>{{ record.title }}</div>
+              <a-tooltip v-if="record.title" :title="record.title"><div class="cell-ellipsis">{{ record.title }}</div></a-tooltip>
+              <div v-else>-</div>
               <div v-if="record.orgPath" class="muted cell-sub">{{ record.orgPath }}</div>
             </template>
             <template v-else-if="column.key === 'jobType'">

@@ -136,7 +136,7 @@ public class AuditEventService {
         e.setRequestParams(mask(trim(req.getRequestParams(), fieldLimit)));
         e.setHttpStatus(req.getHttpStatus());
         e.setBizCode(req.getBizCode());
-        e.setResponseSummary(mask(trim(req.getResponseSummary(), 2000)));
+        e.setResponseSummary(mask(trim(req.getResponseSummary(), fieldLimit)));
         e.setCostMs(req.getCostMs());
         // 隐私开关：关闭记录后不落库对应字段（登录事件保留 IP/UA 以便异地登录识别，不受关闭影响）
         boolean isLogin = CATEGORY_LOGIN.equals(e.getEventCategory());

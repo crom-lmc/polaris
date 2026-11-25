@@ -453,7 +453,10 @@ onMounted(async () => {
           </template>
           <template v-else-if="column.key === 'channel'">{{ channelsText(record.channel) }}</template>
           <template v-else-if="column.key === 'receivers'">{{ record.receivers || '—' }}</template>
-          <template v-else-if="column.key === 'content'">{{ record.content || '—' }}</template>
+          <template v-else-if="column.key === 'content'">
+            <a-tooltip v-if="record.content" :title="record.content"><span class="cell-ellipsis">{{ record.content }}</span></a-tooltip>
+            <span v-else>—</span>
+          </template>
           <template v-else-if="column.key === 'status'">
             <a-tag :color="record.status === 1 ? 'green' : 'orange'">
               {{ record.status === 1 ? '发送成功' : '发送失败' }}

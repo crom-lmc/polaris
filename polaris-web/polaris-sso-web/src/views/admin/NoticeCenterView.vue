@@ -62,8 +62,11 @@
           <template v-if="column.key === 'index'">{{ index + 1 }}</template>
           <template v-else-if="column.key === 'title'">
             <div class="title-cell">
-              <a class="tt" :class="{ unread: !record.readAt }">{{ record.title }}</a>
-              <span v-if="record.content" class="sub">{{ record.content }}</span>
+              <a-tooltip v-if="record.title" :title="record.title">
+                <a class="tt cell-ellipsis" :class="{ unread: !record.readAt }">{{ record.title }}</a>
+              </a-tooltip>
+              <a v-else class="tt" :class="{ unread: !record.readAt }">-</a>
+              <a-tooltip v-if="record.content" :title="record.content"><span class="sub">{{ record.content }}</span></a-tooltip>
               <span v-if="record.attachments?.length" class="att-flag">附件 {{ record.attachments.length }}</span>
             </div>
           </template>

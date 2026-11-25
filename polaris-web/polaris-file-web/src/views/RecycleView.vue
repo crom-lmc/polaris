@@ -13,10 +13,13 @@
       <a-table :columns="columns" :data-source="records" :loading="loading" row-key="id" :pagination="pagination" @change="handleTableChange">
         <template #bodyCell="{ column, record }">
           <template v-if="column.key === 'name'">
-            <span class="name-cell">
-              <img v-if="record.thumbUrl" :src="record.thumbUrl" class="thumb" @error="onThumbError" />
-              <span>{{ record.originalName }}</span>
-            </span>
+            <a-tooltip v-if="record.originalName" :title="record.originalName">
+              <span class="name-cell">
+                <img v-if="record.thumbUrl" :src="record.thumbUrl" class="thumb" @error="onThumbError" />
+                <span class="cell-ellipsis">{{ record.originalName }}</span>
+              </span>
+            </a-tooltip>
+            <span v-else class="name-cell">-</span>
           </template>
           <template v-else-if="column.key === 'size'">
             {{ formatSize(record.size) }}
@@ -141,6 +144,7 @@ function formatSize(size: number) {
 .toolbar { display: flex; gap: 8px; align-items: center; margin-bottom: 16px; flex-wrap: wrap; }
 .tip { font-size: 12px; color: var(--muted); }
 .danger { color: #ff4d4f; }
-.name-cell { display: inline-flex; align-items: center; gap: 6px; }
+.name-cell { display: inline-flex; align-items: center; gap: 6px; max-width: 100%; min-width: 0; }
+.name-cell .cell-ellipsis { flex: 1 1 auto; min-width: 0; }
 .thumb { width: 28px; height: 28px; object-fit: cover; border-radius: 4px; flex: none; }
 </style>

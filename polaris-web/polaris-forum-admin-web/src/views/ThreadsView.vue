@@ -146,8 +146,10 @@ function recommendThread(thread: Thread) {
           <template #bodyCell="{ column, record }">
             <template v-if="column.key === 'content'">
               <div class="title-cell">
-                <a v-if="!record.deleted" :href="publicThreadUrl(record.id)" target="_blank" rel="noopener noreferrer">{{ record.title || record.excerpt }}</a>
-                <span v-else>{{ record.title || record.excerpt }}</span>
+                <a-tooltip :title="record.title || record.excerpt || ''">
+                  <a v-if="!record.deleted" class="cell-ellipsis" :href="publicThreadUrl(record.id)" target="_blank" rel="noopener noreferrer">{{ record.title || record.excerpt }}</a>
+                  <span v-else class="cell-ellipsis">{{ record.title || record.excerpt }}</span>
+                </a-tooltip>
                 <small>#{{ record.id }} · {{ record.board }}</small>
               </div>
             </template>
@@ -178,3 +180,7 @@ function recommendThread(thread: Thread) {
     </a-card>
   </div>
 </template>
+
+<style scoped>
+.title-cell { min-width: 0; max-width: 100%; }
+</style>

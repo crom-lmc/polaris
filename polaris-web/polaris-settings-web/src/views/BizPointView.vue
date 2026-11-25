@@ -63,7 +63,8 @@
             <span>{{ record.bizName }}</span>
           </template>
           <template v-else-if="column.key === 'remark'">
-            <span class="muted">{{ record.remark || '—' }}</span>
+            <a-tooltip v-if="record.remark" :title="record.remark"><span class="cell-ellipsis muted">{{ record.remark }}</span></a-tooltip>
+            <span v-else class="muted">—</span>
           </template>
           <template v-else-if="column.key === 'action'">
             <a-button type="link" size="small" @click="openEdit(record)">编辑</a-button>

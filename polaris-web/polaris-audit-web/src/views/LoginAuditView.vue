@@ -20,7 +20,7 @@
     />
     <a-alert v-if="errorMsg" :message="errorMsg" type="warning" show-icon style="margin-bottom: 12px" />
 
-    <section class="ft-scroll ft-bottom">
+    <section class="ft-scroll ft-bottom login-audit-table">
       <a-table
         :columns="columns"
         :data-source="records"
@@ -39,10 +39,16 @@
             </a-tag>
           </template>
           <template v-else-if="column.key === 'failReason'">
-            <span class="muted">{{ record.failReason || '-' }}</span>
+            <a-tooltip v-if="record.failReason" :title="record.failReason">
+              <span class="cell-ellipsis muted">{{ record.failReason }}</span>
+            </a-tooltip>
+            <span v-else class="muted">-</span>
           </template>
           <template v-else-if="column.key === 'userAgent'">
-            <a-tooltip :title="record.userAgent"><span class="ua">{{ short(record.userAgent) }}</span></a-tooltip>
+            <a-tooltip v-if="record.userAgent" :title="record.userAgent">
+              <span class="cell-ellipsis ua">{{ record.userAgent }}</span>
+            </a-tooltip>
+            <span v-else class="muted">-</span>
           </template>
         </template>
       </a-table>
@@ -55,11 +61,11 @@ import { computed, onMounted, ref } from 'vue'
 import { fetchLoginLogs, type LoginLog } from '@/api/audit'
 
 const columns = [
-  { title: '时间', dataIndex: 'createdAt', key: 'createdAt', width: 180 },
-  { title: '用户名', dataIndex: 'username', key: 'username', width: 180 },
-  { title: '登录方式', dataIndex: 'loginType', key: 'loginType', width: 120 },
+  { title: '时间', dataIndex: 'createdAt', key: 'createdAt', width: 170 },
+  { title: '用户名', dataIndex: 'username', key: 'username', width: 150 },
+  { title: '登录方式', dataIndex: 'loginType', key: 'loginType', width: 110 },
   { title: '结果', key: 'result', width: 90 },
-  { title: '失败原因', key: 'failReason', width: 220 },
+  { title: '失败原因', key: 'failReason', width: 240 },
   { title: 'IP', dataIndex: 'clientIp', key: 'clientIp', width: 140 },
   { title: '客户端', key: 'userAgent' }
 ]
@@ -116,11 +122,13 @@ async function load() {
 
 function handleSearch() { current.value = 1; load() }
 function handleTableChange(pag: any) { current.value = pag.current; pageSize.value = pag.pageSize; load() }
-function short(s?: string) { return !s ? '-' : s.length > 36 ? `${s.slice(0, 36)}…` : s }
 </script>
 
 <style scoped>
+.login-audit-table { --ft-min-width: 1220px; }
 .toolbar { display: flex; gap: 8px; align-items: center; margin-bottom: 16px; flex-wrap: wrap; }
 .muted { color: var(--muted); }
 .ua { font-size: 12px; }
+/* 长文本按列宽自适应省略，完整内容由 a-tooltip 悬浮展示 */
+.cell-ellipsis { display: block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 </style>

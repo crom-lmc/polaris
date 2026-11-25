@@ -73,7 +73,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import {
   AuditOutlined,
@@ -99,7 +99,9 @@ const router = useRouter()
 const store = useUserStore()
 const theme = useThemeStore()
 
-const collapsed = ref(false)
+import { useResponsiveCollapsed } from '@shared/useResponsiveCollapsed'
+
+const collapsed = useResponsiveCollapsed()
 
 function toggleCollapse() {
   collapsed.value = !collapsed.value

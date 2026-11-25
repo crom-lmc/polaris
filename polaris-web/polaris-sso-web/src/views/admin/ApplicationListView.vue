@@ -31,10 +31,11 @@
         <template #bodyCell="{ column, record }">
           <template v-if="column.key === 'name'">
             <div class="name-cell">
-              <span class="name">
-                {{ record.name }}
+              <div class="name-row">
+                <a-tooltip v-if="record.name" :title="record.name"><span class="name cell-ellipsis">{{ record.name }}</span></a-tooltip>
+                <span v-else class="name">-</span>
                 <a-tag v-if="record.builtIn" class="builtin-tag" color="blue">内置</a-tag>
-              </span>
+              </div>
               <span class="code">{{ record.code }}</span>
             </div>
           </template>
@@ -427,6 +428,20 @@ async function copySecret() {
 .name-cell {
   display: flex;
   flex-direction: column;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.name-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.name-row .cell-ellipsis {
+  flex: 1 1 auto;
+  min-width: 0;
 }
 
 .name-cell .name {
@@ -434,9 +449,9 @@ async function copySecret() {
 }
 
 .name-cell .builtin-tag {
-  margin-left: 6px;
   font-weight: 400;
   line-height: 18px;
+  flex: none;
 }
 
 .name-cell .code,
