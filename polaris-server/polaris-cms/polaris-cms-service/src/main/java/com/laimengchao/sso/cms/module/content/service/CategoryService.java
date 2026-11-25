@@ -49,7 +49,7 @@ public class CategoryService {
         Category c;
         if (req.getId() == null) {
             c = new Category();
-            c.setOrgCode(AccountContext.getDataScopeOrgCode());
+            c.setOrgCode(dataScopeService.currentScopeCode());
         } else {
             c = categoryMapper.selectById(req.getId());
             if (c == null) {

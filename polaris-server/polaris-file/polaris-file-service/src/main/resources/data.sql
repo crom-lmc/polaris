@@ -14,3 +14,20 @@ VALUES
    'jpg,jpeg,png,gif,webp,pdf,doc,docx,xls,xlsx,zip','PRIVATE',1,1,'站内信附件强制私有，仅消息接收人可下载',NOW()),
   (9200000000000000006,'announcement_attachment','内部通知附件',20,
    'jpg,jpeg,png,gif,webp,pdf,doc,docx,xls,xlsx,zip','PRIVATE',1,1,'公告正文插图与附件强制私有，按公告可见范围下载',NOW());
+
+-- 水印配置种子（INSERT IGNORE 幂等）：默认给员工附件（含合同/档案）启用水印，其余业务可按需在页面新增
+-- 注：合同附件统一按 ehr_attachment 上传，不再单独配置 ehr_contract
+INSERT IGNORE INTO `file_watermark_config`
+  (`id`,`biz_type`,`enabled`,`content`,`font_size`,`color`,`opacity`,`rotation`,`layout`,`gap`,`file_types`,`scenes`,`created_at`)
+VALUES
+  (9300000000000000002,'ehr_attachment',1,'内部资料\n{username} · {date}',24,'#8B5CF6',28,-24,'TILE',46,'IMAGE,PDF,SVG','VIEW,SHARE',NOW());
+
+-- 附件全局设置种子（INSERT IGNORE 幂等）
+INSERT IGNORE INTO `file_attachment_setting` (`setting_key`,`setting_value`,`updated_at`) VALUES
+  ('preview.enabled','true',NOW()),
+  ('preview.maxSizeMb','50',NOW()),
+  ('thumbnail.maxEdge','320',NOW()),
+  ('dedup.enabled','true',NOW()),
+  ('sign.ttlSeconds','300',NOW()),
+  ('audit.download','true',NOW()),
+  ('recycle.keepDays','30',NOW());

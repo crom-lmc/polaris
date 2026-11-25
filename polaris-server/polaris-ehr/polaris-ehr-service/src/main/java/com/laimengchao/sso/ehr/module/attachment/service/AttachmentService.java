@@ -18,6 +18,7 @@ import com.laimengchao.sso.file.client.api.FileApi;
 import com.laimengchao.sso.file.client.dto.FileMeta;
 import com.laimengchao.sso.file.client.dto.FileUploadRequest;
 import com.laimengchao.sso.file.client.dto.R;
+import com.laimengchao.sso.file.client.dto.WatermarkContentRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -121,6 +122,7 @@ public class AttachmentService {
         attachmentMapper.insert(a);
         AttachmentVO vo = new AttachmentVO();
         vo.setId(id);
+        vo.setFileId(fileId);
         vo.setFileName(original);
         vo.setSize((long) bytes.length);
         vo.setMime(a.getMime());
@@ -250,6 +252,7 @@ public class AttachmentService {
     private AttachmentVO toVO(Attachment a) {
         AttachmentVO vo = new AttachmentVO();
         vo.setId(a.getId());
+        vo.setFileId(a.getFileId());
         vo.setFileName(a.getFileName());
         vo.setSize(a.getSize());
         vo.setMime(a.getMime());
@@ -334,6 +337,12 @@ public class AttachmentService {
     }
 
     public Resource download(Long attachmentId, Long accountId, boolean canViewAll) {
+        return download(attachmentId, accountId, canViewAll, null, null, null);
+    }
+
+    /** 下载附件；传入下载人身份时对图片/PDF 烧录水印（由统一文件服务按水印配置处理）。 */
+    public Resource download(Long attachmentId, Long accountId, boolean canViewAll,
+                             String username, String userId, String clientIp) {
         Attachment a = attachmentMapper.selectById(attachmentId);
         if (a == null) {
             throw new BizException(EhrErrorCode.ATTACHMENT_NOT_FOUND, "附件不存在");
@@ -356,13 +365,38 @@ public class AttachmentService {
             throw new BizException(ErrorCode.FORBIDDEN, "无权下载该附件");
         }
         if (a.getFileId() != null) {
-            return new ByteArrayResource(readBytes(a));
+            byte[] bytes = readBytes(a);
+            // 有下载人身份时走水印烧录；失败回退原始字节，绝不影响下载可用性
+            if (username != null || userId != null) {
+                bytes = watermarkedBytes(String.valueOf(a.getFileId()), bytes, username, userId, clientIp);
+            }
+            return new ByteArrayResource(bytes);
         }
         Path p = Paths.get(fileRoot).toAbsolutePath().normalize().resolve(a.getFileKey());
         if (!Files.exists(p)) {
             throw new BizException(EhrErrorCode.ATTACHMENT_NOT_FOUND, "附件文件已丢失");
         }
         return new FileSystemResource(p);
+    }
+
+    /** 调用统一文件服务的水印烧录接口；异常时回退原字节。 */
+    private byte[] watermarkedBytes(String fileId, byte[] original, String username, String userId, String clientIp) {
+        try {
+            WatermarkContentRequest req = new WatermarkContentRequest();
+            req.setFileId(fileId);
+            req.setScene("DOWNLOAD");
+            req.setUsername(username);
+            req.setUserId(userId);
+            req.setIp(clientIp);
+            R<String> res = fileApi.watermarkedContent(req);
+            if (res != null && res.ok() && res.getData() != null) {
+                return Base64.getDecoder().decode(res.getData());
+            }
+            log.warn("水印烧录返回为空，回退原文件：fileId={}", fileId);
+        } catch (Exception e) {
+            log.warn("水印烧录失败，回退原文件：fileId={}, message={}", fileId, e.getMessage());
+        }
+        return original;
     }
 
     public String fileName(Long attachmentId) {

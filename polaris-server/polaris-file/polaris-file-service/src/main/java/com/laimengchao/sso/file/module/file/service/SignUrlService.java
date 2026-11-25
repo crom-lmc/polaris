@@ -24,11 +24,15 @@ public class SignUrlService {
     private static final String HMAC_SHA256 = "HmacSHA256";
 
     private final FileProperties props;
+    private final AttachmentSettingService settings;
 
     /** 生成签名 URL 与过期时间（epoch 秒）。 */
     public String[] sign(String fileId, String purpose, Long expiresSeconds) {
+        // 未显式指定时取“附件设置”里的私有签名有效期，缺省回落配置文件
+        long defaultTtl = settings.integer(AttachmentSettingService.SIGN_TTL_SECONDS,
+                (int) props.getSignTtlSeconds());
         long ttl = expiresSeconds == null || expiresSeconds <= 0
-                ? props.getSignTtlSeconds()
+                ? defaultTtl
                 : Math.min(expiresSeconds, props.getSignTtlMaxSeconds());
         long expiresAt = System.currentTimeMillis() / 1000 + ttl;
         String signature = hmac(fileId + ":" + purpose + ":" + expiresAt);

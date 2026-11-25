@@ -39,7 +39,8 @@ request.interceptors.response.use(
     const body = error?.response?.data
     const message = body?.message || error.message || '网络异常'
     const err = new Error(message) as Error & { code?: number; status?: number }
-    err.code = status
+    // 业务错误码优先：不能让 HTTP 状态码覆盖 4xx 响应体里的业务码
+    err.code = typeof body?.code === 'number' ? body.code : status
     err.status = status
     return Promise.reject(err)
   }

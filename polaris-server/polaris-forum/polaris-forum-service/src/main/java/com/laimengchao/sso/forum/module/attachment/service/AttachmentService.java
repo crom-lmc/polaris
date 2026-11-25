@@ -14,6 +14,7 @@ import com.laimengchao.sso.file.client.dto.FileAliasRequest;
 import com.laimengchao.sso.file.client.dto.FileMeta;
 import com.laimengchao.sso.file.client.dto.FileUploadRequest;
 import com.laimengchao.sso.file.client.dto.R;
+import com.laimengchao.sso.file.client.dto.WatermarkContentRequest;
 import com.laimengchao.sso.forum.security.ForumAdminGuard;
 import com.laimengchao.sso.forum.storage.ForumStorageService;
 import lombok.RequiredArgsConstructor;
@@ -183,14 +184,35 @@ public class AttachmentService {
             // 显式设置后 Spring Security 的 CacheControlHeadersWriter 不再注入 no-cache。
             builder.cacheControl(CacheControl.maxAge(365, TimeUnit.DAYS).cachePublic().immutable());
         }
-        return builder.body(readFile(row));
+        // 管理端下载带登录人身份用于水印；公开下载匿名（水印若有则用占位符）
+        if (publicOnly) {
+            return builder.body(readFile(row));
+        }
+        SecurityUser user = requireUser();
+        return builder.body(readFile(row, user.getUsername(), String.valueOf(user.getAccountId()), null));
     }
 
     /** 统一文件服务优先；取不到时回退旧本地存储（存量文件 file_id 为空）。 */
     private Resource readFile(Attachment row) {
+        return readFile(row, null, null, null);
+    }
+
+    /** 读取附件字节；传身份时对图片/PDF 烧录下载水印。 */
+    private Resource readFile(Attachment row, String username, String userId, String clientIp) {
         if (row.getFileId() != null) {
             try {
-                R<String> result = fileApi.content(String.valueOf(row.getFileId()));
+                R<String> result;
+                if (username != null || userId != null) {
+                    WatermarkContentRequest req = new WatermarkContentRequest();
+                    req.setFileId(String.valueOf(row.getFileId()));
+                    req.setScene("DOWNLOAD");
+                    req.setUsername(username);
+                    req.setUserId(userId);
+                    req.setIp(clientIp);
+                    result = fileApi.watermarkedContent(req);
+                } else {
+                    result = fileApi.content(String.valueOf(row.getFileId()));
+                }
                 if (result != null && result.ok() && result.getData() != null) {
                     return new ByteArrayResource(Base64.getDecoder().decode(result.getData()));
                 }

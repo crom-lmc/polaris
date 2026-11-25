@@ -6,6 +6,7 @@
         <span class="logo-text">{{ appName }}</span>
       </div>
       <div class="right">
+        <AppCenterNav current-code="audit" />
         <a-button
           type="text"
           class="theme-toggle"
@@ -38,25 +39,29 @@
         @collapse="(v: boolean) => (collapsed = v)"
       >
         <a-menu mode="inline" :selected-keys="selectedKeys" @click="handleMenuClick">
-          <a-menu-item key="overview">
+          <a-menu-item v-if="store.can('audit:overview:view')" key="overview">
             <template #icon><dashboard-outlined /></template>
             概览
           </a-menu-item>
-          <a-menu-item key="events">
+          <a-menu-item v-if="store.can('audit:events:list')" key="events">
             <template #icon><audit-outlined /></template>
             审计事件
           </a-menu-item>
-          <a-menu-item key="login-audit">
+          <a-menu-item v-if="store.can('audit:login:list')" key="login-audit">
             <template #icon><login-outlined /></template>
             登录审计
           </a-menu-item>
-          <a-menu-item key="system-logs">
+          <a-menu-item v-if="store.can('audit:system-log:list')" key="system-logs">
             <template #icon><file-text-outlined /></template>
             系统日志
           </a-menu-item>
-          <a-menu-item key="log-files">
+          <a-menu-item v-if="store.can('audit:system-log:list')" key="log-files">
             <template #icon><file-outlined /></template>
             日志文件
+          </a-menu-item>
+          <a-menu-item v-if="store.can('audit:setting:view')" key="settings">
+            <template #icon><setting-outlined /></template>
+            全局设置
           </a-menu-item>
         </a-menu>
       </a-layout-sider>
@@ -78,7 +83,8 @@ import {
   FileTextOutlined,
   LoginOutlined,
   LogoutOutlined,
-  MenuOutlined
+  MenuOutlined,
+  SettingOutlined
 } from '@ant-design/icons-vue'
 import { useUserStore } from '@/stores/user'
 import { useThemeStore } from '@/stores/theme'
@@ -86,6 +92,7 @@ import { logout } from '@/api/auth'
 import { clearTokens } from '@/utils/token'
 import { appName } from '@/utils/appTitle'
 import ThemeToggleIcon from '@/components/ThemeToggleIcon.vue'
+import AppCenterNav from '@shared/AppCenterNav.vue'
 
 const route = useRoute()
 const router = useRouter()

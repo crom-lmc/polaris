@@ -28,7 +28,10 @@ public enum FileErrorCode implements IErrorCode {
     SHARE_PASSWORD_WRONG(8119, "分享提取码错误"),
     SHARE_EXPIRED(8120, "分享链接已过期"),
     SHARE_EXHAUSTED(8121, "分享次数已用尽"),
-    QUOTA_EXCEEDED(8122, "业务存储配额已用尽");
+    QUOTA_EXCEEDED(8122, "业务存储配额已用尽"),
+    SHARE_PARAM_INVALID(8123, "有效期与查看次数留空表示不限，填写则必须大于 0"),
+    WATERMARK_PARAM_INVALID(8124, "水印配置参数不合法"),
+    WATERMARK_NOT_FOUND(8125, "水印配置不存在");
 
     private final int code;
     private final String message;
@@ -59,9 +62,12 @@ public enum FileErrorCode implements IErrorCode {
             case 8116:
             case 8117:
             case 8122:
+            case 8123:
+            case 8124:
                 return 400;
             case 8115:
             case 8118:
+            case 8125:
                 return 404;
             case 8119:
             case 8120:

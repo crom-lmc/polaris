@@ -43,7 +43,7 @@ public class BannerService {
         banner.setSort(banner.getSort() == null ? 0 : banner.getSort());
         banner.setStatus(banner.getStatus() == null ? 1 : banner.getStatus());
         if (banner.getId() == null) {
-            banner.setOrgCode(AccountContext.getDataScopeOrgCode());
+            banner.setOrgCode(dataScopeService.currentScopeCode());
             bannerMapper.insert(banner);
         } else {
             Banner existing = bannerMapper.selectById(banner.getId());

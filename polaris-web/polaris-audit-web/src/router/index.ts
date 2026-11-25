@@ -59,6 +59,12 @@ const router = createRouter({
           name: 'log-files',
           component: () => import('@/views/SystemLogsView.vue'),
           meta: { title: '日志文件', perm: 'audit:system-log:list' }
+        },
+        {
+          path: 'settings',
+          name: 'settings',
+          component: () => import('@/views/SettingView.vue'),
+          meta: { title: '全局设置', perm: 'audit:setting:view' }
         }
       ]
     },

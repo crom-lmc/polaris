@@ -20,6 +20,7 @@
           <search-outlined /><input v-model.trim="keyword" aria-label="搜索帖子" placeholder="搜索帖子、用户…" />
         </form>
         <div class="header-tools" :class="{ 'header-tools--guest': !currentUser }">
+          <AppCenterNav v-if="isLoggedIn" current-code="forum" />
           <button class="header-icon-button" :aria-label="isDark ? '切换为浅色模式' : '切换为深色模式'" :title="isDark ? '浅色模式' : '深色模式'" @click="toggleTheme">
             <bulb-filled v-if="isDark" /><bulb-outlined v-else />
           </button>
@@ -62,6 +63,7 @@ import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { BellOutlined, BulbFilled, BulbOutlined, DownOutlined, EditOutlined, HeartOutlined, IdcardOutlined, LogoutOutlined, SaveOutlined, SearchOutlined, ThunderboltOutlined, TrophyOutlined, UserOutlined } from '@ant-design/icons-vue'
 import UserAvatar from '@/components/UserAvatar.vue'
+import AppCenterNav from '@shared/AppCenterNav.vue'
 import { fetchBoards } from '@/api/forum'
 import { currentUser, isLoggedIn, logout, refreshUnreadCount, requireLogin, unreadCount } from '@/auth'
 import { isDark, toggleTheme } from '@/theme'

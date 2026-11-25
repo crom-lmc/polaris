@@ -1,6 +1,7 @@
 package com.laimengchao.sso.file.module.share.entity;
 
 import com.baomidou.mybatisplus.annotation.IdType;
+import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
@@ -40,8 +41,10 @@ public class FileShare {
     private LocalDateTime createdAt;
 
     /** 分享 URL（非持久化） */
+    @TableField(exist = false)
     private String url;
 
     /** 文件原始名（非持久化，列表展示） */
+    @TableField(exist = false)
     private String fileName;
 }

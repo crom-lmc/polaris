@@ -61,6 +61,7 @@ export DOMAIN=$(grep -E '^DOMAIN=' .env | cut -d= -f2)
 mkdir -p /etc/nginx/snippets
 cp api-proxy.inc /etc/nginx/snippets/polaris-api.inc
 cp security.inc /etc/nginx/snippets/security.inc
+cp polaris-file-view-frame.inc /etc/nginx/snippets/polaris-file-view-frame.inc
 cp waf.conf /etc/nginx/conf.d/waf.conf
 cp vault.conf /etc/nginx/conf.d/vault.conf
 cp 00-default-ssl.conf /etc/nginx/conf.d/00-default-ssl.conf

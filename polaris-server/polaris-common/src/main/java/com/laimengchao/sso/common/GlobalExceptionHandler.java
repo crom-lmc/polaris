@@ -4,9 +4,12 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.BindException;
+import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 /**
@@ -52,6 +55,25 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(NoResourceFoundException.class)
     public ResponseEntity<R<Void>> noResource(NoResourceFoundException e) {
         return ResponseEntity.status(HttpStatus.NOT_FOUND).body(R.fail(ErrorCode.NOT_FOUND));
+    }
+
+    /** 客户端参数问题：明确 400，不打 ERROR 堆栈（原来是 500 + unhandled exception 噪声）。 */
+    @ExceptionHandler(MissingServletRequestParameterException.class)
+    public ResponseEntity<R<Void>> missingParam(MissingServletRequestParameterException e) {
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(R.fail(ErrorCode.PARAM_ERROR, "缺少请求参数：" + e.getParameterName()));
+    }
+
+    @ExceptionHandler(MethodArgumentTypeMismatchException.class)
+    public ResponseEntity<R<Void>> badParam(MethodArgumentTypeMismatchException e) {
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(R.fail(ErrorCode.PARAM_ERROR, "请求参数格式错误：" + e.getName()));
+    }
+
+    @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
+    public ResponseEntity<R<Void>> badMethod(HttpRequestMethodNotSupportedException e) {
+        return ResponseEntity.status(HttpStatus.METHOD_NOT_ALLOWED)
+                .body(R.fail(ErrorCode.PARAM_ERROR, "不支持的请求方法：" + e.getMethod()));
     }
 
     @ExceptionHandler(Exception.class)

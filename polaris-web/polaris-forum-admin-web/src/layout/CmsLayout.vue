@@ -6,6 +6,7 @@
         <span class="logo-text">{{ appName }}</span>
       </div>
       <div class="right">
+        <AppCenterNav current-code="forum-admin" />
         <a-button type="text" class="theme-toggle" :title="theme.mode === 'dark' ? '切换到白天模式' : '切换到黑夜模式'" @click="theme.toggle()">
           <ThemeToggleIcon :mode="theme.mode" />
         </a-button>
@@ -88,6 +89,7 @@ import {
 } from '@ant-design/icons-vue'
 import { gotoAuthorize, logoutSso } from '@/api/forum'
 import ThemeToggleIcon from '@/components/ThemeToggleIcon.vue'
+import AppCenterNav from '@shared/AppCenterNav.vue'
 import { useSessionGuard } from '@/composables/useSessionGuard'
 import { useThemeStore } from '@/stores/theme'
 import { useUserStore } from '@/stores/user'

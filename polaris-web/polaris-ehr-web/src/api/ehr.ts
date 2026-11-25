@@ -1,7 +1,8 @@
 import request from './request'
 
 /** 统一账号中心 sso-web 的 /authorize 页（授权码签发入口） */
-export const SSO_AUTHORIZE_URL = import.meta.env.VITE_SSO_ORIGIN || 'http://localhost:5173'
+export const SSO_AUTHORIZE_URL = import.meta.env.VITE_SSO_ORIGIN ||
+  (import.meta.env.DEV ? 'http://localhost:5173' : 'https://polaris-sso.laimengchao.site')
 
 /** 当前 ehr-web 的回调地址（必须与统一账号中心里 ehr 应用的 baseUrl 同 origin） */
 export function callbackUrl(): string {
@@ -1520,6 +1521,8 @@ export const getRecruitmentLedger = (params: Record<string, unknown>) =>
 
 export interface EhrAttachment {
   id: string
+  /** 统一文件服务文件 ID（旧存量附件可能为空，此时不可分享） */
+  fileId?: string
   fileName: string
   size: number
   mime?: string
@@ -1538,6 +1541,30 @@ export function downloadEhrAttachment(id: string) {
   return request.get<never, { data: Blob }>(`/api/ehr/attachments/${id}/download`, {
     responseType: 'blob'
   })
+}
+
+/* ---------------- 公共文件能力：分享（登录即可，无管理权限码） ---------------- */
+
+export interface FileShare {
+  id: string
+  fileId: string
+  shareCode: string
+  url: string
+  fileName?: string
+  expiresAt?: string
+  maxViews: number
+  viewCount: number
+  enabled: boolean
+  createdAt: string
+}
+
+export function createFileShare(payload: {
+  fileId: string
+  password?: string
+  expiresHours?: number
+  maxViews?: number
+}) {
+  return request.post<never, FileShare>('/api/file/my/shares', payload)
 }
 
 /* ---------------- 轻量考勤（P1-2） ---------------- */

@@ -5,7 +5,8 @@ export interface MyAppInfo { code: string; name: string }
 export const fetchMyApps = () => request.get<never, MyAppInfo[]>('/api/accounts/me/apps')
 
 /** 统一账号中心 sso-web 的 /authorize 页（授权码签发入口） */
-export const SSO_AUTHORIZE_URL = import.meta.env.VITE_SSO_ORIGIN || 'http://localhost:5173'
+export const SSO_AUTHORIZE_URL = import.meta.env.VITE_SSO_ORIGIN ||
+  (import.meta.env.DEV ? 'http://localhost:5173' : 'https://polaris-sso.laimengchao.site')
 
 /** 本应用回调地址（须与统一账号中心 file 应用的 baseUrl 同 origin） */
 export function callbackUrl(): string {
@@ -137,6 +138,8 @@ export interface PreviewInfo {
   contentType: string
   url: string
   thumbUrl?: string
+  watermark?: PreviewWatermark
+  reason?: string
 }
 export const previewFile = (id: string) => request.get<never, PreviewInfo>(`/api/file/admin/files/${id}/preview`)
 
@@ -164,6 +167,8 @@ export interface FileShare {
   shareCode: string
   url: string
   fileName?: string
+  /** 提取码哈希（仅用于判断是否设置提取码，不展示明文/哈希值） */
+  passwordHash?: string
   expiresAt?: string
   maxViews: number
   viewCount: number
@@ -179,6 +184,36 @@ export interface ShareCreatePayload {
 export const listShares = () => request.get<never, FileShare[]>('/api/file/admin/shares')
 export const createShare = (payload: ShareCreatePayload) => request.post<never, FileShare>('/api/file/admin/shares', payload)
 export const revokeShare = (id: string) => request.delete<never, void>(`/api/file/admin/shares/${id}`)
+
+/** 匿名访问页：分享元信息（不含提取码哈希） */
+export interface ShareAccessInfo {
+  fileName: string
+  needPassword: boolean
+  expiresAt?: string
+  maxViews: number
+  viewCount: number
+}
+export const shareInfo = (code: string) =>
+  request.get<never, ShareAccessInfo>(`/api/file/share/info?code=${encodeURIComponent(code)}`, { skipAuthRedirect: true } as any)
+
+/** 匿名访问页：凭提取码取文件字节；错误以 Error.code = 业务码抛出 */
+export async function shareDownload(code: string, password?: string): Promise<{ blob: Blob; fileName: string; contentType: string }> {
+  const url = `/api/file/share/access?code=${encodeURIComponent(code)}` +
+    (password ? `&password=${encodeURIComponent(password)}` : '')
+  const res = await fetch(url, { headers: { Accept: 'application/octet-stream' } })
+  const ct = res.headers.get('content-type') || ''
+  const disposition = res.headers.get('content-disposition') || ''
+  if (ct.includes('application/json')) {
+    const body = await res.json()
+    const err = new Error(body?.message || '访问失败') as Error & { code?: number }
+    err.code = body?.code
+    throw err
+  }
+  if (!res.ok) throw new Error(`下载失败（HTTP ${res.status}）`)
+  const match = /filename\*=UTF-8''([^;]+)/.exec(disposition)
+  const fileName = match ? decodeURIComponent(match[1]) : 'download'
+  return { blob: await res.blob(), fileName, contentType: ct.split(';')[0] }
+}
 
 // ---------------- 分片上传 ----------------
 export interface MultipartInit {
@@ -226,3 +261,41 @@ export const bizTypeOptions = async () => (await listPolicies()).map(p => ({
   label: p.bizName || p.bizType,
   value: p.bizType
 }))
+
+// ---------------- 附件设置：水印 ----------------
+export interface WatermarkConfig {
+  id?: string
+  bizType: string
+  enabled: boolean
+  content: string
+  fontSize: number
+  color: string
+  opacity: number
+  rotation: number
+  layout: 'TILE' | 'CENTER' | string
+  gap: number
+  fileTypes: string
+  scenes: string
+  createdAt?: string
+  updatedAt?: string
+}
+export const listWatermarks = () => request.get<never, WatermarkConfig[]>('/api/file/admin/watermarks')
+export const saveWatermark = (data: WatermarkConfig) => request.post<never, WatermarkConfig>('/api/file/admin/watermarks', data)
+export const deleteWatermark = (id: string) => request.delete<never, void>(`/api/file/admin/watermarks/${id}`)
+
+// ---------------- 附件设置：全局设置 ----------------
+export type AttachmentSettings = Record<string, string>
+export const getAttachmentSettings = () => request.get<never, AttachmentSettings>('/api/file/admin/settings')
+export const saveAttachmentSettings = (settings: AttachmentSettings) =>
+  request.put<never, void>('/api/file/admin/settings', { settings })
+
+/** 预览信息中的水印叠加参数（PDF 前端用） */
+export interface PreviewWatermark {
+  text: string
+  fontSize: number
+  color: string
+  opacity: number
+  rotation: number
+  layout: string
+  gap: number
+}

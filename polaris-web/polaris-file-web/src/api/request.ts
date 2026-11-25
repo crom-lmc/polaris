@@ -48,7 +48,8 @@ request.interceptors.response.use(
       return Promise.reject(new Error(body?.message || '登录状态已失效，请重新登录'))
     }
     const err = new Error(message) as Error & { code?: number; status?: number }
-    err.code = status
+    // 业务错误码优先：8118/8119 等以 404/403 返回，不能让 HTTP 状态码覆盖业务码
+    err.code = typeof body?.code === 'number' ? body.code : status
     err.status = status
     return Promise.reject(err)
   }

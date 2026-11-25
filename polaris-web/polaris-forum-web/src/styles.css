@@ -76,10 +76,10 @@ img.brand-mark { display: block; flex: none; object-fit: contain; background: tr
 .main-nav a.active::after { content: ""; position: absolute; bottom: 14px; left: 50%; width: 18px; height: 3px; border-radius: 3px; background: var(--primary); transform: translateX(-50%); }
 .main-nav .category-item { align-self: stretch; display: flex; align-items: center; }
 .main-nav .category-submenu { top: 100%; left: 0; }
-/* 右侧整组（搜索/工具/登录或用户名）与内容区右边缘留出一点空白，不贴死边缘 */
-.header-actions { display: flex; align-items: center; gap: 0; margin-left: auto; padding-right: 10px; }
-/* 顶部工具组宽度对齐首页右侧栏（274px）；整组已由 header-actions 的 padding-right 统一右移留白，登录不再贴死右边缘 */
-.header-tools { width: 274px; flex: none; display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+/* 右侧整组贴齐内容区右边缘：用户名下拉与首页右栏右边界对齐，不再溢出 */
+.header-actions { display: flex; align-items: center; gap: 0; margin-left: auto; padding-right: 0; }
+/* 工具组按内容自然宽度排布：登录态多了应用中心入口，固定 274px 会把用户名挤出右边界，同时把搜索栏顶得偏右 */
+.header-tools { width: auto; flex: none; display: flex; align-items: center; justify-content: flex-end; gap: 8px; }
 /* 未登录时工具组只有「主题/发帖/登录」3 项，space-between 会把主题与发帖拉得过开；改为紧凑靠左，登录按钮用 margin-left:auto 保持在组右端 */
 .header-tools--guest { justify-content: flex-start; gap: 10px; }
 .header-tools--guest .login-button { margin-left: auto; }

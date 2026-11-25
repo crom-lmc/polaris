@@ -21,6 +21,10 @@ public class FileLifecycleTask {
             if (count > 0) {
                 log.info("文件生命周期清理完成，本轮移入回收站 {} 条", count);
             }
+            int purged = fileService.purgeExpiredRecycle();
+            if (purged > 0) {
+                log.info("回收站自动清理完成，本轮物理删除 {} 条", purged);
+            }
         } catch (Exception e) {
             log.error("文件生命周期清理失败：{}", e.getMessage(), e);
         }

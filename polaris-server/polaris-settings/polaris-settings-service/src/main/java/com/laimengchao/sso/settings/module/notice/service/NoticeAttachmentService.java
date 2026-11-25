@@ -4,6 +4,7 @@ import com.laimengchao.sso.common.BizException;
 import com.laimengchao.sso.common.ErrorCode;
 import com.laimengchao.sso.file.client.api.FileApi;
 import com.laimengchao.sso.file.client.dto.R;
+import com.laimengchao.sso.file.client.dto.WatermarkContentRequest;
 import com.laimengchao.sso.settings.module.notice.dto.NoticeAttachmentDTO;
 import com.laimengchao.sso.settings.module.notice.entity.NoticeAttachment;
 import com.laimengchao.sso.settings.module.notice.entity.NoticeMessage;
@@ -80,6 +81,12 @@ public class NoticeAttachmentService {
 
     /** 下载：先确认附件所属消息确实发给当前账号，再向统一文件服务取字节 */
     public AttachmentFile download(Long attachmentId, Long accountId) {
+        return download(attachmentId, accountId, null, null, null);
+    }
+
+    /** 下载并对图片/PDF 烧录水印（身份由调用方传入）。 */
+    public AttachmentFile download(Long attachmentId, Long accountId,
+                                   String username, String userId, String clientIp) {
         NoticeAttachment a = attachmentId == null ? null : attachmentMapper.selectById(attachmentId);
         if (a == null) {
             throw new BizException(ErrorCode.NOT_FOUND, "附件不存在");
@@ -90,7 +97,18 @@ public class NoticeAttachmentService {
         }
         byte[] bytes;
         try {
-            R<String> res = fileApi.content(String.valueOf(a.getFileId()));
+            R<String> res;
+            if (username != null || userId != null) {
+                WatermarkContentRequest req = new WatermarkContentRequest();
+                req.setFileId(String.valueOf(a.getFileId()));
+                req.setScene("DOWNLOAD");
+                req.setUsername(username);
+                req.setUserId(userId);
+                req.setIp(clientIp);
+                res = fileApi.watermarkedContent(req);
+            } else {
+                res = fileApi.content(String.valueOf(a.getFileId()));
+            }
             if (res == null || !res.ok() || res.getData() == null) {
                 log.error("统一文件服务读取消息附件失败：fileId={}, message={}", a.getFileId(),
                         res == null ? "无响应" : res.getMessage());

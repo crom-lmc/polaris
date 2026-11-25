@@ -48,3 +48,12 @@ CREATE TABLE IF NOT EXISTS `system_log` (
   KEY `idx_app_level_time` (`app`,`level`,`created_at`),
   KEY `idx_level_time` (`level`,`created_at`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8 COMMENT='平台系统运行日志（各服务 Logback 上报）';
+
+-- 审计全局设置：K-V 集中存采集/忽略/留存/脱敏/导出策略，运行时可改，审计服务自消费即时生效。
+-- 注意：生产 AUDIT_SQL_INIT_MODE=never，新表需随部署手工执行本文件（CREATE TABLE IF NOT EXISTS 幂等）。
+CREATE TABLE IF NOT EXISTS `audit_setting` (
+  `setting_key` varchar(128) NOT NULL COMMENT '配置项 key，点分命名（见 AuditSettingService 常量）',
+  `setting_value` varchar(2000) NOT NULL DEFAULT '' COMMENT '配置值：布尔 0/1，数字文本，列表逗号分隔',
+  `updated_at` datetime NOT NULL COMMENT '最后更新时间',
+  PRIMARY KEY (`setting_key`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8 COMMENT='审计全局设置（K-V）';

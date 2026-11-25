@@ -6,9 +6,13 @@ import com.laimengchao.sso.common.security.PermissionCodes;
 import com.laimengchao.sso.file.common.FileErrorCode;
 import com.laimengchao.sso.file.module.file.entity.FileObject;
 import com.laimengchao.sso.file.module.file.entity.StoragePolicy;
+import com.laimengchao.sso.file.module.file.entity.WatermarkConfig;
+import com.laimengchao.sso.file.module.file.service.AttachmentSettingService;
 import com.laimengchao.sso.file.module.file.service.FileService;
 import com.laimengchao.sso.file.module.file.service.MultipartUploadService;
 import com.laimengchao.sso.file.module.file.service.ThumbnailService;
+import com.laimengchao.sso.file.module.file.service.WatermarkService;
+import jakarta.servlet.http.HttpServletRequest;
 import com.laimengchao.sso.file.module.file.vo.MultipartInitRequest;
 import com.laimengchao.sso.file.module.file.vo.SignRequest;
 import com.laimengchao.sso.file.module.file.vo.UploadRequest;
@@ -37,6 +41,8 @@ public class FileAdminController {
 
     private final FileService fileService;
     private final MultipartUploadService multipartService;
+    private final WatermarkService watermarks;
+    private final AttachmentSettingService settings;
 
     @GetMapping("/overview")
     @Permit(PermissionCodes.FILE_OVERVIEW_VIEW)
@@ -92,7 +98,7 @@ public class FileAdminController {
      */
     @GetMapping("/files/{id}/preview")
     @Permit(PermissionCodes.FILE_DOWNLOAD)
-    public R<Map<String, Object>> preview(@PathVariable("id") String id) {
+    public R<Map<String, Object>> preview(@PathVariable("id") String id, HttpServletRequest request) {
         FileObject obj = fileService.meta(id);
         if (obj == null) {
             throw new com.laimengchao.sso.common.BizException(FileErrorCode.FILE_NOT_FOUND);
@@ -109,12 +115,40 @@ public class FileAdminController {
         } else {
             mode = "UNSUPPORTED";
         }
+        // 在线预览总开关 / 大小上限（附件设置）。关闭或超限时不给可内联预览的 URL。
+        boolean previewEnabled = settings.bool(AttachmentSettingService.PREVIEW_ENABLED, true);
+        int maxPreviewMb = settings.integer(AttachmentSettingService.PREVIEW_MAX_SIZE_MB, 50);
+        long sizeMb = obj.getSize() == null ? 0 : obj.getSize() / (1024 * 1024);
+        String previewReason = null;
+        if (!previewEnabled || sizeMb > maxPreviewMb) {
+            mode = "UNSUPPORTED";
+            previewReason = previewEnabled ? "文件超过在线预览大小上限" : "在线预览已关闭";
+        }
         Map<String, Object> info = new java.util.HashMap<>();
+        if (previewReason != null) {
+            info.put("reason", previewReason);
+        }
         info.put("mode", mode);
         info.put("name", obj.getOriginalName());
         info.put("contentType", obj.getContentType());
         info.put("url", obj.getUrl());
         info.put("thumbUrl", obj.getThumbUrl());
+        // PDF 前端叠加：返回该业务的水印参数（图片已在字节流叠加，这里只给 PDF/前端用）
+        String fileType = "PDF".equals(mode) ? "PDF" : ("IMAGE".equals(mode) ? "IMAGE" : null);
+        String clientIp = request.getHeader("X-Forwarded-For") != null
+                ? request.getHeader("X-Forwarded-For").split(",")[0].trim() : request.getRemoteAddr();
+        WatermarkConfig cfg = watermarks.config(obj.getBizType());
+        if (fileType != null && watermarks.applies(cfg, "VIEW", fileType)) {
+            Map<String, Object> wm = new java.util.HashMap<>();
+            wm.put("text", watermarks.renderedText(cfg, obj, clientIp));
+            wm.put("fontSize", cfg.getFontSize() == null ? 26 : cfg.getFontSize());
+            wm.put("color", cfg.getColor() == null ? "#8B5CF6" : cfg.getColor());
+            wm.put("opacity", cfg.getOpacity() == null ? 30 : cfg.getOpacity());
+            wm.put("rotation", cfg.getRotation() == null ? -24 : cfg.getRotation());
+            wm.put("layout", cfg.getLayout() == null ? "TILE" : cfg.getLayout());
+            wm.put("gap", cfg.getGap() == null ? 46 : cfg.getGap());
+            info.put("watermark", wm);
+        }
         return R.ok(info);
     }
 

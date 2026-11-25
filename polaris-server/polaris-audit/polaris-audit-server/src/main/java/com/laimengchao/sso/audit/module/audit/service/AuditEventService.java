@@ -38,6 +38,7 @@ public class AuditEventService {
     private static final String CATEGORY_LOGIN = "LOGIN";
 
     private final AuditEventMapper mapper;
+    private final AuditSettingService settings;
 
     /** 批量写入，逐条转换，单条异常不影响同批其他记录。 */
     public void recordBatch(List<AuditEventRequest> requests) {
@@ -45,7 +46,13 @@ public class AuditEventService {
             return;
         }
         int failed = 0;
+        int skipped = 0;
         for (AuditEventRequest req : requests) {
+            // 接收端按全局设置收敛：登录/敏感事件强制落库，其余按采集开关与忽略规则过滤
+            if (shouldDiscard(req)) {
+                skipped++;
+                continue;
+            }
             try {
                 mapper.insert(toEntity(req));
             } catch (Exception e) {
@@ -56,11 +63,51 @@ public class AuditEventService {
         }
         // 批次级汇总（不逐条刷屏）：网关按批异步上报，频率可控
         if (failed > 0) {
-            log.warn("审计事件批量写入存在失败：total={} success={} failed={}",
-                    requests.size(), requests.size() - failed, failed);
+            log.warn("审计事件批量写入存在失败：total={} success={} failed={} skipped={}",
+                    requests.size(), requests.size() - failed - skipped, failed, skipped);
         } else {
-            log.info("审计事件批量写入成功：total={}", requests.size());
+            log.info("审计事件批量写入成功：total={} skipped={}", requests.size(), skipped);
         }
+    }
+
+    /**
+     * 接收端落库过滤。登录与敏感事件是合规必留项，永不因设置丢弃；
+     * 其余按「采集总开关 → 忽略应用 → 忽略类别 → 忽略路径前缀」顺序判定。
+     */
+    private boolean shouldDiscard(AuditEventRequest req) {
+        if (req == null) {
+            return true;
+        }
+        String category = blankToDefault(req.getEventCategory(), CATEGORY_ACCESS).toUpperCase();
+        // 合规必留：登录事件与敏感操作
+        if (AuditSettingService.CATEGORY_LOGIN.equals(category)
+                || AuditSettingService.CATEGORY_SENSITIVE.equals(category)) {
+            return false;
+        }
+        // 采集总开关（源头关闭的接收端兜底）：ACCESS 由网关总开关控制，BUSINESS 由业务操作开关控制
+        if (CATEGORY_ACCESS.equals(category) && !settings.bool(AuditSettingService.COLLECT_GATEWAY_ACCESS, true)) {
+            return true;
+        }
+        if ("BUSINESS".equals(category) && !settings.bool(AuditSettingService.COLLECT_BUSINESS_OP, true)) {
+            return true;
+        }
+        // 忽略应用
+        String app = blankToDefault(req.getApp(), DEFAULT_APP);
+        if (settings.ignoredApps().contains(app.toLowerCase())) {
+            return true;
+        }
+        // 忽略类别
+        if (settings.ignoredCategories().contains(category)) {
+            return true;
+        }
+        // 忽略路径前缀
+        String path = req.getRequestPath() == null ? "" : req.getRequestPath();
+        for (String prefix : settings.ignoredPathPrefixes()) {
+            if (path.startsWith(prefix)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     public void record(AuditEventRequest req) {
@@ -84,14 +131,23 @@ public class AuditEventService {
         e.setOperatorName(trim(operator, 64));
         e.setTargetType(trim(req.getTargetType(), 64));
         e.setTargetId(trim(req.getTargetId(), 64));
-        e.setDetail(trim(req.getDetail(), 2000));
-        e.setRequestParams(trim(req.getRequestParams(), 1800));
+        int fieldLimit = settings.integer(AuditSettingService.COLLECT_TRUNCATE_LENGTH, 1800);
+        e.setDetail(mask(trim(req.getDetail(), 2000)));
+        e.setRequestParams(mask(trim(req.getRequestParams(), fieldLimit)));
         e.setHttpStatus(req.getHttpStatus());
         e.setBizCode(req.getBizCode());
-        e.setResponseSummary(trim(req.getResponseSummary(), 2000));
+        e.setResponseSummary(mask(trim(req.getResponseSummary(), 2000)));
         e.setCostMs(req.getCostMs());
-        e.setClientIp(trim(req.getClientIp(), 64));
-        e.setUserAgent(trim(req.getUserAgent(), 512));
+        // 隐私开关：关闭记录后不落库对应字段（登录事件保留 IP/UA 以便异地登录识别，不受关闭影响）
+        boolean isLogin = CATEGORY_LOGIN.equals(e.getEventCategory());
+        boolean recordIp = isLogin || settings.bool(AuditSettingService.PRIVACY_RECORD_IP, true);
+        boolean recordUa = isLogin || settings.bool(AuditSettingService.PRIVACY_RECORD_UA, true);
+        boolean recordOpId = settings.bool(AuditSettingService.PRIVACY_RECORD_OPERATOR_ID, true);
+        e.setClientIp(recordIp ? trim(req.getClientIp(), 64) : "");
+        e.setUserAgent(recordUa ? trim(req.getUserAgent(), 512) : "");
+        if (!recordOpId) {
+            e.setOperatorId("");
+        }
         e.setLoginType(trim(req.getLoginType(), 32));
         e.setResult(trim(req.getResult(), 16));
         e.setFailReason(trim(req.getFailReason(), 500));
@@ -242,6 +298,26 @@ public class AuditEventService {
             });
         }
         return w;
+    }
+
+    /**
+     * 二次脱敏：复用 common 静态打码（JSON/query/Bearer），再按设置里的敏感关键词打码。
+     * 上游已脱敏一次，此处兜底；只做打码不再截断（长度已在 toEntity 按设置截断）。
+     */
+    private String mask(String s) {
+        if (s == null || s.isEmpty()) {
+            return "";
+        }
+        String out = com.laimengchao.sso.utils.AuditDataMasker.mask(s);
+        for (String kw : settings.sensitiveKeywords()) {
+            if (kw.length() < 3) {
+                continue;
+            }
+            // key=value / key: value / "key":"value" 三种形态打码，大小写不敏感
+            out = out.replaceAll("(?i)(\"" + java.util.regex.Pattern.quote(kw) + "\"\\s*:\\s*)\"[^\"]*\"", "$1\"***\"");
+            out = out.replaceAll("(?i)(" + java.util.regex.Pattern.quote(kw) + "\\s*[:=]\\s*)[^&,\\s\"]+", "$1***");
+        }
+        return out;
     }
 
     private boolean notBlank(String s) {

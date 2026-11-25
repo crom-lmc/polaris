@@ -86,6 +86,8 @@ public class GatewayProperties {
             "/api/file/secure/**",
             "/api/file/legacy/**",
             "/api/file/sso/**",
+            // 分享链接对外访问：凭分享码 + 提取码 + 有效期/次数鉴权，不带用户令牌
+            "/api/file/share/**",
             // 统一审计中心换票端：前端 /callback 拿 OAuth code 换令牌时还没有用户令牌，必须免鉴权
             "/api/audit/sso/**",
             // 论坛正文插图：走 file-service legacy 端点按别名读取（公开图片，非用户令牌鉴权）

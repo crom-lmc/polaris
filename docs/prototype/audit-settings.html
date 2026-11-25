@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="dark">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>审计全局设置 - 北极星眼 · 设计稿</title>
+<style>
+  * { box-sizing: border-box; }
+  :root {
+    --bg-page:#1D1F27; --bg-surface:#252833; --bg-elev:#2C303D; --bg-input:#20232C;
+    --text:#E9EBF3; --muted:#969DB0; --faint:#6F7689;
+    --border:rgba(255,255,255,.10); --border-soft:rgba(255,255,255,.055);
+    --grad:linear-gradient(135deg,#C86DD7 0%,#9B6BF2 45%,#3FC7C0 100%);
+    --grad-soft:linear-gradient(135deg,rgba(200,109,215,.20),rgba(63,199,192,.16));
+    --accent:#B77BE8; --accent2:#4BC9BE; --success:#43C89A; --warning:#E7B45A; --danger:#E46A76;
+    --radius:10px; --shadow:0 10px 36px rgba(0,0,0,.34);
+  }
+  html,body { margin:0; height:100%; }
+  body { font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','PingFang SC','Microsoft YaHei',sans-serif;
+    background:var(--bg-page); color:var(--text); font-size:13px; overflow:hidden; }
+  .shell { display:flex; height:100vh; }
+
+  /* 侧栏 */
+  .sider { width:212px; flex:0 0 212px; background:var(--bg-surface); border-right:1px solid var(--border); display:flex; flex-direction:column; }
+  .brand { height:60px; display:flex; align-items:center; gap:10px; padding:0 18px; border-bottom:1px solid var(--border); font-size:15px; font-weight:650; letter-spacing:.4px; }
+  .brand-mark { width:28px; height:28px; border-radius:8px; background:var(--grad); display:flex; align-items:center; justify-content:center; color:#fff; font-size:15px; box-shadow:0 4px 14px rgba(155,107,242,.35); }
+  .menu { padding:10px 8px; overflow:auto; flex:1; }
+  .menu-group { font-size:11px; color:var(--faint); padding:14px 12px 6px; letter-spacing:.8px; }
+  .menu-item { display:flex; align-items:center; gap:10px; height:38px; padding:0 12px; border-radius:7px; color:var(--text); cursor:pointer; margin-bottom:2px; text-decoration:none; }
+  .menu-item:hover { background:rgba(255,255,255,.045); }
+  .menu-item.active { background:var(--grad-soft); color:#E6D6FF; font-weight:550; box-shadow:inset 2px 0 0 var(--accent); }
+  .menu-item .ico { width:17px; text-align:center; opacity:.9; }
+  .badge-new { font-size:10px; color:#fff; background:var(--grad); border-radius:8px; padding:1px 6px; margin-left:auto; }
+  .sider-foot { padding:12px 16px; border-top:1px solid var(--border); font-size:11px; color:var(--faint); line-height:1.7; }
+
+  /* 主区 */
+  .main { flex:1; display:flex; flex-direction:column; min-width:0; }
+  .header { height:60px; flex:0 0 60px; background:var(--bg-surface); border-bottom:1px solid var(--border); display:flex; align-items:center; padding:0 24px; gap:12px; }
+  .crumb { font-size:12px; color:var(--muted); }
+  .crumb b { color:var(--text); font-weight:550; }
+  .header .right { margin-left:auto; display:flex; align-items:center; gap:14px; }
+  .env { font-size:11px; color:var(--accent2); border:1px solid rgba(75,201,190,.35); background:rgba(75,201,190,.10); border-radius:12px; padding:3px 10px; }
+  .avatar { width:28px; height:28px; border-radius:50%; background:var(--grad); color:#fff; display:flex; align-items:center; justify-content:center; font-size:11px; }
+  .who { font-size:12px; color:var(--muted); }
+
+  .content { flex:1; overflow:auto; padding:20px 24px 86px; }
+  .page-head { display:flex; align-items:flex-end; gap:11px; margin-bottom:14px; }
+  .page-title { font-size:19px; font-weight:650; letter-spacing:.3px; }
+  .page-desc { font-size:12px; color:var(--muted); padding-bottom:2px; }
+  .tag-draft { font-size:11px; color:#E8D3FF; border:1px solid rgba(183,123,232,.5); background:rgba(183,123,232,.12); border-radius:11px; padding:2px 9px; margin-bottom:3px; }
+  .notice { display:flex; gap:10px; align-items:flex-start; background:var(--grad-soft); border:1px solid rgba(183,123,232,.28); border-radius:8px; padding:10px 13px; margin-bottom:16px; font-size:12px; line-height:1.65; color:#D9D3E8; }
+  .notice .ni { color:var(--accent); font-size:14px; line-height:1.3; }
+  .notice code { color:#EFE4FF; background:rgba(0,0,0,.22); padding:1px 5px; border-radius:4px; font-size:11px; }
+
+  .tabs { display:flex; gap:4px; border-bottom:1px solid var(--border); margin-bottom:16px; }
+  .tab { padding:9px 15px; font-size:13px; color:var(--muted); cursor:pointer; border-bottom:2px solid transparent; margin-bottom:-1px; white-space:nowrap; }
+  .tab:hover { color:var(--text); }
+  .tab.active { color:#E8D6FF; border-bottom-color:var(--accent); font-weight:550; }
+
+  .layout { display:grid; grid-template-columns:minmax(0,1fr) 276px; gap:16px; align-items:start; }
+  .panel { background:var(--bg-surface); border:1px solid var(--border); border-radius:var(--radius); margin-bottom:14px; overflow:hidden; }
+  .panel-hd { padding:13px 17px; display:flex; align-items:flex-start; gap:11px; border-bottom:1px solid var(--border-soft); }
+  .panel-ico { width:30px; height:30px; flex:0 0 30px; border-radius:8px; background:var(--grad-soft); border:1px solid rgba(183,123,232,.25); display:flex; align-items:center; justify-content:center; font-size:15px; }
+  .panel-hd h3 { margin:0 0 3px; font-size:14px; font-weight:600; }
+  .panel-hd p { margin:0; font-size:11px; color:var(--muted); line-height:1.5; }
+  .panel-bd { padding:4px 17px; }
+  .row { display:flex; align-items:center; gap:18px; padding:13px 0; border-bottom:1px solid var(--border-soft); min-height:60px; }
+  .row:last-child { border-bottom:none; }
+  .row .info { flex:1; min-width:0; }
+  .row .label { font-size:13px; margin-bottom:4px; display:flex; align-items:center; gap:7px; }
+  .row .desc { font-size:11px; color:var(--muted); line-height:1.55; }
+  .row .ctl { flex:0 0 auto; display:flex; align-items:center; gap:8px; }
+  .row.stack { align-items:flex-start; }
+  .row.stack .ctl { width:330px; }
+
+  .switch { width:38px; height:21px; border-radius:12px; background:#454B5A; position:relative; cursor:pointer; transition:.2s; flex:0 0 auto; }
+  .switch::after { content:''; position:absolute; left:3px; top:3px; width:15px; height:15px; border-radius:50%; background:#fff; transition:.2s; box-shadow:0 1px 3px rgba(0,0,0,.3); }
+  .switch.on { background:var(--accent); }
+  .switch.on::after { left:20px; }
+  .switch.disabled { opacity:.45; cursor:not-allowed; }
+  .sw-label { font-size:11px; color:var(--muted); width:26px; }
+
+  .select,.input { height:32px; border:1px solid var(--border); background:var(--bg-input); color:var(--text); border-radius:6px; padding:0 10px; font-size:12px; outline:none; font-family:inherit; }
+  .select:focus,.input:focus { border-color:var(--accent); }
+  .input.num { width:86px; text-align:right; }
+  .suffix { font-size:11px; color:var(--muted); }
+  .chips { display:flex; flex-wrap:wrap; gap:6px; min-height:32px; align-items:center; }
+  .chip { display:inline-flex; align-items:center; gap:6px; background:rgba(255,255,255,.055); border:1px solid var(--border); border-radius:5px; padding:4px 8px; font-size:11px; color:#D7DBE7; font-family:ui-monospace,SFMono-Regular,Menlo,monospace; }
+  .chip .x { color:var(--faint); cursor:pointer; }
+  .chip.add { border-style:dashed; background:transparent; color:var(--accent); cursor:pointer; }
+  .checks { display:flex; gap:14px; flex-wrap:wrap; align-items:center; }
+  .chk { display:flex; align-items:center; gap:6px; font-size:12px; color:#D7DBE7; cursor:pointer; }
+  .chk input { accent-color:var(--accent); }
+  .chk.locked { opacity:.45; cursor:not-allowed; }
+
+  .callout { display:flex; gap:9px; padding:10px 12px; border-radius:7px; font-size:11px; line-height:1.65; margin:10px 0 2px; }
+  .callout.warn { background:rgba(231,180,90,.09); border:1px solid rgba(231,180,90,.26); color:#EDD5A8; }
+  .callout.info { background:rgba(75,201,190,.08); border:1px solid rgba(75,201,190,.22); color:#B9E4DE; }
+
+  .mini-table { width:100%; border-collapse:collapse; font-size:12px; margin:10px 0; }
+  .mini-table th { text-align:left; color:var(--faint); font-weight:500; padding:7px 9px; border-bottom:1px solid var(--border); font-size:11px; }
+  .mini-table td { padding:8px 9px; border-bottom:1px solid var(--border-soft); }
+  .mini-table td.mono { font-family:ui-monospace,SFMono-Regular,Menlo,monospace; color:#D7DBE7; }
+  .tag { display:inline-block; padding:2px 7px; border-radius:4px; font-size:11px; }
+  .tag.on { color:var(--success); background:rgba(67,200,154,.13); }
+  .tag.off { color:var(--faint); background:rgba(255,255,255,.06); }
+  .link { color:var(--accent); cursor:pointer; font-size:12px; }
+  .link.danger { color:var(--danger); }
+
+  /* 右侧影响面板 */
+  .side-panel { background:var(--bg-surface); border:1px solid var(--border); border-radius:var(--radius); padding:15px 16px; margin-bottom:14px; }
+  .side-panel h4 { margin:0 0 12px; font-size:13px; font-weight:600; display:flex; align-items:center; gap:7px; }
+  .side-panel h4::before { content:''; width:3px; height:13px; border-radius:2px; background:var(--grad); }
+  .kv { display:flex; justify-content:space-between; gap:10px; padding:7px 0; border-bottom:1px solid var(--border-soft); font-size:12px; }
+  .kv:last-child { border-bottom:none; }
+  .kv span:first-child { color:var(--muted); }
+  .kv b { font-weight:550; }
+  .bar { height:5px; border-radius:3px; background:rgba(255,255,255,.08); overflow:hidden; margin-top:5px; }
+  .bar i { display:block; height:100%; background:var(--grad); }
+  .mini-note { font-size:11px; color:var(--faint); line-height:1.7; margin-top:10px; }
+  .impact-item { padding:9px 0; border-bottom:1px solid var(--border-soft); font-size:12px; }
+  .impact-item:last-child { border-bottom:none; }
+  .impact-item .t { display:flex; justify-content:space-between; margin-bottom:5px; }
+  .impact-item .t b { color:var(--accent2); font-weight:550; }
+
+  /* 保存栏 */
+  .savebar { flex:0 0 62px; background:var(--bg-surface); border-top:1px solid var(--border); display:flex; align-items:center; gap:12px; padding:0 24px; box-shadow:0 -8px 24px rgba(0,0,0,.18); }
+  .dirty { font-size:12px; color:var(--warning); display:flex; align-items:center; gap:7px; }
+  .dirty i { width:7px; height:7px; border-radius:50%; background:var(--warning); }
+  .dirty.clean { color:var(--faint); }
+  .dirty.clean i { background:var(--faint); }
+  .savebar .spacer { flex:1; }
+  .btn { height:34px; padding:0 15px; border-radius:7px; border:1px solid var(--border); background:transparent; color:var(--text); font-size:12px; cursor:pointer; font-family:inherit; }
+  .btn:hover { background:rgba(255,255,255,.05); }
+  .btn.primary { background:var(--grad); border:none; color:#fff; font-weight:550; padding:0 20px; box-shadow:0 4px 16px rgba(155,107,242,.28); }
+  .btn.primary:hover { filter:brightness(1.08); }
+  .toast { position:fixed; right:26px; bottom:78px; background:var(--bg-elev); border:1px solid rgba(67,200,154,.4); color:#CFF3E5; padding:11px 16px; border-radius:8px; box-shadow:var(--shadow); font-size:12px; opacity:0; pointer-events:none; transition:.25s; z-index:9; }
+  .toast.show { opacity:1; }
+  .hidden { display:none; }
+</style>
+</head>
+<body>
+<div class="shell">
+  <aside class="sider">
+    <div class="brand"><div class="brand-mark">◈</div><span>北极星眼</span></div>
+    <div class="menu">
+      <div class="menu-group">审计中心</div>
+      <a class="menu-item"><span class="ico">▦</span>概览</a>
+      <a class="menu-item"><span class="ico">≡</span>审计事件</a>
+      <a class="menu-item"><span class="ico">⏎</span>登录审计</a>
+      <div class="menu-group">运行监控</div>
+      <a class="menu-item"><span class="ico">⌘</span>系统日志</a>
+      <a class="menu-item"><span class="ico">▤</span>日志文件</a>
+      <div class="menu-group">系统</div>
+      <a class="menu-item active"><span class="ico">⚙</span>全局设置<span class="badge-new">NEW</span></a>
+    </div>
+    <div class="sider-foot">Polaris Platform v2.4<br/>设计稿 · 不接后端</div>
+  </aside>
+
+  <div class="main">
+    <header class="header">
+      <div class="crumb">北极星眼 / <b>全局设置</b></div>
+      <div class="right"><span class="env">生产环境</span><span class="who">系统管理员</span><div class="avatar">管</div></div>
+    </header>
+
+    <div class="content">
+      <div class="page-head">
+        <div class="page-title">审计全局设置</div>
+        <div class="page-desc">统一配置采集、忽略、留存与脱敏策略 · 保存后对全平台生效</div>
+        <span class="tag-draft">静态设计稿</span>
+      </div>
+
+      <div class="notice">
+        <span class="ni">◈</span>
+        <div>本页为<strong>设计稿</strong>，当前平台尚无设置表、接口与权限码。落地需新增 <code>audit:setting:view</code> / <code>audit:setting:edit</code> 两个权限码并挂到 <code>AUDIT_ADMIN</code>；配置由审计服务自消费，网关侧采集开关需通过 Nacos 下发。</div>
+      </div>
+
+      <div class="tabs" id="tabs">
+        <div class="tab active" data-tab="collect">采集策略</div>
+        <div class="tab" data-tab="ignore">忽略规则</div>
+        <div class="tab" data-tab="retention">留存与清理</div>
+        <div class="tab" data-tab="privacy">脱敏与隐私</div>
+        <div class="tab" data-tab="export">导出与合规</div>
+      </div>
+
+      <div class="layout">
+        <div>
+          <!-- 采集策略 -->
+          <div class="pane" data-pane="collect">
+            <div class="panel">
+              <div class="panel-hd"><div class="panel-ico">◉</div><div><h3>采集总开关</h3><p>四类数据源独立控制，关闭任一类不影响其他数据源</p></div></div>
+              <div class="panel-bd">
+                <div class="row"><div class="info"><div class="label">网关访问审计 <span class="tag on">全量兜底</span></div><div class="desc">所有经网关请求均记录（含 GET）；关闭后仅保留业务层写操作审计，溯源能力明显下降</div></div><div class="ctl"><div class="switch on"></div><span class="sw-label">开启</span></div></div>
+                <div class="row"><div class="info"><div class="label">业务操作审计</div><div class="desc">POST / PUT / PATCH / DELETE，由 @AuditLog 补充语义与敏感操作标记</div></div><div class="ctl"><div class="switch on"></div><span class="sw-label">开启</span></div></div>
+                <div class="row"><div class="info"><div class="label">登录事件审计 <span class="tag on">合规必开</span></div><div class="desc">登录成功与失败均记录，失败时记录尝试登录的用户名</div></div><div class="ctl"><div class="switch on disabled"></div><span class="sw-label">强制</span></div></div>
+                <div class="row"><div class="info"><div class="label">系统日志采集</div><div class="desc">各应用 Logback Appender 采集 WARN / ERROR 并写入 system_log；审计服务自身强制关闭防递归</div></div><div class="ctl"><div class="switch on"></div><span class="sw-label">开启</span></div></div>
+              </div>
+            </div>
+
+            <div class="panel">
+              <div class="panel-hd"><div class="panel-ico">⚙</div><div><h3>采集参数</h3><p>控制上报粒度与体积，超出上限的内容自动截断</p></div></div>
+              <div class="panel-bd">
+                <div class="row"><div class="info"><div class="label">系统日志最低级别</div><div class="desc">低于该级别的日志不上报；INFO 会产生大量记录，仅排障期临时调低</div></div><div class="ctl"><select class="select"><option>WARN（推荐）</option><option>ERROR</option><option>INFO</option></select></div></div>
+                <div class="row"><div class="info"><div class="label">采集 Query 参数</div><div class="desc">GET 与表单查询串，上报前按脱敏关键词打码</div></div><div class="ctl"><div class="switch on"></div><span class="sw-label">开启</span></div></div>
+                <div class="row"><div class="info"><div class="label">采集 JSON Body <span class="tag off">默认关</span></div><div class="desc">写操作请求体，开启后单请求最多保留 1800 字符；敏感业务建议保持关闭</div></div><div class="ctl"><div class="switch"></div><span class="sw-label">关闭</span></div></div>
+                <div class="row"><div class="info"><div class="label">单字段截断长度</div><div class="desc">请求参数与响应摘要的最大字符数</div></div><div class="ctl"><input class="input num" value="1800"/><span class="suffix">字符</span></div></div>
+                <div class="row stack"><div class="info"><div class="label">系统日志队列容量</div><div class="desc">有界队列，满时丢弃并计数告警；上报批量 100 条、间隔 1000ms</div></div><div class="ctl"><input class="input num" value="2000"/><span class="suffix">条</span></div></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 忽略规则 -->
+          <div class="pane hidden" data-pane="ignore">
+            <div class="panel">
+              <div class="panel-hd"><div class="panel-ico">⊘</div><div><h3>忽略路径前缀</h3><p>命中前缀的请求不再产生审计事件，支持通配符 *，按最长前缀匹配</p></div></div>
+              <div class="panel-bd">
+                <table class="mini-table">
+                  <thead><tr><th style="width:58%">路径前缀</th><th style="width:22%">作用范围</th><th style="width:12%">状态</th><th>操作</th></tr></thead>
+                  <tbody>
+                    <tr><td class="mono">/actuator/**</td><td>健康检查</td><td><span class="tag on">启用</span></td><td><span class="link danger">删除</span></td></tr>
+                    <tr><td class="mono">/internal/**</td><td>服务间调用</td><td><span class="tag on">启用</span></td><td><span class="link danger">删除</span></td></tr>
+                    <tr><td class="mono">/api/file/public/**</td><td>匿名访问</td><td><span class="tag on">启用</span></td><td><span class="link danger">删除</span></td></tr>
+                    <tr><td class="mono">/favicon.ico</td><td>静态资源</td><td><span class="tag on">启用</span></td><td><span class="link danger">删除</span></td></tr>
+                  </tbody>
+                </table>
+                <div class="chips" style="padding:2px 0 12px"><span class="chip add">＋ 新增前缀</span></div>
+                <div class="callout info">◈ 匿名 <code>/public/**</code> 路径本就不在审计范围；此处仅用于降噪，不能替代权限控制。</div>
+              </div>
+            </div>
+
+            <div class="panel">
+              <div class="panel-hd"><div class="panel-ico">▣</div><div><h3>按应用与类别忽略</h3><p>被忽略的应用或类别将完全不写入审计事件表</p></div></div>
+              <div class="panel-bd">
+                <div class="row stack"><div class="info"><div class="label">忽略应用</div><div class="desc">留空表示采集全部 11 个应用</div></div><div class="ctl"><div class="chips"><span class="chip add">＋ 选择应用</span></div></div></div>
+                <div class="row stack"><div class="info"><div class="label">忽略事件类别</div><div class="desc">ACCESS 访问 / BUSINESS 业务 / SENSITIVE 敏感 / LOGIN 登录</div></div><div class="ctl"><div class="checks">
+                  <label class="chk"><input type="checkbox"/> ACCESS</label>
+                  <label class="chk"><input type="checkbox"/> BUSINESS</label>
+                  <label class="chk"><input type="checkbox"/> SENSITIVE</label>
+                  <label class="chk locked"><input type="checkbox" checked disabled/> LOGIN（不可忽略）</label>
+                </div></div></div>
+                <div class="callout warn">▲ 登录事件与敏感操作属于合规必留项，界面禁用忽略；后端同样需要强校验，不能只靠前端禁用。</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 留存与清理 -->
+          <div class="pane hidden" data-pane="retention">
+            <div class="panel">
+              <div class="panel-hd"><div class="panel-ico">◷</div><div><h3>留存周期</h3><p>超过保留期的记录按天清理，清理任务由审计服务定时调度</p></div></div>
+              <div class="panel-bd">
+                <div class="row"><div class="info"><div class="label">审计事件保留天数</div><div class="desc">对应现有 audit.retention-days 配置契约（当前仅为注释，未实现清理）</div></div><div class="ctl"><input class="input num" value="180"/><span class="suffix">天</span></div></div>
+                <div class="row"><div class="info"><div class="label">系统日志保留天数</div><div class="desc">system_log 通常体量更大，建议短于审计事件</div></div><div class="ctl"><input class="input num" value="90"/><span class="suffix">天</span></div></div>
+                <div class="row"><div class="info"><div class="label">每日清理时间</div><div class="desc">低峰期执行，单次批量删除避免长事务</div></div><div class="ctl"><input class="input" value="03:00" style="width:86px"/></div></div>
+                <div class="row"><div class="info"><div class="label">清理前归档</div><div class="desc">将待删记录导出归档后再清理，需配置文件存储位置</div></div><div class="ctl"><div class="switch"></div><span class="sw-label">关闭</span></div></div>
+                <div class="callout warn">▲ 清理是不可逆操作。首次启用建议先归档、并在小批量上验证；清理动作本身需要写入审计事件。</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 脱敏与隐私 -->
+          <div class="pane hidden" data-pane="privacy">
+            <div class="panel">
+              <div class="panel-hd"><div class="panel-ico">◈</div><div><h3>脱敏规则</h3><p>匹配到的参数名与文本片段统一替换为 ***</p></div></div>
+              <div class="panel-bd">
+                <div class="row stack"><div class="info"><div class="label">敏感字段关键词</div><div class="desc">不区分大小写，支持子串匹配；上报端执行，服务端不存原文</div></div><div class="ctl"><div class="chips">
+                  <span class="chip">password</span><span class="chip">token</span><span class="chip">secret</span><span class="chip">authorization</span><span class="chip">idcard</span><span class="chip">mobile</span><span class="chip add">＋ 添加</span>
+                </div></div></div>
+                <div class="row"><div class="info"><div class="label">记录客户端 IP</div><div class="desc">取 X-Forwarded-For / X-Real-IP，用于溯源与异地登录识别</div></div><div class="ctl"><div class="switch on"></div><span class="sw-label">开启</span></div></div>
+                <div class="row"><div class="info"><div class="label">记录 User-Agent</div><div class="desc">用于识别终端类型与异常客户端</div></div><div class="ctl"><div class="switch on"></div><span class="sw-label">开启</span></div></div>
+                <div class="row"><div class="info"><div class="label">记录操作人账号 ID</div><div class="desc">与用户名同时写入，支持按账号精确检索；关闭后只能按用户名查</div></div><div class="ctl"><div class="switch on"></div><span class="sw-label">开启</span></div></div>
+                <div class="row"><div class="info"><div class="label">日志正文截断长度</div><div class="desc">system_log 的 message 与 stack_trace 分别截断</div></div><div class="ctl"><input class="input num" value="4000"/><span class="suffix">字符</span></div></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 导出与合规 -->
+          <div class="pane hidden" data-pane="export">
+            <div class="panel">
+              <div class="panel-hd"><div class="panel-ico">⇩</div><div><h3>审计数据导出</h3><p>当前仅日志文件支持下载，审计事件导出为待实现能力</p></div></div>
+              <div class="panel-bd">
+                <div class="row"><div class="info"><div class="label">开放审计事件导出 <span class="tag off">待实现</span></div><div class="desc">需新增权限码 audit:events:export，按钮仅对审计管理员可见</div></div><div class="ctl"><div class="switch"></div><span class="sw-label">关闭</span></div></div>
+                <div class="row"><div class="info"><div class="label">单次导出上限</div><div class="desc">超过上限时提示缩小时间范围，防止拖库式导出</div></div><div class="ctl"><input class="input num" value="10000"/><span class="suffix">条</span></div></div>
+                <div class="row"><div class="info"><div class="label">导出二次确认</div><div class="desc">弹出确认框要求填写用途，用途随导出审计记录一并保存</div></div><div class="ctl"><div class="switch on"></div><span class="sw-label">开启</span></div></div>
+                <div class="row stack"><div class="info"><div class="label">导出文件水印文案</div><div class="desc">与附件水印一致的身份变量，烧录到导出的 PDF / 文本首页</div></div><div class="ctl"><input class="input" value="仅供内部使用 {username} {date}" style="width:100%"/></div></div>
+                <div class="row"><div class="info"><div class="label">记录导出行为</div><div class="desc">每次导出写入一条 SENSITIVE 审计事件，包含操作人、条件与条数</div></div><div class="ctl"><div class="switch on disabled"></div><span class="sw-label">强制</span></div></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 右侧影响面板 -->
+        <aside>
+          <div class="side-panel">
+            <h4>当前生效值</h4>
+            <div class="kv"><span>审计事件保留</span><b>180 天</b></div>
+            <div class="kv"><span>系统日志保留</span><b>未配置</b></div>
+            <div class="kv"><span>清理任务</span><b style="color:var(--danger)">未实现</b></div>
+            <div class="kv"><span>采集方式</span><b>全量</b></div>
+            <div class="kv"><span>配置来源</span><b>环境变量 / Nacos</b></div>
+            <div class="mini-note">现有配置均为启动期静态值，运行时修改需重启；本设计稿的目标是把它们收敛为可随时调整的全局设置。</div>
+          </div>
+
+          <div class="side-panel">
+            <h4>改动影响预览</h4>
+            <div class="impact-item"><div class="t"><span>影响应用</span><b>11 个</b></div><div class="bar"><i style="width:100%"></i></div></div>
+            <div class="impact-item"><div class="t"><span>预计日志降噪</span><b>≈ 34%</b></div><div class="bar"><i style="width:34%"></i></div></div>
+            <div class="impact-item"><div class="t"><span>权限变更</span><b>2 个新码</b></div><div class="bar"><i style="width:22%"></i></div></div>
+            <div class="mini-note">降噪比例为示意值，实际需按线上 audit_event 的 request_path 分布统计后确定忽略清单。</div>
+          </div>
+
+          <div class="side-panel">
+            <h4>落地清单</h4>
+            <div class="kv"><span>配置表</span><b>polaris_audit.audit_setting</b></div>
+            <div class="kv"><span>接口</span><b>GET / PUT</b></div>
+            <div class="kv"><span>权限码</span><b>view / edit</b></div>
+            <div class="kv"><span>菜单</span><b>系统 → 全局设置</b></div>
+            <div class="kv"><span>网关联动</span><b>Nacos 下发</b></div>
+          </div>
+        </aside>
+      </div>
+    </div>
+
+    <div class="savebar">
+      <div class="dirty clean" id="dirty"><i></i><span>无未保存改动</span></div>
+      <div class="spacer"></div>
+      <button class="btn" id="reset">放弃修改</button>
+      <button class="btn primary" id="save">保存设置</button>
+    </div>
+    <div class="toast" id="toast">设置已保存（设计稿演示，未接后端）</div>
+  </div>
+</div>
+
+<script>
+  // Tab 切换
+  document.querySelectorAll('#tabs .tab').forEach(function (tab) {
+    tab.addEventListener('click', function () {
+      document.querySelectorAll('#tabs .tab').forEach(function (t) { t.classList.remove('active'); });
+      document.querySelectorAll('.pane').forEach(function (p) { p.classList.add('hidden'); });
+      tab.classList.add('active');
+      document.querySelector('.pane[data-pane="' + tab.dataset.tab + '"]').classList.remove('hidden');
+    });
+  });
+  // 开关 / 输入 / 勾选标记脏状态
+  var dirty = document.getElementById('dirty');
+  function markDirty() {
+    dirty.classList.remove('clean');
+    dirty.querySelector('span').textContent = '有未保存改动';
+  }
+  document.querySelectorAll('.switch:not(.disabled)').forEach(function (sw) {
+    sw.addEventListener('click', function () {
+      sw.classList.toggle('on');
+      var label = sw.parentElement.querySelector('.sw-label');
+      if (label) label.textContent = sw.classList.contains('on') ? '开启' : '关闭';
+      markDirty();
+    });
+  });
+  document.querySelectorAll('.input, .select, .chk input:not([disabled])').forEach(function (el) {
+    el.addEventListener('change', markDirty);
+  });
+  document.getElementById('save').addEventListener('click', function () {
+    var toast = document.getElementById('toast');
+    toast.classList.add('show');
+    dirty.classList.add('clean');
+    dirty.querySelector('span').textContent = '无未保存改动';
+    setTimeout(function () { toast.classList.remove('show'); }, 2200);
+  });
+  document.getElementById('reset').addEventListener('click', function () {
+    dirty.classList.add('clean');
+    dirty.querySelector('span').textContent = '无未保存改动';
+  });
+</script>
+</body>
+</html>

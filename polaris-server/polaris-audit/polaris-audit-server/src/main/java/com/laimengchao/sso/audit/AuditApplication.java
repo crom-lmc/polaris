@@ -3,6 +3,7 @@ package com.laimengchao.sso.audit;
 import org.mybatis.spring.annotation.MapperScan;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.scheduling.annotation.EnableScheduling;
 
 /**
  * 统一审计中心：网关 ACCESS、账号 LOGIN/SENSITIVE、EHR SENSITIVE 统一落 audit_event 单表。
@@ -12,6 +13,7 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
  */
 @MapperScan("com.laimengchao.sso.audit.module.**.mapper")
 @SpringBootApplication(scanBasePackages = {"com.laimengchao.sso.audit", "com.laimengchao.sso.common"})
+@EnableScheduling
 public class AuditApplication {
 
     public static void main(String[] args) {

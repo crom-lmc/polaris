@@ -10,8 +10,10 @@ import {
 } from '@/api/cms'
 
 /** 门户前端地址（iframe 预览目标）：portal 前台已并入 CMS 域名 /portal/ 子路径 */
-const PORTAL_ORIGIN = import.meta.env.VITE_PORTAL_ORIGIN ||
+const PORTAL_BASE = import.meta.env.VITE_PORTAL_ORIGIN ||
   (import.meta.env.DEV ? 'http://localhost:5178' : 'https://polaris-cms.laimengchao.site/portal')
+/** postMessage 的 targetOrigin 只能是协议+主机+端口，不能带路径 */
+const PORTAL_ORIGIN = new URL(PORTAL_BASE).origin
 
 const MODULE_DESC: Record<string, string> = {
   banner: '顶部大图轮播，取自 CMS Banner 模块',
@@ -52,7 +54,7 @@ const frameRef = ref<HTMLIFrameElement>()
 
 const enabledCount = computed(() => list.value.filter((m) => m.enabled === 1).length)
 const dirty = computed(() => snapshot.value !== '' && JSON.stringify(list.value) !== snapshot.value)
-const previewSrc = computed(() => `${PORTAL_ORIGIN}/?preview=1&r=${reloadKey.value}`)
+const previewSrc = computed(() => `${PORTAL_BASE}/?preview=1&r=${reloadKey.value}`)
 const frameWidth = computed(() => DEVICES.find((d) => d.key === device.value)!.width)
 
 onMounted(load)
@@ -148,7 +150,7 @@ function reloadPreview() {
 }
 
 function openPortal() {
-  window.open(`${PORTAL_ORIGIN}/`, '_blank', 'noopener')
+  window.open(`${PORTAL_BASE}/`, '_blank', 'noopener')
 }
 
 watch(

@@ -5,7 +5,8 @@ export interface MyAppInfo { code: string; name: string }
 export const fetchMyApps = () => request.get<never, MyAppInfo[]>('/api/accounts/me/apps')
 
 /** 统一账号中心 sso-web 的 /authorize 页（授权码签发入口） */
-export const SSO_AUTHORIZE_URL = import.meta.env.VITE_SSO_ORIGIN || 'http://localhost:5173'
+export const SSO_AUTHORIZE_URL = import.meta.env.VITE_SSO_ORIGIN ||
+  (import.meta.env.DEV ? 'http://localhost:5173' : 'https://polaris-sso.laimengchao.site')
 
 /**
  * 是否为「后台布局预览」模式（CMS 门户设置里用 iframe 内嵌本站首页）。

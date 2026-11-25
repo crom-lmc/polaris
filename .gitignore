@@ -29,6 +29,9 @@ node_modules/
 dist/
 dist_bak_*/
 dist_old_*/
+dist.old.*/
+# Vite 运行期临时配置片段
+*.timestamp-*.mjs
 .env.local
 .env.*.local
 

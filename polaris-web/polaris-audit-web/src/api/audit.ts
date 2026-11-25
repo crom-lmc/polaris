@@ -162,3 +162,21 @@ export function fetchLogStream(params: {
 export function fetchMyApps() {
   return request.get<never, { data: import('@/types').ApplicationVO[] }>('/api/accounts/me/apps')
 }
+
+/** 审计全局设置：key -> value（含默认值） */
+export type AuditSettings = Record<string, string>
+
+/** 读取审计全局设置 */
+export function getAuditSettings() {
+  return request.get<never, AuditSettings>('/api/audit/admin/settings')
+}
+
+/** 批量保存审计全局设置 */
+export function saveAuditSettings(settings: AuditSettings) {
+  return request.put<never, void>('/api/audit/admin/settings', { settings })
+}
+
+/** 恢复审计全局设置为默认值 */
+export function resetAuditSettings() {
+  return request.post<never, void>('/api/audit/admin/settings/reset')
+}

@@ -79,6 +79,8 @@ export interface FlowStep {
   name: string
   /** 步骤级生效条件，空 = 总执行 */
   conditionExpr: string
+  /** 超时提醒阈值（小时），空 = 不提醒；对应 cfg_approval_step.sla_hours */
+  slaHours?: number | null
   /** approver 为 1 个，parallel 为 N 个；gateway 用 branches */
   nodes: NodeEdit[]
   branches?: FlowBranch[]
@@ -112,6 +114,8 @@ export interface StepWire {
   seq?: number
   name?: string
   conditionExpr?: string
+  /** 超时提醒阈值（小时），NULL = 不提醒 */
+  slaHours?: number | null
   rejectAction?: string
   parentNodeId?: string | null
   branchPath?: string
@@ -151,6 +155,8 @@ export interface StepSave {
   conditionDesc: string
   /** v5 固定 END（整单终止） */
   rejectAction: string
+  /** 超时提醒阈值（小时）；空 = 不提醒 */
+  slaHours?: number | null
   nodes: NodeSave[]
 }
 
@@ -189,6 +195,7 @@ export function fromWireSteps(wires: StepWire[]): FlowStep[] {
       kind: gateway ? 'gateway' : ws.length > 1 ? 'parallel' : 'approver',
       name: w.name || '',
       conditionExpr: w.conditionExpr || '',
+      slaHours: w.slaHours ?? null,
       nodes: gateway ? [] : ws.map(toNode),
       parentNodeId: w.parentNodeId || null,
       branchPath: w.branchPath || '',
@@ -275,6 +282,7 @@ export function toSaveSteps(steps: FlowStep[]): StepSave[] {
         conditionExpr: s.conditionExpr || '',
         conditionDesc: '',
         rejectAction: 'END',
+        slaHours: s.slaHours ?? null,
         nodes
       })
       if (s.kind === 'gateway') {

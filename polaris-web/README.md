@@ -437,7 +437,7 @@ polaris-xxx-web/
 | 变量 | 默认值/示例 | 用途 |
 |---|---|---|
 | `VITE_SSO_TARGET` | `http://127.0.0.1:9080` | Vite 开发代理目标（Gateway） |
-| `VITE_SSO_ORIGIN` | `http://localhost:5173` | 账号中心地址，用于跳转登录 |
+| `VITE_SSO_ORIGIN` | 开发 `http://localhost:5173`；生产建议显式注入 `https://polaris-sso.laimengchao.site` | 账号中心地址，用于跳转登录；未注入时生产构建回退到正式域名，不再回退 localhost |
 
 ```powershell
 $env:VITE_SSO_TARGET = "http://127.0.0.1:9080"

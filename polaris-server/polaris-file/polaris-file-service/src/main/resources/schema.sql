@@ -56,6 +56,34 @@ CREATE TABLE IF NOT EXISTS `file_storage_policy` (
   UNIQUE KEY `uk_biz_type` (`biz_type`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8 COMMENT='文件存储策略';
 
+-- 水印配置：按业务类型（biz_type）配置水印模板/样式/生效范围。一条=一个 biz_type 的水印策略。
+CREATE TABLE IF NOT EXISTS `file_watermark_config` (
+  `id` bigint(20) NOT NULL COMMENT '雪花ID',
+  `biz_type` varchar(64) NOT NULL COMMENT '业务类型，对应 file_storage_policy.biz_type',
+  `enabled` tinyint(1) NOT NULL DEFAULT 1 COMMENT '是否启用该业务的水印',
+  `content` varchar(512) NOT NULL DEFAULT '' COMMENT '水印文本模板，支持 {username}/{date}/{userId}/{ip}/{filename}/{app} 变量',
+  `font_size` int(11) NOT NULL DEFAULT 26 COMMENT '字号px',
+  `color` varchar(16) NOT NULL DEFAULT '#8B5CF6' COMMENT '颜色（十六进制）',
+  `opacity` int(11) NOT NULL DEFAULT 30 COMMENT '透明度百分比 5-100',
+  `rotation` int(11) NOT NULL DEFAULT -24 COMMENT '旋转角度 -90~0',
+  `layout` varchar(16) NOT NULL DEFAULT 'TILE' COMMENT 'TILE 平铺 / CENTER 居中',
+  `gap` int(11) NOT NULL DEFAULT 46 COMMENT '平铺间距px',
+  `file_types` varchar(64) NOT NULL DEFAULT 'IMAGE,PDF' COMMENT '作用文件类型，逗号分隔 IMAGE/PDF',
+  `scenes` varchar(64) NOT NULL DEFAULT 'VIEW,SHARE' COMMENT '生效环节，逗号分隔 VIEW/SHARE/DOWNLOAD',
+  `created_at` datetime NOT NULL,
+  `updated_at` datetime DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_wm_biz_type` (`biz_type`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8 COMMENT='附件水印配置';
+
+-- 附件全局设置：key-value 集中存预览/缩略图/秒传/签名/审计/回收站等开关与阈值。
+CREATE TABLE IF NOT EXISTS `file_attachment_setting` (
+  `setting_key` varchar(64) NOT NULL COMMENT '设置键',
+  `setting_value` varchar(512) NOT NULL DEFAULT '' COMMENT '设置值',
+  `updated_at` datetime DEFAULT NULL,
+  PRIMARY KEY (`setting_key`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8 COMMENT='附件全局设置';
+
 -- 旧存储路径兼容映射：历史正文内嵌的静态直链迁移后靠本表指回新文件，避免图片裂开。
 CREATE TABLE IF NOT EXISTS `file_alias` (
   `id` bigint(20) NOT NULL COMMENT '雪花ID',

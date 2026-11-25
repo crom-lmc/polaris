@@ -81,6 +81,7 @@ if [ "$DO_SYNC" = 1 ]; then
   install -m 644 "$DEPLOY/docker-compose.yml" "$ROOT/docker-compose.yml"
   install -m 644 "$DEPLOY/nginx/api-proxy.inc" /etc/nginx/snippets/polaris-api.inc
   install -m 644 "$DEPLOY/nginx/security.inc" /etc/nginx/snippets/security.inc
+  install -m 644 "$DEPLOY/nginx/polaris-file-view-frame.inc" /etc/nginx/snippets/polaris-file-view-frame.inc
   install -m 644 "$DEPLOY/nginx/waf.conf" /etc/nginx/conf.d/waf.conf
   install -m 644 "$DEPLOY/nginx/vault.conf" /etc/nginx/conf.d/vault.conf
   install -m 644 "$DEPLOY/nginx/00-default-ssl.conf" /etc/nginx/conf.d/00-default-ssl.conf

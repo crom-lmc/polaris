@@ -30,7 +30,9 @@ public class SsoHeaderAuthFilter extends OncePerRequestFilter {
 
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
-        return !request.getRequestURI().startsWith("/api/file/admin/");
+        String uri = request.getRequestURI();
+        // 管理端与公共文件能力端点都需要网关注入的可信身份头
+        return !(uri.startsWith("/api/file/admin/") || uri.startsWith("/api/file/my/"));
     }
 
     @Override

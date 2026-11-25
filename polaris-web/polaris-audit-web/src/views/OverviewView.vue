@@ -87,7 +87,8 @@ function categoryLabel(c: string) { return { ACCESS: '访问', LOGIN: '登录', 
 </script>
 
 <style scoped>
-/* 整页已是固定高度 flex 列：alert/stats 固定，图表区吃掉剩余高度并三等分铺满 */
+/* alert/stats 固定高度；图表区按内容自然撑高，整块可滚动，卡片内容多时卡片自身再滚动，
+   避免 11 个应用被压进三等分高度导致标签拥挤、底部被裁切。 */
 .overview-alert { flex: 0 0 auto; }
 .stats { display: grid; grid-template-columns: repeat(4, 1fr); grid-auto-rows: 1fr; gap: 14px; margin-bottom: 16px; flex: 0 0 auto; }
 .stat { background: var(--bg-page); border: 1px solid var(--border-subtle); border-radius: 8px; padding: 16px 18px; }
@@ -95,11 +96,38 @@ function categoryLabel(c: string) { return { ACCESS: '访问', LOGIN: '登录', 
 .stat .num { font-size: 26px; font-weight: 600; margin-top: 8px; }
 .stat .sub { font-size: 11px; color: var(--muted); margin-top: 4px; }
 .dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
-.grid { flex: 1 1 0; min-height: 0; display: grid; grid-template-columns: 1fr; grid-template-rows: repeat(3, minmax(0, 1fr)); gap: 14px; }
-.card { background: var(--bg-page); border: 1px solid var(--border-subtle); border-radius: 8px; padding: 16px 18px; display: flex; flex-direction: column; min-height: 0; }
+.grid {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 1fr;
+  grid-auto-rows: min-content;
+  gap: 14px;
+  overflow-y: auto;
+  padding-right: 2px;
+}
+.card {
+  background: var(--bg-page);
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  padding: 16px 18px;
+  display: flex;
+  flex-direction: column;
+  min-height: 200px;
+}
 .card-title { font-weight: 600; margin-bottom: 14px; flex: 0 0 auto; }
-.bars { flex: 1 1 0; min-height: 0; display: flex; flex-direction: column; justify-content: space-evenly; gap: 6px; }
-.bar-row { display: flex; align-items: center; gap: 10px; font-size: 12px; }
+/* 条形区随行数增高（不再均分压缩）；超过 360px 时卡片内部滚动 */
+.bars {
+  flex: 1 1 auto;
+  min-height: 0;
+  max-height: 360px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-right: 4px;
+}
+.bar-row { display: flex; align-items: center; gap: 10px; font-size: 12px; min-height: 20px; flex: 0 0 auto; }
 .bar-label { width: 160px; flex-shrink: 0; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .bar-track { flex: 1; height: 12px; background: var(--border-subtle); border-radius: 4px; overflow: hidden; }
 .bar-fill { height: 100%; background: linear-gradient(90deg, #7c5cff, #22d3ee); border-radius: 4px; }

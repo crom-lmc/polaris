@@ -727,7 +727,7 @@ function emptyBranch(i: number): FlowBranch {
   return { cid: newCid(), nodeCid: newCid(), name: `条件${i}`, conditionExpr: '', isFallback: false, card: emptyNode(), chain: [] }
 }
 function emptyStep(): FlowStep {
-  return { cid: newCid(), kind: 'approver', name: '', conditionExpr: '', nodes: [emptyNode()] }
+  return { cid: newCid(), kind: 'approver', name: '', conditionExpr: '', slaHours: 24, nodes: [emptyNode()] }
 }
 function addStep() { editSteps.value.push(emptyStep()) }
 function addNode(st: FlowStep) {
@@ -794,6 +794,21 @@ function validateFlow(list: FlowStep[], depth: number): string | null {
     }
   }
   return null
+}
+
+/** 展平整棵树的所有步骤（含分支子链），用于 SLA 等步骤级字段的保存前校验 */
+function allSteps(list: FlowStep[]): FlowStep[] {
+  const out: FlowStep[] = []
+  const walk = (arr: FlowStep[]) => {
+    for (const s of arr) {
+      out.push(s)
+      if (s.kind === 'gateway') {
+        for (const b of s.branches || []) walk(b.chain || [])
+      }
+    }
+  }
+  walk(list)
+  return out
 }
 
 /** 收集整棵树里的所有 SpEL 表达式（步骤 / 分支 / 普通节点） */
@@ -1019,6 +1034,13 @@ async function saveTemplate() {
   const vErr = validateFlow(editSteps.value, 0)
   if (vErr) {
     message.warning(vErr)
+    return
+  }
+  const badSla = allSteps(editSteps.value).find(
+    (s) => s.slaHours != null && (!Number.isInteger(s.slaHours) || s.slaHours <= 0)
+  )
+  if (badSla) {
+    message.warning(`步骤「${badSla.name || '未命名'}」的超时提醒阈值必须是大于 0 的整数，或留空表示不提醒`)
     return
   }
   // 条件只允许引用当前业务场景的业务点，再交给后端编译校验

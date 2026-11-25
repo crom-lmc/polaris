@@ -5,7 +5,7 @@
       <span class="ft-title">审批流程</span>
       <span class="ft-hint">点卡片配置 · 点 + 加节点（分支内的只影响该分支）</span>
       <span class="ft-stat">
-        主干 {{ steps.length }} 个节点 · 条件网关 ×{{ stats.gw }} · 分支 ×{{ stats.br }} · 最深 {{ stats.maxDepth }}/3 层
+        主干 {{ steps.length }} 个节点 · 条件网关 ×{{ stats.gw }} · 分支 ×{{ stats.br }} · 最深 {{ stats.maxDepth }}/3 层 · SLA ×{{ stats.sla }}
       </span>
     </div>
 
@@ -58,6 +58,12 @@
               <a-button size="small" :loading="checking" @click="checkExpr(stepConditionProxy)">校验</a-button>
             </div>
             <div v-if="exprTip" class="expr-tip" :class="{ err: !exprTip.ok }">{{ exprTip.text }}</div>
+          </div>
+          <div v-if="current.kind === 'step'" class="fld sla-fld">
+            <label>超时提醒阈值（小时，留空 = 不提醒）</label>
+            <a-input-number v-model:value="slaHoursProxy" :min="1" :max="8760" :precision="0"
+                            size="small" style="width: 100%" placeholder="留空不提醒" />
+            <div class="note">单据在当前步骤停留超过该时长后，每小时扫描一次并站内提醒待办人；同一单据每天最多提醒一次。留空或 0 表示不提醒。</div>
           </div>
           <div v-if="current.kind === 'step'" class="note">驳回动作全单统一为「整单 END」：任意节点驳回即作废所有待办、终止整单。</div>
         </section>
@@ -190,8 +196,10 @@ const stats = computed(() => {
   let gw = 0
   let br = 0
   let maxDepth = 0
+  let sla = 0
   const walk = (list: FlowStep[], d: number) => {
     for (const s of list) {
+      if (s.slaHours != null && s.slaHours > 0) sla += 1
       if (s.kind !== 'gateway') continue
       gw += 1
       br += (s.branches || []).length
@@ -200,7 +208,7 @@ const stats = computed(() => {
     }
   }
   walk(props.steps, 0)
-  return { gw, br, maxDepth }
+  return { gw, br, maxDepth, sla }
 })
 
 /* ---------------- 本地 id ---------------- */
@@ -224,12 +232,12 @@ function newStep(kind: AddKind): FlowStep {
     // 默认不预填条件：业务点随业务场景不同，写死 days > 3 会引用到别的场景的变量
     const b1 = newBranch(1)
     const b2 = newBranch(2); b2.name = '其他条件'; b2.isFallback = true
-    return { cid: newCid(), kind: 'gateway', name: '条件分流', conditionExpr: '', nodes: [], branches: [b1, b2] }
+    return { cid: newCid(), kind: 'gateway', name: '条件分流', conditionExpr: '', slaHours: 24, nodes: [], branches: [b1, b2] }
   }
   if (kind === 'parallel') {
-    return { cid: newCid(), kind: 'parallel', name: '并行会签', conditionExpr: '', nodes: [newNode('审批人1'), newNode('审批人2')] }
+    return { cid: newCid(), kind: 'parallel', name: '并行会签', conditionExpr: '', slaHours: 24, nodes: [newNode('审批人1'), newNode('审批人2')] }
   }
-  return { cid: newCid(), kind: 'approver', name: '新审批节点', conditionExpr: '', nodes: [newNode()] }
+  return { cid: newCid(), kind: 'approver', name: '新审批节点', conditionExpr: '', slaHours: 24, nodes: [newNode()] }
 }
 
 /* ---------------- 索引 ---------------- */
@@ -286,6 +294,15 @@ const nameProxy = computed({
 const stepConditionProxy = computed({
   get: () => current.value?.kind === 'step' ? current.value.o.conditionExpr : '',
   set: (v: string) => { const c = current.value; if (c?.kind === 'step') c.o.conditionExpr = v }
+})
+/** SLA 阈值双向写：只作用于步骤（cfg_approval_step），分支审批人不是独立步骤 */
+const slaHoursProxy = computed({
+  get: () => current.value?.kind === 'step' ? (current.value.o.slaHours ?? null) : null,
+  set: (v: number | null | undefined) => {
+    const c = current.value
+    if (c?.kind !== 'step') return
+    c.o.slaHours = v == null || Number.isNaN(v) ? null : Math.floor(v)
+  }
 })
 const nodeProxy = computed<NodeEdit | undefined>(() => {
   const c = current.value
@@ -581,6 +598,7 @@ async function checkExpr(expr: string) {
 .sec-title { font-size: 12px; font-weight: 600; color: var(--text-secondary, #475569); margin-bottom: 10px; }
 .fld { margin-bottom: 10px; }
 .fld label { display: block; font-size: 12px; color: var(--muted, #94a3b8); margin-bottom: 4px; }
+.sla-fld .note { margin-top: 4px; }
 .switch-line { display: flex; align-items: center; gap: 6px; }
 .expr-row { display: flex; gap: 6px; }
 .expr-tip { font-size: 12px; color: #52c41a; margin-top: 4px; }

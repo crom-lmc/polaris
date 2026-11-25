@@ -6,6 +6,7 @@ import { fetchCategories, gotoAuthorize, type TaxonomyItem } from '@/api/portal'
 import { useUserStore } from '@/stores/user'
 import { useThemeStore } from '@/stores/theme'
 import { appName } from '@/utils/appTitle'
+import AppCenterNav from '@shared/AppCenterNav.vue'
 
 const router = useRouter()
 const route = useRoute()
@@ -86,6 +87,7 @@ function onMenu({ key }: { key: string }) {
       </nav>
 
       <div class="actions">
+        <AppCenterNav v-if="store.isLoggedIn" current-code="portal" />
         <a-input-search
           v-model:value="kw"
           class="search"

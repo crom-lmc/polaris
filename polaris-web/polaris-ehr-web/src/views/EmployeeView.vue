@@ -131,9 +131,14 @@
               <template v-else-if="column.key === 'account'">
                 <span v-if="record.accountUsername" class="account-cell">
                   <a-tag color="green">已开户</a-tag>
-                  <span class="muted">{{ record.accountUsername }}</span>
+                  <a-tooltip :title="record.accountUsername">
+                    <span class="account-name muted">{{ record.accountUsername }}</span>
+                  </a-tooltip>
                 </span>
                 <a-tag v-else color="orange">未开户</a-tag>
+              </template>
+              <template v-else-if="column.key === 'resignDate'">
+                {{ record.resignDate || '—' }}
               </template>
               <template v-else-if="column.key === 'action'">
                 <a-space size="small" wrap>
@@ -1375,8 +1380,8 @@ const columns = computed(() => {
   // 已经按组织筛选时，右侧每一行都是同一个组织，这一列没有信息量
   if (!selectedOrgId.value) cols.splice(4, 0, { title: '所属组织', key: 'org', width: 200, ellipsis: true })
   cols.push(
-    { title: '登录账号', key: 'account', width: 130 },
-    { title: '离职日期', dataIndex: 'resignDate', key: 'resignDate', width: 110 },
+    { title: '登录账号', key: 'account', width: 175 },
+    { title: '离职日期', dataIndex: 'resignDate', key: 'resignDate', width: 120 },
     // 操作列：横向滚动时始终贴住右边（改用 CSS sticky，见 .emp-table 样式）
     { title: '操作', key: 'action', width: 240 }
   )
@@ -2826,13 +2831,45 @@ onMounted(refreshAll)
   white-space: nowrap;
 }
 
-.table-body {
+/* 滚动条只覆盖列表数据区、止于分页上方；分页条固定在面板底部且脱离滚动区。
+   做法：本面板自己不再滚动，wrapper→spin→table 链撑满并允许收缩，
+   由 .ant-table-container 充当唯一滚动容器；分页条是滚动区外的 flex 尾项，
+   因此滚动条的下端停在分页条上边缘，而不会与分页条并排贯穿到底。 */
+.table-body.panel-body {
   padding: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden; /* 覆盖 global.css 的 .panel-body{overflow:auto} 与 .panel-body.table-body{overflow-x:auto} */
+}
+
+.table-body :deep(.ant-table-wrapper),
+.table-body :deep(.ant-table-wrapper .ant-spin-nested-loading),
+.table-body :deep(.ant-table-wrapper .ant-spin-container),
+.table-body :deep(.ant-table-wrapper .ant-table) {
+  flex: 1 1 0%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+/* 唯一滚动容器：滚动条只出现在表格数据区（表头 sticky 固定在顶部） */
+.table-body :deep(.ant-table-wrapper .ant-table-container) {
+  flex: 1 1 0%;
+  min-height: 0;
+  overflow: auto;
+}
+
+/* 分页条在滚动区之外，随 flex 链落到面板底部；取消 global.css 的 sticky/bottom */
+.table-body :deep(.ant-table-wrapper .ant-table-pagination) {
+  flex: 0 0 auto;
+  position: static;
+  margin: 12px 0 0;
+  z-index: auto;
 }
 
 /* 操作列 sticky 贴右：横向滚动时始终可见。
    替代 antd 的 fixed 列——fixed 列要求表格内部开一层横向滚动，会把横向滚动条压到长表格
-   内容最底部（难够到）。现在横向滚动交给外层 .panel-body，这里只让最后一列（操作）粘在右边。 */
+   内容最底部（难够到）。现在纵向/横向滚动都收在 .ant-table-container，这里只让最后一列（操作）粘在右边。 */
 .emp-table :deep(.ant-table-thead > tr > th:last-child),
 .emp-table :deep(.ant-table-tbody > tr > td:last-child) {
   position: sticky;
@@ -2840,6 +2877,16 @@ onMounted(refreshAll)
   z-index: 3;
   background: var(--panel-bg);
   border-left: 1px solid var(--panel-border);
+}
+
+/* 表头贴在滚动区顶部：滚动列表时列名保持可见，横向仍随内容一起滚。
+   放在操作列 sticky-right 之后，让最后一列表头同时具备 top:0 + right:0 且层级最高。
+   背景必须不透明，否则数据行滚到表头下面会透出来。 */
+.table-body :deep(.ant-table-container .ant-table-thead > tr > th) {
+  position: sticky;
+  top: 0;
+  z-index: 4;
+  background: var(--table-header-bg, var(--panel-bg));
 }
 
 /* 操作列放不下时按「整条链接」换行，不要按单字折行 */
@@ -2862,11 +2909,26 @@ onMounted(refreshAll)
   white-space: nowrap;
 }
 
-/* 账号列：标签与用户名之间留出间距，避免「已开户」紧贴用户名挤在一起 */
+/* 账号列：标签与用户名之间留出间距，避免「已开户」紧贴用户名挤在一起。
+   长账号名（ tengshaohua / huangjuanqiang ）必须在列内省略，不能溢出到旁边的离职日期列。 */
 .account-cell {
   display: inline-flex;
   align-items: center;
   gap: 6px;
+  max-width: 100%;
+  min-width: 0;
+}
+
+.account-cell :deep(.ant-tag) {
+  flex: 0 0 auto;
+  margin-inline-end: 0;
+}
+
+.account-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .st-tag {

@@ -85,7 +85,7 @@ public class ArticleService {
             article.setStatus(Article.STATUS_DRAFT);
             article.setAuthorId(requireUserId());
             article.setAuthorName(SecurityUtils.currentUsername().orElse("unknown"));
-            article.setOrgCode(AccountContext.getDataScopeOrgCode());
+            article.setOrgCode(dataScopeService.currentScopeCode());
             applyContent(article, req);
             applyTag(article, req.getTagId());
             decideSchedule(article, req);

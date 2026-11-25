@@ -5,6 +5,7 @@ import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.laimengchao.sso.account.domain.entity.SsoAccountRole;
 import com.laimengchao.sso.account.domain.entity.SsoPermission;
+import com.laimengchao.sso.account.integration.EhrOrgClient;
 import com.laimengchao.sso.account.domain.entity.SsoRole;
 import com.laimengchao.sso.account.domain.entity.SsoRolePermission;
 import com.laimengchao.sso.account.dto.request.CreateRoleRequest;
@@ -19,12 +20,14 @@ import com.laimengchao.sso.account.service.AuditLogService;
 import com.laimengchao.sso.account.service.RoleService;
 import com.laimengchao.sso.common.ErrorCode;
 import com.laimengchao.sso.common.PageResult;
+import com.laimengchao.sso.utils.AccountContext;
 import com.laimengchao.sso.utils.Asserts;
 import com.laimengchao.sso.utils.IdUtils;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
@@ -39,18 +42,27 @@ public class RoleServiceImpl implements RoleService {
     private final SsoAccountRoleMapper accountRoleMapper;
     private final SsoPermissionMapper permissionMapper;
     private final AuditLogService auditLogService;
+    private final EhrOrgClient ehrOrgClient;
 
     /** 平台角色域：权限码里的 app_code=sso，不对应 sso_application 里的记录 */
     public static final String PLATFORM_APP = "sso";
 
     @Override
     public PageResult<RoleVO> page(int page, int size, String keyword, String appCode) {
+        // 与账号列表/运营概览同口径：数据范围内只展示该范围内账号实际持有的角色
+        Set<Long> visibleRoleIds = visibleRoleIds();
+        if (visibleRoleIds != null && visibleRoleIds.isEmpty()) {
+            return PageResult.of(List.of(), 0, page, size);
+        }
         LambdaQueryWrapper<SsoRole> w = new LambdaQueryWrapper<>();
         if (keyword != null && !keyword.isBlank()) {
             w.and(q -> q.like(SsoRole::getName, keyword).or().like(SsoRole::getCode, keyword));
         }
         if (appCode != null && !appCode.isBlank()) {
             w.eq(SsoRole::getAppCode, appCode.trim());
+        }
+        if (visibleRoleIds != null) {
+            w.in(SsoRole::getId, visibleRoleIds);
         }
         w.orderByAsc(SsoRole::getAppCode).orderByAsc(SsoRole::getCode);
         IPage<SsoRole> ip = roleMapper.selectPage(new Page<>(page, size), w);
@@ -60,12 +72,46 @@ public class RoleServiceImpl implements RoleService {
 
     @Override
     public List<RoleVO> list(String appCode) {
+        Set<Long> visibleRoleIds = visibleRoleIds();
+        if (visibleRoleIds != null && visibleRoleIds.isEmpty()) {
+            return List.of();
+        }
         LambdaQueryWrapper<SsoRole> w = new LambdaQueryWrapper<>();
         if (appCode != null && !appCode.isBlank()) {
             w.eq(SsoRole::getAppCode, appCode.trim());
         }
+        if (visibleRoleIds != null) {
+            w.in(SsoRole::getId, visibleRoleIds);
+        }
         w.orderByAsc(SsoRole::getAppCode).orderByAsc(SsoRole::getCode);
         return roleMapper.selectList(w).stream().map(this::toVO).collect(Collectors.toList());
+    }
+
+    /**
+     * 返回当前数据范围内可见的角色 ID；无数据权限返回 null（不过滤）。
+     * <p>口径与 {@code OverviewMapper.countScopedRoles} 完全一致：先把 scopeCode
+     * 展开成账号集合，再取这些账号持有的角色，避免出现「概览 25、列表 26」。
+     */
+    private Set<Long> visibleRoleIds() {
+        String scopeCode = AccountContext.getDataScopeOrgCode();
+        if (scopeCode == null || scopeCode.isBlank()) {
+            return null;
+        }
+        List<Long> accountIds = new ArrayList<>();
+        for (String root : scopeCode.split(",")) {
+            String code = root.trim();
+            if (!code.isEmpty()) {
+                accountIds.addAll(ehrOrgClient.accountIdsByCode(code));
+            }
+        }
+        if (accountIds.isEmpty()) {
+            return Set.of();
+        }
+        return accountRoleMapper.selectList(new LambdaQueryWrapper<SsoAccountRole>()
+                        .in(SsoAccountRole::getAccountId, accountIds)).stream()
+                .map(SsoAccountRole::getRoleId)
+                .filter(id -> id != null)
+                .collect(Collectors.toSet());
     }
 
     @Override

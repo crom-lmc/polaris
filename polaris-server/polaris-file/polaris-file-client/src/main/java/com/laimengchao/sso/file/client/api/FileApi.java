@@ -7,6 +7,7 @@ import com.laimengchao.sso.file.client.dto.FileUploadRequest;
 import com.laimengchao.sso.file.client.dto.R;
 import com.laimengchao.sso.file.client.dto.SignUrlRequest;
 import com.laimengchao.sso.file.client.dto.SignUrlResult;
+import com.laimengchao.sso.file.client.dto.WatermarkContentRequest;
 import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -50,6 +51,13 @@ public interface FileApi {
     /** 读取文件内容（base64），仅供确实需要字节回传的服务端场景使用 */
     @GetMapping("/internal/files/{id}/content")
     R<String> content(@PathVariable("id") String id);
+
+    /**
+     * 按水印配置烧录后的文件内容（base64），供业务服务下载附件时使用。
+     * 无水印配置或不适用时返回原文件字节。身份信息由调用方传入，file 服务不依赖登录态。
+     */
+    @PostMapping("/internal/files/watermarked-content")
+    R<String> watermarkedContent(@RequestBody WatermarkContentRequest request);
 
     /** 软删除 */
     @DeleteMapping("/internal/files/{id}")

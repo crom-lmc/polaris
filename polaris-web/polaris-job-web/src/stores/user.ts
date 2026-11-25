@@ -17,7 +17,8 @@ import {
 } from '@/utils/token'
 
 /** 统一账号中心 sso-web 的 /authorize 页（授权码签发入口） */
-export const SSO_ORIGIN = import.meta.env.VITE_SSO_ORIGIN || 'http://localhost:5173'
+export const SSO_ORIGIN = import.meta.env.VITE_SSO_ORIGIN ||
+  (import.meta.env.DEV ? 'http://localhost:5173' : 'https://polaris-sso.laimengchao.site')
 
 /** 当前 job-web 的回调地址，必须与统一账号中心里 job 应用的 baseUrl 同 origin */
 export function callbackUrl(): string {

@@ -145,7 +145,7 @@ public class MediaService {
         m.setSize(sf.getSize());
         m.setUploadedBy(uid);
         m.setUploadedName(SecurityUtils.currentUsername().orElse(""));
-        m.setOrgCode(AccountContext.getDataScopeOrgCode());
+        m.setOrgCode(dataScopeService.currentScopeCode());
         mediaMapper.insert(m);
         return m;
     }

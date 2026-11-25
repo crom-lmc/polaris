@@ -43,6 +43,7 @@ public class FileService {
     private final StoragePolicyMapper policyMapper;
     private final StorageBackend storage;
     private final SignUrlService signer;
+    private final AttachmentSettingService settings;
 
     /** 上传：校验策略 → 内容去重/落盘 → 写元数据，返回带访问 URL 的元数据。 */
     @Transactional(rollbackFor = Exception.class)
@@ -72,9 +73,11 @@ public class FileService {
                     ? policy.getDefaultVisibility() : visibility.toUpperCase(Locale.ROOT));
 
         // 秒传去重：同摘要 + 同大小的正常文件已存在时，复用其物理字节，只新增元数据。
+        // 可通过“附件设置”关闭（dedup.enabled）；关闭后每次上传都独立落盘。
         String sha = sha256(bytes);
         FileObject dup = null;
-        if (!sha.isEmpty()) {
+        boolean dedupEnabled = settings.bool(AttachmentSettingService.DEDUP_ENABLED, true);
+        if (dedupEnabled && !sha.isEmpty()) {
             dup = fileMapper.selectOne(new LambdaQueryWrapper<FileObject>()
                     .eq(FileObject::getSha256, sha)
                     .eq(FileObject::getSize, (long) bytes.length)
@@ -263,6 +266,34 @@ public class FileService {
                 log.info("生命周期清理：bizType={} ttlDays={} 移入回收站 {} 条",
                         p.getBizType(), p.getTtlDays(), expired.size());
             }
+        }
+        return total;
+    }
+
+    /**
+     * 回收站自动清理：软删超过“附件设置”recycle.keepDays 的文件物理删除（复用秒传引用检查）。
+     * keepDays<=0 表示保留、不清理。返回本轮清理条数。
+     */
+    public int purgeExpiredRecycle() {
+        int keepDays = settings.integer(AttachmentSettingService.RECYCLE_KEEP_DAYS, 0);
+        if (keepDays <= 0) {
+            return 0;
+        }
+        LocalDateTime cutoff = LocalDateTime.now().minusDays(keepDays);
+        List<FileObject> expired = fileMapper.selectList(new LambdaQueryWrapper<FileObject>()
+                .eq(FileObject::getStatus, STATUS_DELETED)
+                .lt(FileObject::getDeletedAt, cutoff));
+        int total = 0;
+        for (FileObject obj : expired) {
+            try {
+                purge(String.valueOf(obj.getId()));
+                total++;
+            } catch (RuntimeException e) {
+                log.warn("回收站自动清理失败：fileId={} {}", obj.getId(), e.getMessage());
+            }
+        }
+        if (total > 0) {
+            log.info("回收站自动清理：keepDays={} 物理删除 {} 条", keepDays, total);
         }
         return total;
     }
@@ -473,7 +504,9 @@ public class FileService {
         obj.setUrl(signed[0]);
         // 位图图片额外给一个缩略图 URL：签名串不覆盖 w 参数，追加后校验仍通过
         if (ThumbnailService.isRasterImage(obj.getContentType())) {
-            obj.setThumbUrl(signed[0] + "&w=240");
+            int edge = settings.integer(AttachmentSettingService.THUMBNAIL_MAX_EDGE, 320);
+            edge = Math.max(32, Math.min(edge, 1200));
+            obj.setThumbUrl(signed[0] + "&w=" + edge);
         }
         return obj;
     }

@@ -24,6 +24,7 @@ import java.nio.charset.StandardCharsets;
  * 文件服务安全边界：
  * <ul>
  *   <li>管理端 /api/file/admin/** → SsoHeaderAuthFilter 读网关注入头建登录态，这里只拦未登录，细粒度交给 @Permit；</li>
+ *   <li>公共文件能力 /api/file/my/** → 同上建登录态，只要求登录、不挂权限码（上传/下载/分享是所有登录用户的基础能力）；</li>
  *   <li>服务间 /internal/files/** → 由 common 的 InternalTokenInterceptor 校验（fail-closed）；</li>
  *   <li>公开读取 /api/file/public/** 与签名下载 /api/file/secure/** → 鉴权在控制器内按签名令牌/身份头完成，这里放行。</li>
  * </ul>
@@ -51,7 +52,7 @@ public class SecurityConfig {
                         .accessDeniedHandler((request, response, e) ->
                                 writeJson(response, HttpServletResponse.SC_FORBIDDEN, ErrorCode.FORBIDDEN)))
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/api/file/admin/**").authenticated()
+                        .requestMatchers("/api/file/admin/**", "/api/file/my/**").authenticated()
                         .anyRequest().permitAll())
                 .addFilterAfter(ssoHeaderAuthFilter, SecurityContextHolderFilter.class);
         return http.build();

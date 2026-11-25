@@ -46,7 +46,7 @@ public class TagService {
         if (n.isEmpty() || n.length() > 64) {
             throw new BizException(ErrorCode.PARAM_ERROR, "标签名需 1-64 字");
         }
-        String orgCode = AccountContext.getDataScopeOrgCode();
+        String orgCode = dataScopeService.currentScopeCode();
         Tag exist = tagMapper.selectOne(new LambdaQueryWrapper<Tag>()
                 .eq(Tag::getName, n)
                 .eq(Tag::getOrgCode, orgCode));

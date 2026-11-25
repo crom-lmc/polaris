@@ -3,7 +3,9 @@ package com.laimengchao.sso.audit.module.audit.controller;
 import com.laimengchao.sso.audit.module.audit.entity.AuditEvent;
 import com.laimengchao.sso.audit.module.audit.entity.SystemLog;
 import com.laimengchao.sso.audit.module.audit.service.AuditEventService;
+import com.laimengchao.sso.audit.module.audit.service.AuditSettingService;
 import com.laimengchao.sso.audit.module.audit.service.SystemLogService;
+import com.laimengchao.sso.audit.module.audit.vo.AuditSettingsSaveRequest;
 import com.laimengchao.sso.audit.module.audit.vo.LoginEventVO;
 import com.laimengchao.sso.audit.security.Permit;
 import com.laimengchao.sso.common.PageResult;
@@ -12,6 +14,9 @@ import com.laimengchao.sso.common.security.PermissionCodes;
 import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -32,6 +37,33 @@ public class AuditAdminController {
 
     private final AuditEventService auditEventService;
     private final SystemLogService systemLogService;
+    private final AuditSettingService auditSettingService;
+
+    /** 审计全局设置：采集/忽略/留存/脱敏/导出策略，返回含默认值的完整 K-V。 */
+    @GetMapping("/settings")
+    @Permit(value = PermissionCodes.AUDIT_SETTING_VIEW,
+            app = {PermissionCodes.APP_AUDIT, PermissionCodes.APP_SSO})
+    public R<Map<String, String>> settings() {
+        return R.ok(auditSettingService.all());
+    }
+
+    /** 批量保存审计全局设置；仅管理员可写。 */
+    @PutMapping("/settings")
+    @Permit(value = PermissionCodes.AUDIT_SETTING_EDIT,
+            app = {PermissionCodes.APP_AUDIT, PermissionCodes.APP_SSO})
+    public R<Void> saveSettings(@RequestBody AuditSettingsSaveRequest req) {
+        auditSettingService.save(req == null ? null : req.getSettings());
+        return R.ok();
+    }
+
+    /** 恢复全部设置为内置默认值。 */
+    @PostMapping("/settings/reset")
+    @Permit(value = PermissionCodes.AUDIT_SETTING_EDIT,
+            app = {PermissionCodes.APP_AUDIT, PermissionCodes.APP_SSO})
+    public R<Void> resetSettings() {
+        auditSettingService.resetAll();
+        return R.ok();
+    }
 
     @GetMapping("/overview")
     @Permit(value = PermissionCodes.AUDIT_OVERVIEW_VIEW,

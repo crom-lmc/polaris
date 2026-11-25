@@ -62,13 +62,17 @@ public class AttachmentController {
     @GetMapping("/{id}/download")
     @Permit({PermissionCodes.LEAVE_MINE, PermissionCodes.LEAVE_ALL, PermissionCodes.LEAVE_TEAM,
             PermissionCodes.CONTRACT_VIEW, PermissionCodes.EMPLOYEE_VIEW})
-    public ResponseEntity<Resource> download(@PathVariable Long id) {
+    public ResponseEntity<Resource> download(@PathVariable Long id,
+                                             jakarta.servlet.http.HttpServletRequest request) {
         SecurityUser user = SecurityUtils.currentUser().orElseThrow();
         boolean canViewAll = user.isSuperAdmin()
                 || user.getPermissions().contains(PermissionCodes.LEAVE_ALL)
                 || user.getPermissions().contains(PermissionCodes.LEAVE_TEAM)
                 || user.getPermissions().contains(PermissionCodes.LEAVE_QUOTA_ADJUST);
-        Resource resource = attachmentService.download(id, user.getAccountId(), canViewAll);
+        String xff = request.getHeader("X-Forwarded-For");
+        String clientIp = xff == null || xff.isBlank() ? request.getRemoteAddr() : xff.split(",")[0].trim();
+        Resource resource = attachmentService.download(id, user.getAccountId(), canViewAll,
+                user.getUsername(), String.valueOf(user.getAccountId()), clientIp);
         String name = URLEncoder.encode(attachmentService.fileName(id), StandardCharsets.UTF_8)
                 .replace("+", "%20");
         return ResponseEntity.ok()

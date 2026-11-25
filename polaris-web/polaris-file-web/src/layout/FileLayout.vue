@@ -6,6 +6,7 @@
         <span class="logo-text">{{ appName }}</span>
       </div>
       <div class="right">
+        <AppCenterNav current-code="file" />
         <a-button
           type="text"
           class="theme-toggle"
@@ -48,9 +49,21 @@
             <template #icon><folder-outlined /></template>
             文件管理
           </a-menu-item>
+          <a-menu-item v-if="store.can('file:files')" key="/recycle">
+            <template #icon><delete-outlined /></template>
+            回收站
+          </a-menu-item>
+          <a-menu-item v-if="store.can('file:download')" key="/shares">
+            <template #icon><share-alt-outlined /></template>
+            分享管理
+          </a-menu-item>
           <a-menu-item v-if="store.can('file:policy')" key="/policy">
             <template #icon><setting-outlined /></template>
             存储策略
+          </a-menu-item>
+          <a-menu-item v-if="store.can('file:attachment-setting')" key="/attachment-setting">
+            <template #icon><file-protect-outlined /></template>
+            附件设置
           </a-menu-item>
         </a-menu>
       </a-layout-sider>
@@ -66,11 +79,14 @@ import { computed, ref } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import {
   DashboardOutlined,
+  DeleteOutlined,
   DownOutlined,
+  FileProtectOutlined,
   FolderOutlined,
   LogoutOutlined,
   MenuOutlined,
-  SettingOutlined
+  SettingOutlined,
+  ShareAltOutlined
 } from '@ant-design/icons-vue'
 import { Modal } from 'ant-design-vue'
 import { useUserStore } from '@/stores/user'
@@ -80,6 +96,7 @@ import { getRefreshToken } from '@/utils/token'
 import { appName } from '@/utils/appTitle'
 import { useSessionGuard } from '@/composables/useSessionGuard'
 import ThemeToggleIcon from '@/components/ThemeToggleIcon.vue'
+import AppCenterNav from '@shared/AppCenterNav.vue'
 
 const router = useRouter()
 const route = useRoute()

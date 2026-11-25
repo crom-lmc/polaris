@@ -7,6 +7,7 @@
         <span class="logo-text">{{ appName }}</span>
       </div>
       <div class="right">
+        <AppCenterNav current-code="sso-center" />
         <a-popover
           v-model:open="noticeOpen"
           trigger="click"
@@ -162,6 +163,7 @@ import {
 import { getRefreshToken } from '@/utils/token'
 import { appName } from '@/utils/appTitle'
 import ThemeToggleIcon from '@/components/ThemeToggleIcon.vue'
+import AppCenterNav from '@shared/AppCenterNav.vue'
 
 const router = useRouter()
 const route = useRoute()

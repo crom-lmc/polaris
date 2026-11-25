@@ -11,6 +11,9 @@ public class AttachmentVO {
 
     @JsonSerialize(using = ToStringSerializer.class)
     private Long id;
+    /** 统一文件服务文件 ID（旧存量附件可能为 null，此时不可分享） */
+    @JsonSerialize(using = ToStringSerializer.class)
+    private Long fileId;
     private String fileName;
     private Long size;
     private String mime;

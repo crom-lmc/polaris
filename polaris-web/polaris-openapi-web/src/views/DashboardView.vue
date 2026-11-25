@@ -386,7 +386,8 @@ async function loadTrend() {
 async function loadTopFailed() {
   topFailedLoading.value = true
   try {
-    topFailedRows.value = await getTopFailed({ limit: 5 })
+    // 与顶部指标卡同一时间范围，避免「调用总量 0、失败 TOP 却有记录」的口径错位
+    topFailedRows.value = await getTopFailed({ ...toRangeQuery(range.value), limit: 5 })
   } catch (e: any) {
     message.error(e?.message || '加载失败 API 排行失败')
   } finally {
@@ -397,7 +398,7 @@ async function loadTopFailed() {
 async function loadRecentErrors() {
   errorsLoading.value = true
   try {
-    recentErrors.value = await getRecentErrors({ limit: 5 })
+    recentErrors.value = await getRecentErrors({ ...toRangeQuery(range.value), limit: 5 })
   } catch (e: any) {
     message.error(e?.message || '加载最近异常失败')
   } finally {
@@ -405,7 +406,7 @@ async function loadRecentErrors() {
   }
 }
 
-/** 顶部查询/重置：刷新指标卡，三个卡片按各自默认口径重新取数 */
+/** 顶部查询/重置：指标卡、失败 TOP、最近异常统一按顶部日期口径取数；趋势卡固定最近 10 天 */
 function load() {
   void loadOverview()
   void loadTrend()

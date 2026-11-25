@@ -6,6 +6,7 @@
         <span class="logo-text">{{ appName }}</span>
       </div>
       <div class="right">
+        <AppCenterNav current-code="cms" />
         <a-button
           type="text"
           class="theme-toggle"
@@ -110,6 +111,7 @@ import { getRefreshToken } from '@/utils/token'
 import { appName, resolveAppName } from '@/utils/appTitle'
 import { useSessionGuard } from '@/composables/useSessionGuard'
 import ThemeToggleIcon from '@/components/ThemeToggleIcon.vue'
+import AppCenterNav from '@shared/AppCenterNav.vue'
 
 const router = useRouter()
 const route = useRoute()

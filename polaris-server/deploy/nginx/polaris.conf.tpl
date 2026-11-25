@@ -99,6 +99,15 @@ server {
         proxy_set_header Host $host;
     }
 
+    # 门户前台已并入 CMS 域名 /portal/ 子路径（原独立域名 polaris-portal 已下线）
+    location = /portal { return 301 /portal/; }
+    location /portal/ {
+        # 后台「门户设置」iframe 预览：放开同源嵌入（见 polaris-portal-preview-frame.inc）
+        include /etc/nginx/snippets/polaris-portal-preview-frame.inc;
+        root /opt/polaris/www;
+        try_files $uri $uri/ /portal/index.html;
+    }
+
     # 默认经雷池 tengine(8443)；回滚时用 polaris-direct.inc 覆盖对应片段（直连静态）
     location / {
         include /etc/nginx/snippets/polaris-cms-root.inc;
@@ -216,6 +225,8 @@ server {
     index index.html;
 
     include /etc/nginx/snippets/polaris-api.inc;
+    # 内联预览端点放开同源 iframe（PDF 预览用）：见 polaris-file-view-frame.inc
+    include /etc/nginx/snippets/polaris-file-view-frame.inc;
 
     location / {
         try_files $uri $uri/ /index.html;

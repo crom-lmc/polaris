@@ -10,6 +10,7 @@ import com.laimengchao.sso.ehr.module.announcement.vo.AnnouncementAttachmentVO;
 import com.laimengchao.sso.file.client.api.FileApi;
 import com.laimengchao.sso.file.client.dto.FileUploadRequest;
 import com.laimengchao.sso.file.client.dto.R;
+import com.laimengchao.sso.file.client.dto.WatermarkContentRequest;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -157,13 +158,29 @@ public class AnnouncementAttachmentService {
 
     /** 取字节：调用方必须先做公告可见性校验 */
     public AttachmentFile content(Long attachmentId) {
+        return content(attachmentId, null, null, null);
+    }
+
+    /** 取字节并对图片/PDF 烧录下载水印（身份由调用方传入）。 */
+    public AttachmentFile content(Long attachmentId, String username, String userId, String clientIp) {
         AnnouncementAttachment a = attachmentId == null ? null : attachmentMapper.selectById(attachmentId);
         if (a == null) {
             throw new BizException(ErrorCode.NOT_FOUND, "附件不存在");
         }
         byte[] bytes;
         try {
-            R<String> res = fileApi.content(String.valueOf(a.getFileId()));
+            R<String> res;
+            if (username != null || userId != null) {
+                WatermarkContentRequest req = new WatermarkContentRequest();
+                req.setFileId(String.valueOf(a.getFileId()));
+                req.setScene("DOWNLOAD");
+                req.setUsername(username);
+                req.setUserId(userId);
+                req.setIp(clientIp);
+                res = fileApi.watermarkedContent(req);
+            } else {
+                res = fileApi.content(String.valueOf(a.getFileId()));
+            }
             if (res == null || !res.ok() || res.getData() == null) {
                 log.error("统一文件服务读取公告附件失败：fileId={}, message={}", a.getFileId(),
                         res == null ? "无响应" : res.getMessage());

@@ -29,38 +29,49 @@ import java.util.Map;
 public class SystemLogService {
 
     private final SystemLogMapper mapper;
+    private final AuditSettingService settings;
 
     /** 批量写入，逐条转换；单条异常不影响同批其他记录。 */
     public void recordBatch(List<SystemLogEvent> events) {
         if (events == null || events.isEmpty()) return;
+        // 系统日志采集总开关（接收端兜底）；审计服务自身强制不采集，防递归
+        boolean enabled = settings.bool(AuditSettingService.COLLECT_SYSTEM_LOG, true);
+        int minLevel = settings.minLogLevel();
+        int truncate = settings.integer(AuditSettingService.PRIVACY_LOG_TRUNCATE_LENGTH, 4000);
         int failed = 0;
+        int skipped = 0;
         for (SystemLogEvent e : events) {
+            if (!enabled || e == null || AuditSettingService.logLevelValue(e.getLevel()) < minLevel) {
+                skipped++;
+                continue;
+            }
             try {
-                mapper.insert(toEntity(e));
+                mapper.insert(toEntity(e, truncate));
             } catch (Exception ex) {
                 failed++;
                 log.warn("写入系统日志失败（已忽略）: app={} logger={} reason={}",
-                        e == null ? null : e.getApp(), e == null ? null : e.getLogger(), ex.getMessage());
+                        e.getApp(), e.getLogger(), ex.getMessage());
             }
         }
         // 批次级汇总（不逐条刷屏）；本服务自身采集已关闭，这些 INFO 不会回流到 system_log
         if (failed > 0) {
-            log.warn("系统日志批量写入存在失败：total={} success={} failed={}",
-                    events.size(), events.size() - failed, failed);
+            log.warn("系统日志批量写入存在失败：total={} success={} failed={} skipped={}",
+                    events.size(), events.size() - failed - skipped, failed, skipped);
         } else {
-            log.info("系统日志批量写入成功：total={}", events.size());
+            log.info("系统日志批量写入成功：total={} skipped={}", events.size(), skipped);
         }
     }
 
-    private SystemLog toEntity(SystemLogEvent e) {
+    private SystemLog toEntity(SystemLogEvent e, int truncate) {
+        int limit = Math.max(200, Math.min(truncate, 3900)); // 留余量，不超过字段 toast
         SystemLog row = new SystemLog();
         row.setId(IdUtils.nextId());
         row.setApp(trim(e.getApp(), 64));
         row.setLevel(trim(e.getLevel(), 16).toUpperCase());
         row.setLogger(trim(e.getLogger(), 255));
         row.setThread(trim(e.getThread(), 128));
-        row.setMessage(trim(e.getMessage(), 3900));
-        row.setStackTrace(trim(e.getStackTrace(), 3900));
+        row.setMessage(trim(e.getMessage(), limit));
+        row.setStackTrace(trim(e.getStackTrace(), limit));
         long ts = e.getTimestamp() > 0 ? e.getTimestamp() : System.currentTimeMillis();
         row.setCreatedAt(LocalDateTime.ofInstant(Instant.ofEpochMilli(ts), ZoneId.systemDefault()));
         return row;

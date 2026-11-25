@@ -67,8 +67,14 @@ public class MeNoticeController {
      * 下载消息附件：账号ID 只取当前登录身份，Service 内再校验「该消息确实发给这个人」。
      */
     @GetMapping("/attachments/{id}/download")
-    public ResponseEntity<byte[]> download(@PathVariable Long id) {
-        NoticeAttachmentService.AttachmentFile file = attachmentService.download(id, currentAccountId());
+    public ResponseEntity<byte[]> download(@PathVariable Long id,
+                                           jakarta.servlet.http.HttpServletRequest request) {
+        SecurityUser user = SecurityUtils.currentUser()
+                .orElseThrow(() -> new BizException(ErrorCode.UNAUTHORIZED));
+        String xff = request.getHeader("X-Forwarded-For");
+        String clientIp = xff == null || xff.isBlank() ? request.getRemoteAddr() : xff.split(",")[0].trim();
+        NoticeAttachmentService.AttachmentFile file = attachmentService.download(id, user.getAccountId(),
+                user.getUsername(), String.valueOf(user.getAccountId()), clientIp);
         String name = file.getFileName() == null || file.getFileName().isBlank() ? "attachment" : file.getFileName();
         String encoded = URLEncoder.encode(name, StandardCharsets.UTF_8).replace("+", "%20");
         return ResponseEntity.ok()

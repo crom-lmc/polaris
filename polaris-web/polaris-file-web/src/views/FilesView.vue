@@ -1,14 +1,10 @@
 <template>
   <div class="ft-page">
     <div class="toolbar ft-head">
-      <a-radio-group v-model:value="tab" @change="handleTabChange" style="margin-right: 4px">
-        <a-radio-button value="active">文件列表</a-radio-button>
-        <a-radio-button value="recycle">回收站</a-radio-button>
-      </a-radio-group>
       <a-input-search v-model:value="keyword" placeholder="文件名" style="width: 200px" allow-clear @search="handleSearch" />
       <a-select v-model:value="bizType" style="width: 180px" :options="bizOptions" allowClear @change="handleSearch" />
-      <a-select v-if="tab === 'active'" v-model:value="visibility" style="width: 140px" :options="visibilityOptions" allowClear @change="handleSearch" />
-      <a-button v-if="tab === 'active'" type="primary" @click="openUpload">
+      <a-select v-model:value="visibility" style="width: 140px" :options="visibilityOptions" allowClear @change="handleSearch" />
+      <a-button type="primary" @click="openUpload">
         <template #icon><upload-outlined /></template>上传文件
       </a-button>
       <a-button @click="load">刷新</a-button>
@@ -19,14 +15,19 @@
     <section class="ft-scroll ft-bottom">
       <a-table :columns="columns" :data-source="records" :loading="loading" row-key="id" :pagination="pagination" @change="handleTableChange">
         <template #bodyCell="{ column, record }">
-          <template v-if="column.key === 'visibility'">
+          <template v-if="column.key === 'bizType'">
+            <a-tooltip :title="record.bizType">
+              <span>{{ bizLabel(record.bizType) }}</span>
+            </a-tooltip>
+          </template>
+          <template v-else-if="column.key === 'visibility'">
             <a-tag :color="record.visibility === 'PUBLIC' ? 'green' : 'blue'">
               {{ record.visibility === 'PUBLIC' ? '公开' : '私有' }}
             </a-tag>
           </template>
           <template v-else-if="column.key === 'name'">
             <span class="name-cell">
-              <img v-if="record.thumbUrl && tab === 'active'" :src="record.thumbUrl" class="thumb" @error="onThumbError" />
+              <img v-if="record.thumbUrl" :src="record.thumbUrl" class="thumb" @error="onThumbError" />
               <span>{{ record.originalName }}</span>
               <a-tag v-if="record.deduplicated" color="cyan" style="margin-left: 6px">秒传</a-tag>
             </span>
@@ -35,20 +36,14 @@
             {{ formatSize(record.size) }}
           </template>
           <template v-else-if="column.key === 'time'">
-            {{ tab === 'recycle' ? (record.deletedAt || '-') : record.createdAt }}
+            {{ record.createdAt }}
           </template>
           <template v-else-if="column.key === 'action'">
             <a-space :size="4">
-              <template v-if="tab === 'active'">
-                <a v-if="store.can('file:download')" @click="openPreview(record)">预览</a>
-                <a v-if="store.can('file:download')" @click="downloadFile(record)">下载</a>
-                <a v-if="store.can('file:download')" @click="openShare(record)">分享</a>
-                <a v-if="store.can('file:delete')" class="danger" @click="confirmDelete(record)">删除</a>
-              </template>
-              <template v-else>
-                <a v-if="store.can('file:delete')" @click="confirmRestore(record)">恢复</a>
-                <a v-if="store.can('file:delete')" class="danger" @click="confirmPurge(record)">彻底删除</a>
-              </template>
+              <a v-if="store.can('file:download')" @click="openPreview(record)">预览</a>
+              <a v-if="store.can('file:download')" @click="downloadFile(record)">下载</a>
+              <a v-if="store.can('file:download')" @click="openShare(record)">分享</a>
+              <a v-if="store.can('file:delete')" class="danger" @click="confirmDelete(record)">删除</a>
             </a-space>
           </template>
         </template>
@@ -80,10 +75,15 @@
       <div v-else-if="!previewInfo" class="preview-placeholder">无预览信息</div>
       <template v-else>
         <img v-if="previewInfo.mode === 'IMAGE'" :src="previewInfo.url" class="preview-img" />
-        <iframe v-else-if="previewInfo.mode === 'PDF'" :src="previewInfo.url" class="preview-frame" />
+        <div v-else-if="previewInfo.mode === 'PDF'" class="pdf-wrap">
+          <iframe :src="previewInfo.url" class="preview-frame" />
+          <div v-if="previewInfo.watermark" class="pdf-wm-layer" :style="{ gap: (previewInfo.watermark.gap || 46) + 'px' }">
+            <span v-for="n in 40" :key="n" class="pdf-wm-item" :style="pdfWatermarkStyle">{{ previewInfo.watermark.text }}</span>
+          </div>
+        </div>
         <pre v-else-if="previewInfo.mode === 'TEXT'" class="preview-text">{{ previewText }}</pre>
         <div v-else class="preview-placeholder">
-          <p>该文件类型不支持在线预览。</p>
+          <p>该类型不支持预览，请直接下载！</p>
           <a-button type="primary" @click="downloadFile({ id: previewId } as FileMeta)">下载文件</a-button>
         </div>
       </template>
@@ -94,17 +94,22 @@
         :message="`为「${shareFileName}」创建对外分享链接，可设置提取码、有效期与查看次数。`" />
       <a-form :label-col="{ span: 6 }" :wrapper-col="{ span: 17 }">
         <a-form-item label="提取码">
-          <a-input v-model:value="shareForm.password" placeholder="留空则无需提取码" />
+          <a-input v-model:value="shareForm.password" placeholder="留空则无需提取码" allow-clear>
+            <template #addonAfter>
+              <a @click="shareForm.password = randomShareCode()">换一个</a>
+            </template>
+          </a-input>
         </a-form-item>
         <a-form-item label="有效期(小时)">
-          <a-input-number v-model:value="shareForm.expiresHours" :min="0" placeholder="0 长期有效" style="width: 100%" />
+          <a-input-number v-model:value="shareForm.expiresHours" :min="1" :precision="0" placeholder="留空长期有效" style="width: 100%" />
         </a-form-item>
         <a-form-item label="查看次数上限">
-          <a-input-number v-model:value="shareForm.maxViews" :min="0" placeholder="0 不限" style="width: 100%" />
+          <a-input-number v-model:value="shareForm.maxViews" :min="1" :precision="0" placeholder="留空不限次数" style="width: 100%" />
         </a-form-item>
       </a-form>
       <div v-if="createdShareUrl" class="share-result">
-        <p>分享链接已创建：</p>
+        <p>分享链接已创建，可在「分享管理」中查看和撤销：</p>
+        <p v-if="shareForm.password">提取码：<b style="letter-spacing: 2px; font-size: 15px">{{ shareForm.password }}</b>（请一并发送给对方）</p>
         <a-input :value="createdShareUrl" readonly @click="selectShareUrl">
           <template #suffix>
             <a @click="copyShareUrl">复制</a>
@@ -120,14 +125,14 @@ import { computed, onMounted, reactive, ref } from 'vue'
 import { message, Modal } from 'ant-design-vue'
 import { UploadOutlined } from '@ant-design/icons-vue'
 import {
-  bizTypeOptions, completeMultipart, createShare, deleteFile, initMultipart, listFiles, listRecycle,
-  previewFile, purgeFile, readFileText, restoreFile, signFile, uploadFile, uploadPart
+  bizTypeOptions, completeMultipart, createShare, deleteFile, initMultipart, listFiles,
+  previewFile, readFileText, signFile, uploadFile, uploadPart
 } from '@/api/file'
 import type { FileMeta, PreviewInfo } from '@/api/file'
 import { useUserStore } from '@/stores/user'
 
 const store = useUserStore()
-const activeColumns = [
+const columns = [
   { title: '文件名', key: 'name', width: 240 },
   { title: '业务类型', dataIndex: 'bizType', key: 'bizType', width: 140 },
   { title: '可见性', key: 'visibility', width: 90 },
@@ -136,16 +141,7 @@ const activeColumns = [
   { title: '上传时间', key: 'time', width: 180 },
   { title: '操作', key: 'action', width: 200 }
 ]
-const recycleColumns = [
-  { title: '文件名', key: 'name', width: 240 },
-  { title: '业务类型', dataIndex: 'bizType', key: 'bizType', width: 140 },
-  { title: '大小', key: 'size', width: 100 },
-  { title: '删除时间', key: 'time', width: 180 },
-  { title: '操作', key: 'action', width: 140 }
-]
-const columns = computed(() => (tab.value === 'recycle' ? recycleColumns : activeColumns))
 
-const tab = ref<'active' | 'recycle'>('active')
 const records = ref<FileMeta[]>([])
 const loading = ref(false)
 const errorMsg = ref('')
@@ -153,6 +149,20 @@ const keyword = ref('')
 const bizType = ref<string | undefined>(undefined)
 const visibility = ref<string | undefined>(undefined)
 const bizOptions = ref<{ label: string; value: string }[]>([])
+/** 存储策略未登记的 bizType 兜底中文名（原始编码仍可在悬停查看） */
+const BIZ_TYPE_FALLBACK: Record<string, string> = {
+  announcement_attachment: '内部通知附件',
+  cms_media: 'CMS 媒体资源',
+  ehr_attachment: 'EHR 员工附件',
+  forum_post: '论坛帖子附件',
+  notice_attachment: '站内消息附件',
+  openapi_export: '开放平台导出文件'
+}
+function bizLabel(type: string) {
+  return bizOptions.value.find(o => o.value === type)?.label
+    || BIZ_TYPE_FALLBACK[type]
+    || type
+}
 const visibilityOptions = [
   { label: '公开', value: 'PUBLIC' },
   { label: '私有', value: 'PRIVATE' }
@@ -175,6 +185,19 @@ let selectedFile: File | null = null
 const previewOpen = ref(false)
 const previewLoading = ref(false)
 const previewInfo = ref<PreviewInfo | null>(null)
+const pdfWatermarkStyle = computed(() => {
+  const w = previewInfo.value?.watermark
+  if (!w) return {}
+  let h = (w.color || '#8B5CF6').replace('#', '')
+  if (h.length === 3) h = h[0] + h[0] + h[1] + h[1] + h[2] + h[2]
+  const n = parseInt(h, 16)
+  const rgba = `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${(w.opacity || 30) / 100})`
+  return {
+    color: rgba,
+    fontSize: `${(w.fontSize || 26) * 0.6}px`,
+    transform: `rotate(${w.rotation || -24}deg)`
+  }
+})
 const previewText = ref('')
 const previewId = ref('')
 const CHUNK_THRESHOLD = 5 * 1024 * 1024
@@ -184,7 +207,19 @@ const shareOpen = ref(false)
 const shareCreating = ref(false)
 const shareFileName = ref('')
 const createdShareUrl = ref('')
-const shareForm = reactive({ password: '', expiresHours: 0, maxViews: 0 })
+/** 随机提取码：6 位大写字母+数字，剔除 0/O/1/I 等易混淆字符 */
+function randomShareCode(len = 6) {
+  const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
+  const bytes = new Uint32Array(len)
+  if (globalThis.crypto?.getRandomValues) {
+    globalThis.crypto.getRandomValues(bytes)
+  } else {
+    for (let i = 0; i < len; i++) bytes[i] = Math.floor(Math.random() * 0xffffffff)
+  }
+  return Array.from(bytes, n => alphabet[n % alphabet.length]).join('')
+}
+
+const shareForm = reactive<{ password: string; expiresHours: number | null; maxViews: number | null }>({ password: '', expiresHours: null, maxViews: null })
 const shareFileId = ref('')
 
 onMounted(async () => {
@@ -196,13 +231,11 @@ async function load() {
   loading.value = true
   errorMsg.value = ''
   try {
-    const params = {
+    const res = await listFiles({
       page: current.value, size: pageSize.value,
-      bizType: bizType.value, keyword: keyword.value || undefined
-    }
-    const res = tab.value === 'recycle'
-      ? await listRecycle(params)
-      : await listFiles({ ...params, visibility: visibility.value })
+      bizType: bizType.value, keyword: keyword.value || undefined,
+      visibility: visibility.value
+    })
     records.value = res.records || []
     total.value = res.total || 0
   } catch (e: any) {
@@ -212,7 +245,6 @@ async function load() {
   }
 }
 
-function handleTabChange() { current.value = 1; load() }
 function handleSearch() { current.value = 1; load() }
 function handleTableChange(pag: any) { current.value = pag.current; pageSize.value = pag.pageSize; load() }
 
@@ -286,17 +318,29 @@ async function openPreview(record: FileMeta) {
   previewInfo.value = null
   previewText.value = ''
   previewLoading.value = true
-  previewOpen.value = true
+  previewOpen.value = false
   try {
     const info = await previewFile(record.id)
-    previewInfo.value = info
+    // 只有图片/PDF/可读取文本才打开预览；其余类型直接提示下载，避免空白抽屉
+    if (info.mode !== 'IMAGE' && info.mode !== 'PDF' && info.mode !== 'TEXT') {
+      message.warning('该类型不支持预览，请直接下载！')
+      return
+    }
+    let text = ''
     if (info.mode === 'TEXT') {
       try {
-        previewText.value = await readFileText(info.url)
+        text = (await readFileText(info.url)) || ''
       } catch {
-        previewText.value = '（文本内容读取失败，请下载查看）'
+        text = ''
+      }
+      if (!String(text).trim()) {
+        message.warning('该类型不支持预览，请直接下载！')
+        return
       }
     }
+    previewInfo.value = info
+    previewText.value = String(text)
+    previewOpen.value = true
   } catch (e: any) {
     message.error(e?.message || '获取预览信息失败')
   } finally {
@@ -312,21 +356,30 @@ function closePreview() {
 function openShare(record: FileMeta) {
   shareFileId.value = record.id
   shareFileName.value = record.originalName
-  shareForm.password = ''
-  shareForm.expiresHours = 0
-  shareForm.maxViews = 0
+  shareForm.password = randomShareCode()
+  shareForm.expiresHours = null
+  shareForm.maxViews = null
   createdShareUrl.value = ''
   shareOpen.value = true
 }
 
 async function doCreateShare() {
+  // 留空表示长期有效/不限次数；填了则必须是大于 0 的整数
+  if (shareForm.expiresHours != null && (!Number.isInteger(shareForm.expiresHours) || shareForm.expiresHours <= 0)) {
+    message.warning('有效期需为大于 0 的整数，留空表示长期有效')
+    return
+  }
+  if (shareForm.maxViews != null && (!Number.isInteger(shareForm.maxViews) || shareForm.maxViews <= 0)) {
+    message.warning('查看次数上限需为大于 0 的整数，留空表示不限次数')
+    return
+  }
   shareCreating.value = true
   try {
     const res = await createShare({
       fileId: shareFileId.value,
       password: shareForm.password || undefined,
-      expiresHours: shareForm.expiresHours || undefined,
-      maxViews: shareForm.maxViews || undefined
+      expiresHours: shareForm.expiresHours ?? undefined,
+      maxViews: shareForm.maxViews ?? undefined
     })
     createdShareUrl.value = res.url
     message.success('分享链接已创建')
@@ -342,9 +395,12 @@ function selectShareUrl(e: MouseEvent) {
 }
 
 async function copyShareUrl() {
+  const text = shareForm.password
+    ? `${createdShareUrl.value}\n提取码：${shareForm.password}`
+    : createdShareUrl.value
   try {
-    await navigator.clipboard.writeText(createdShareUrl.value)
-    message.success('已复制')
+    await navigator.clipboard.writeText(text)
+    message.success(shareForm.password ? '已复制链接和提取码' : '已复制')
   } catch {
     message.warning('复制失败，请手动选择链接')
   }
@@ -367,7 +423,7 @@ async function downloadFile(record: FileMeta) {
 function confirmDelete(record: FileMeta) {
   Modal.confirm({
     title: '删除文件',
-    content: `确定删除「${record.originalName}」吗？删除后可在回收站恢复。`,
+    content: `确定删除「${record.originalName}」吗？删除后可在左侧「回收站」恢复。`,
     okText: '确定删除', cancelText: '取消', centered: true,
     okButtonProps: { danger: true },
     onOk: async () => {
@@ -377,41 +433,6 @@ function confirmDelete(record: FileMeta) {
         load()
       } catch (e: any) {
         message.error(e?.message || '删除失败')
-      }
-    }
-  })
-}
-
-function confirmRestore(record: FileMeta) {
-  Modal.confirm({
-    title: '恢复文件',
-    content: `确定恢复「${record.originalName}」吗？`,
-    okText: '恢复', cancelText: '取消', centered: true,
-    onOk: async () => {
-      try {
-        await restoreFile(record.id)
-        message.success('已恢复')
-        load()
-      } catch (e: any) {
-        message.error(e?.message || '恢复失败')
-      }
-    }
-  })
-}
-
-function confirmPurge(record: FileMeta) {
-  Modal.confirm({
-    title: '彻底删除',
-    content: `彻底删除「${record.originalName}」？物理文件将被删除且不可恢复（若被其它文件秒传复用则仅删元数据）。`,
-    okText: '彻底删除', cancelText: '取消', centered: true,
-    okButtonProps: { danger: true },
-    onOk: async () => {
-      try {
-        await purgeFile(record.id)
-        message.success('已彻底删除')
-        load()
-      } catch (e: any) {
-        message.error(e?.message || '彻底删除失败')
       }
     }
   })
@@ -450,6 +471,9 @@ function formatSize(size: number) {
 .preview-placeholder { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 300px; color: #999; gap: 12px; }
 .preview-img { max-width: 100%; max-height: 70vh; object-fit: contain; display: block; margin: 0 auto; }
 .preview-frame { width: 100%; height: 70vh; border: none; }
+.pdf-wrap { position: relative; }
+.pdf-wm-layer { position: absolute; inset: 0; pointer-events: none; overflow: hidden; display: flex; flex-wrap: wrap; align-content: center; justify-content: center; padding: 20px; }
+.pdf-wm-item { white-space: pre; font-weight: 700; user-select: none; line-height: 1.3; text-align: center; }
 .preview-text { white-space: pre-wrap; word-break: break-all; font-size: 13px; line-height: 1.6; max-height: 70vh; overflow: auto; background: #fafafa; padding: 12px; border-radius: 6px; }
 .share-result { margin-top: 8px; padding: 12px; background: #f6ffed; border: 1px solid #b7eb8f; border-radius: 6px; }
 .share-result p { margin: 0 0 8px; color: #389e0d; }

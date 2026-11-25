@@ -2703,3 +2703,47 @@ INSERT IGNORE INTO `sso_account_app` (`account_id`,`app_id`)
 SELECT a.`id`,ap.`id` FROM `sso_account` a
 JOIN `sso_application` ap ON ap.`code` IN ('forum','forum-admin')
 WHERE a.`deleted`=0 AND (a.`data_scope_org_code` LIKE 'XC00010008%' OR a.`id` IN (2700000000000040061,2700000000000040062,2700000000000040063));
+
+-- 审计/附件管理角色：4 个子公司研发部及下属项目子部门授权（详见 deploy/sql/10-audit-file-roles.sql）
+INSERT IGNORE INTO `sso_role` (`id`,`code`,`app_code`,`name`,`remark`,`created_at`,`updated_at`,`deleted`) VALUES
+(2026112400000000201,'AUDIT_ADMIN','audit','审计管理员','审计全量：概览/审计事件/登录审计/系统日志',NOW(),NOW(),0),
+(2026112400000000202,'AUDIT_VIEWER','audit','审计查看员','审计只读：概览/审计事件/登录审计（不含系统日志）',NOW(),NOW(),0),
+(2026112400000000203,'FILE_ADMIN','file','附件管理员','附件全量：文件管理/上传下载删除/存储策略/附件设置水印',NOW(),NOW(),0),
+(2026112400000000204,'FILE_VIEWER','file','附件查看员','附件只读：概览/文件列表/策略查看/水印查看',NOW(),NOW(),0);
+INSERT IGNORE INTO `sso_role_permission` (`role_id`,`permission_id`)
+SELECT r.`id`,p.`id` FROM `sso_role` r JOIN `sso_permission` p ON p.`app_code`='audit' AND p.`deleted`=0
+WHERE r.`code`='AUDIT_ADMIN' AND r.`deleted`=0;
+INSERT IGNORE INTO `sso_role_permission` (`role_id`,`permission_id`)
+SELECT r.`id`,p.`id` FROM `sso_role` r JOIN `sso_permission` p ON p.`app_code`='audit' AND p.`deleted`=0 AND p.`code` NOT LIKE '%system-log%' AND p.`code` NOT LIKE 'audit:setting%'
+WHERE r.`code`='AUDIT_VIEWER' AND r.`deleted`=0;
+INSERT IGNORE INTO `sso_role_permission` (`role_id`,`permission_id`)
+SELECT r.`id`,p.`id` FROM `sso_role` r JOIN `sso_permission` p ON p.`app_code`='file' AND p.`deleted`=0
+WHERE r.`code`='FILE_ADMIN' AND r.`deleted`=0;
+INSERT IGNORE INTO `sso_role_permission` (`role_id`,`permission_id`)
+SELECT r.`id`,p.`id` FROM `sso_role` r JOIN `sso_permission` p ON p.`app_code`='file' AND p.`deleted`=0
+  AND p.`code` IN ('file:overview','file:files','file:policy','file:attachment-setting',
+                   'file:overview:view','file:list','file:policy:list','file:watermark:view')
+WHERE r.`code`='FILE_VIEWER' AND r.`deleted`=0;
+-- 研发部本级 -> 审计管理员
+INSERT IGNORE INTO `sso_account_role` (`account_id`,`role_id`)
+SELECT a.`id`,r.`id` FROM `sso_account` a JOIN `sso_role` r ON r.`deleted`=0 AND r.`code`='AUDIT_ADMIN'
+WHERE a.`deleted`=0 AND a.`data_scope_org_code` IN ('XC000100010001','XC000100020001','XC000100060002','XC000100070001');
+-- 子项目 -> 审计查看员
+INSERT IGNORE INTO `sso_account_role` (`account_id`,`role_id`)
+SELECT a.`id`,r.`id` FROM `sso_account` a JOIN `sso_role` r ON r.`deleted`=0 AND r.`code`='AUDIT_VIEWER'
+WHERE a.`deleted`=0 AND LENGTH(a.`data_scope_org_code`)=18 AND (
+  a.`data_scope_org_code` LIKE 'XC000100010001%' OR a.`data_scope_org_code` LIKE 'XC000100020001%'
+  OR a.`data_scope_org_code` LIKE 'XC000100060002%' OR a.`data_scope_org_code` LIKE 'XC000100070001%');
+-- 研发部本级 -> 附件管理员
+INSERT IGNORE INTO `sso_account_role` (`account_id`,`role_id`)
+SELECT a.`id`,r.`id` FROM `sso_account` a JOIN `sso_role` r ON r.`deleted`=0 AND r.`code`='FILE_ADMIN'
+WHERE a.`deleted`=0 AND a.`data_scope_org_code` IN ('XC000100010001','XC000100020001','XC000100060002','XC000100070001');
+-- 应用访问权
+INSERT IGNORE INTO `sso_account_app` (`account_id`,`app_id`)
+SELECT a.`id`,ap.`id` FROM `sso_account` a JOIN `sso_application` ap ON ap.`deleted`=0 AND ap.`code`='audit'
+WHERE a.`deleted`=0 AND (a.`data_scope_org_code` IN ('XC000100010001','XC000100020001','XC000100060002','XC000100070001')
+  OR (LENGTH(a.`data_scope_org_code`)=18 AND (a.`data_scope_org_code` LIKE 'XC000100010001%' OR a.`data_scope_org_code` LIKE 'XC000100020001%'
+    OR a.`data_scope_org_code` LIKE 'XC000100060002%' OR a.`data_scope_org_code` LIKE 'XC000100070001%')));
+INSERT IGNORE INTO `sso_account_app` (`account_id`,`app_id`)
+SELECT a.`id`,ap.`id` FROM `sso_account` a JOIN `sso_application` ap ON ap.`deleted`=0 AND ap.`code`='file'
+WHERE a.`deleted`=0 AND a.`data_scope_org_code` IN ('XC000100010001','XC000100020001','XC000100060002','XC000100070001');

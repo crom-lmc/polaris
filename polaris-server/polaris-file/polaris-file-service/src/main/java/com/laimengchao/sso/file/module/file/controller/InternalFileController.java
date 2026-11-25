@@ -6,6 +6,7 @@ import com.laimengchao.sso.file.common.FileErrorCode;
 import com.laimengchao.sso.file.module.file.entity.FileObject;
 import com.laimengchao.sso.file.module.file.service.FileAliasService;
 import com.laimengchao.sso.file.module.file.service.FileService;
+import com.laimengchao.sso.file.module.file.service.WatermarkService;
 import com.laimengchao.sso.file.module.file.vo.AliasRegisterRequest;
 import com.laimengchao.sso.file.module.file.vo.SignRequest;
 import com.laimengchao.sso.file.module.file.vo.UploadRequest;
@@ -34,6 +35,7 @@ public class InternalFileController {
 
     private final FileService fileService;
     private final FileAliasService aliasService;
+    private final WatermarkService watermarkService;
 
     @PostMapping("/upload")
     @AuditLog(action = "FILE_INTERNAL_UPLOAD", targetType = "FILE")
@@ -65,6 +67,27 @@ public class InternalFileController {
     public R<String> content(@PathVariable("id") String id) {
         byte[] bytes = fileService.content(id);
         return R.ok(Base64.getEncoder().encodeToString(bytes));
+    }
+
+    /**
+     * 按水印配置烧录后的文件内容（base64）。业务服务下载附件时调用，传入当前登录人身份。
+     * 无水印配置或不适用时返回原字节；鉴权由业务服务在自己的下载端点完成，本接口受 internal-token 保护。
+     */
+    @PostMapping("/watermarked-content")
+    public R<String> watermarkedContent(@RequestBody Map<String, String> request) {
+        String fileId = request.get("fileId");
+        String scene = request.get("scene");
+        if (fileId == null || fileId.isBlank()) {
+            throw new com.laimengchao.sso.common.BizException(FileErrorCode.FILE_NOT_FOUND);
+        }
+        FileObject obj = fileService.meta(fileId);
+        if (obj == null) {
+            throw new com.laimengchao.sso.common.BizException(FileErrorCode.FILE_NOT_FOUND);
+        }
+        byte[] bytes = fileService.content(fileId);
+        byte[] out = watermarkService.applyForDownload(obj, bytes, scene,
+                request.get("username"), request.get("userId"), request.get("ip"));
+        return R.ok(Base64.getEncoder().encodeToString(out));
     }
 
     @DeleteMapping("/{id}")

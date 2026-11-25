@@ -45,14 +45,18 @@ public class AnnouncementAttachmentController {
     }
 
     @GetMapping("/{id}/download")
-    public ResponseEntity<byte[]> download(@PathVariable Long id) {
+    public ResponseEntity<byte[]> download(@PathVariable Long id,
+                                           jakarta.servlet.http.HttpServletRequest request) {
         SecurityUser user = SecurityUtils.currentUser()
                 .orElseThrow(() -> new BizException(ErrorCode.UNAUTHORIZED));
         if (!announcementService.canAccessAttachment(id, user.getAccountId())) {
             // 用 NOT_FOUND 而不是 FORBIDDEN：不向无权用户暴露附件是否存在
             throw new BizException(ErrorCode.NOT_FOUND, "附件不存在");
         }
-        AnnouncementAttachmentService.AttachmentFile file = attachmentService.content(id);
+        String xff = request.getHeader("X-Forwarded-For");
+        String clientIp = xff == null || xff.isBlank() ? request.getRemoteAddr() : xff.split(",")[0].trim();
+        AnnouncementAttachmentService.AttachmentFile file = attachmentService.content(id,
+                user.getUsername(), String.valueOf(user.getAccountId()), clientIp);
         String name = file.getFileName() == null || file.getFileName().isBlank() ? "attachment" : file.getFileName();
         String encoded = URLEncoder.encode(name, StandardCharsets.UTF_8).replace("+", "%20");
         return ResponseEntity.ok()

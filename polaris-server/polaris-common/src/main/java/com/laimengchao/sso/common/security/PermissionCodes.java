@@ -495,6 +495,10 @@ public final class PermissionCodes {
     public static final String FILE_DELETE = "file:delete";
     public static final String FILE_POLICY_LIST = "file:policy:list";
     public static final String FILE_POLICY_EDIT = "file:policy:edit";
+    /* 附件设置（水印 + 其他附件设置）菜单与按钮 */
+    public static final String FILE_MENU_ATTACHMENT_SETTING = "file:attachment-setting";
+    public static final String FILE_WATERMARK_VIEW = "file:watermark:view";
+    public static final String FILE_WATERMARK_EDIT = "file:watermark:edit";
 
     /* ============================================================
      * 统一审计中心（app_code = audit）
@@ -506,10 +510,19 @@ public final class PermissionCodes {
     public static final String AUDIT_MENU_EVENTS = "audit:events";
     public static final String AUDIT_MENU_LOGIN = "audit:login";
     public static final String AUDIT_MENU_SYSTEM_LOG = "audit:system-log";
+    public static final String AUDIT_MENU_SETTING = "audit:setting";
 
     /* 管理端按钮 */
     public static final String AUDIT_OVERVIEW_VIEW = "audit:overview:view";
     public static final String AUDIT_EVENTS_LIST = "audit:events:list";
     public static final String AUDIT_LOGIN_LIST = "audit:login:list";
     public static final String AUDIT_SYSTEM_LOG_LIST = "audit:system-log:list";
+    public static final String AUDIT_SETTING_VIEW = "audit:setting:view";
+    public static final String AUDIT_SETTING_EDIT = "audit:setting:edit";
+    /* 全局设置页分区可见性（编辑统一由 AUDIT_SETTING_EDIT 控制） */
+    public static final String AUDIT_SETTING_COLLECT = "audit:setting:collect";
+    public static final String AUDIT_SETTING_IGNORE = "audit:setting:ignore";
+    public static final String AUDIT_SETTING_RETENTION = "audit:setting:retention";
+    public static final String AUDIT_SETTING_PRIVACY = "audit:setting:privacy";
+    public static final String AUDIT_SETTING_EXPORT = "audit:setting:export";
 }

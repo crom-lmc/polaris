@@ -14,6 +14,7 @@ import { appName, resolveAppName } from '@/utils/appTitle'
 import { useUserStore } from '@/stores/user'
 import { useThemeStore } from '@/stores/theme'
 import ThemeToggleIcon from '@/components/ThemeToggleIcon.vue'
+import AppCenterNav from '@shared/AppCenterNav.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -54,6 +55,7 @@ function onUserMenuClick({ key }: { key: string }) {
         <span>{{ appName }}</span>
       </div>
       <div class="right">
+        <AppCenterNav current-code="job" />
         <a-tag color="blue">本地环境</a-tag>
         <a-button
           type="text"

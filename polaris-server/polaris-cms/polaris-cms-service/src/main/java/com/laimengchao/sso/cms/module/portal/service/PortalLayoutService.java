@@ -114,7 +114,7 @@ public class PortalLayoutService {
                     it.setModuleName(key);
                 }
                 it.setId(null);
-                it.setOrgCode(AccountContext.getDataScopeOrgCode());
+                it.setOrgCode(dataScopeService.currentScopeCode());
                 mapper.insert(it);
             } else {
                 it.setId(db.getId());

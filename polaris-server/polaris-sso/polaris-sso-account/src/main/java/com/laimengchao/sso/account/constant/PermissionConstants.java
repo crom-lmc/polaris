@@ -238,18 +238,25 @@ public final class PermissionConstants {
     public static final String FILE_DELETE = "file:delete";
     public static final String FILE_POLICY_LIST = "file:policy:list";
     public static final String FILE_POLICY_EDIT = "file:policy:edit";
+    /* —— 附件设置（水印 + 其他附件设置）—— */
+    public static final String FILE_MENU_ATTACHMENT_SETTING = "file:attachment-setting";
+    public static final String FILE_WATERMARK_VIEW = "file:watermark:view";
+    public static final String FILE_WATERMARK_EDIT = "file:watermark:edit";
 
     public static final java.util.List<PermDef> FILE_BUILTIN = java.util.List.of(
             new PermDef("统一文件服务-概览", FILE_MENU_OVERVIEW, PermissionType.MENU, null, 1),
             new PermDef("文件管理", FILE_MENU_FILES, PermissionType.MENU, null, 2),
             new PermDef("存储策略", FILE_MENU_POLICY, PermissionType.MENU, null, 3),
+            new PermDef("附件设置", FILE_MENU_ATTACHMENT_SETTING, PermissionType.MENU, null, 4),
             new PermDef("查看概览", FILE_OVERVIEW_VIEW, PermissionType.BUTTON, FILE_MENU_OVERVIEW, 1),
             new PermDef("查看文件列表", FILE_LIST, PermissionType.BUTTON, FILE_MENU_FILES, 1),
             new PermDef("上传文件", FILE_UPLOAD, PermissionType.BUTTON, FILE_MENU_FILES, 2),
             new PermDef("下载文件", FILE_DOWNLOAD, PermissionType.BUTTON, FILE_MENU_FILES, 3),
             new PermDef("删除文件", FILE_DELETE, PermissionType.BUTTON, FILE_MENU_FILES, 4),
             new PermDef("查看存储策略", FILE_POLICY_LIST, PermissionType.BUTTON, FILE_MENU_POLICY, 1),
-            new PermDef("编辑存储策略", FILE_POLICY_EDIT, PermissionType.BUTTON, FILE_MENU_POLICY, 2)
+            new PermDef("编辑存储策略", FILE_POLICY_EDIT, PermissionType.BUTTON, FILE_MENU_POLICY, 2),
+            new PermDef("查看附件设置", FILE_WATERMARK_VIEW, PermissionType.BUTTON, FILE_MENU_ATTACHMENT_SETTING, 1),
+            new PermDef("编辑附件设置", FILE_WATERMARK_EDIT, PermissionType.BUTTON, FILE_MENU_ATTACHMENT_SETTING, 2)
     );
 
     /* ---------- 业务应用 audit（统一审计中心）的内置权限 ---------- */
@@ -260,21 +267,38 @@ public final class PermissionConstants {
     public static final String AUDIT_MENU_EVENTS = "audit:events";
     public static final String AUDIT_MENU_LOGIN = "audit:login";
     public static final String AUDIT_MENU_SYSTEM_LOG = "audit:system-log";
+    public static final String AUDIT_MENU_SETTING = "audit:setting";
     /* —— 管理端按钮 —— */
     public static final String AUDIT_OVERVIEW_VIEW = "audit:overview:view";
     public static final String AUDIT_EVENTS_LIST = "audit:events:list";
     public static final String AUDIT_LOGIN_LIST = "audit:login:list";
     public static final String AUDIT_SYSTEM_LOG_LIST = "audit:system-log:list";
+    public static final String AUDIT_SETTING_VIEW = "audit:setting:view";
+    public static final String AUDIT_SETTING_EDIT = "audit:setting:edit";
+    /* 全局设置页分区可见性（编辑统一由 AUDIT_SETTING_EDIT 控制） */
+    public static final String AUDIT_SETTING_COLLECT = "audit:setting:collect";
+    public static final String AUDIT_SETTING_IGNORE = "audit:setting:ignore";
+    public static final String AUDIT_SETTING_RETENTION = "audit:setting:retention";
+    public static final String AUDIT_SETTING_PRIVACY = "audit:setting:privacy";
+    public static final String AUDIT_SETTING_EXPORT = "audit:setting:export";
 
     public static final java.util.List<PermDef> AUDIT_BUILTIN = java.util.List.of(
             new PermDef("统一审计中心-概览", AUDIT_MENU_OVERVIEW, PermissionType.MENU, null, 1),
             new PermDef("审计事件", AUDIT_MENU_EVENTS, PermissionType.MENU, null, 2),
             new PermDef("登录审计", AUDIT_MENU_LOGIN, PermissionType.MENU, null, 3),
             new PermDef("系统日志", AUDIT_MENU_SYSTEM_LOG, PermissionType.MENU, null, 4),
+            new PermDef("全局设置", AUDIT_MENU_SETTING, PermissionType.MENU, null, 5),
             new PermDef("查看概览", AUDIT_OVERVIEW_VIEW, PermissionType.BUTTON, AUDIT_MENU_OVERVIEW, 1),
             new PermDef("查询审计事件", AUDIT_EVENTS_LIST, PermissionType.BUTTON, AUDIT_MENU_EVENTS, 1),
             new PermDef("查询登录审计", AUDIT_LOGIN_LIST, PermissionType.BUTTON, AUDIT_MENU_LOGIN, 1),
-            new PermDef("查询系统日志", AUDIT_SYSTEM_LOG_LIST, PermissionType.BUTTON, AUDIT_MENU_SYSTEM_LOG, 1)
+            new PermDef("查询系统日志", AUDIT_SYSTEM_LOG_LIST, PermissionType.BUTTON, AUDIT_MENU_SYSTEM_LOG, 1),
+            new PermDef("查看全局设置", AUDIT_SETTING_VIEW, PermissionType.BUTTON, AUDIT_MENU_SETTING, 1),
+            new PermDef("编辑全局设置", AUDIT_SETTING_EDIT, PermissionType.BUTTON, AUDIT_MENU_SETTING, 2),
+            new PermDef("设置-采集策略", AUDIT_SETTING_COLLECT, PermissionType.BUTTON, AUDIT_MENU_SETTING, 3),
+            new PermDef("设置-忽略规则", AUDIT_SETTING_IGNORE, PermissionType.BUTTON, AUDIT_MENU_SETTING, 4),
+            new PermDef("设置-留存与清理", AUDIT_SETTING_RETENTION, PermissionType.BUTTON, AUDIT_MENU_SETTING, 5),
+            new PermDef("设置-脱敏与隐私", AUDIT_SETTING_PRIVACY, PermissionType.BUTTON, AUDIT_MENU_SETTING, 6),
+            new PermDef("设置-导出与合规", AUDIT_SETTING_EXPORT, PermissionType.BUTTON, AUDIT_MENU_SETTING, 7)
     );
 
     /* ---------- 业务应用 forum（社区论坛）的内置权限 ---------- */

@@ -2,7 +2,8 @@ import request from './request'
 
 /** 统一账号中心 sso-web 的 /authorize 页（授权码签发入口） */
 export const SSO_AUTHORIZE_URL =
-  import.meta.env.VITE_SSO_ORIGIN || 'http://localhost:5173'
+  import.meta.env.VITE_SSO_ORIGIN ||
+  (import.meta.env.DEV ? 'http://localhost:5173' : 'https://polaris-sso.laimengchao.site')
 
 /** 当前 cms-web 的回调地址（必须与统一账号中心里 cms 应用的 baseUrl 同 origin） */
 export function callbackUrl(): string {
@@ -228,6 +229,8 @@ export function deleteTag(id: number) {
 
 export interface MediaItem {
   id: number
+  /** 统一文件服务文件 ID（旧存量媒体可能为空，此时不可分享） */
+  fileId?: number | string
   originalName: string
   url: string
   contentType?: string
@@ -250,6 +253,29 @@ export function uploadMedia(file: File) {
 
 export function deleteMedia(id: number) {
   return request.delete(`/api/cms/media/${id}`)
+}
+
+/** 公共文件能力：分享（登录即可，无管理端权限码） */
+export interface FileShare {
+  id: string
+  fileId: string
+  shareCode: string
+  url: string
+  fileName?: string
+  expiresAt?: string
+  maxViews: number
+  viewCount: number
+  enabled: boolean
+  createdAt: string
+}
+
+export function createFileShare(payload: {
+  fileId: string
+  password?: string
+  expiresHours?: number
+  maxViews?: number
+}) {
+  return request.post<never, FileShare>('/api/file/my/shares', payload)
 }
 
 // ---------------- Banner ----------------

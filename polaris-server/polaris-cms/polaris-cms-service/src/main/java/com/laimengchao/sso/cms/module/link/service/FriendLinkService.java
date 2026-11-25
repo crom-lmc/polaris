@@ -51,7 +51,7 @@ public class FriendLinkService {
         link.setSort(link.getSort() == null ? 0 : link.getSort());
         link.setStatus(link.getStatus() == null ? 1 : link.getStatus());
         if (link.getId() == null) {
-            link.setOrgCode(AccountContext.getDataScopeOrgCode());
+            link.setOrgCode(dataScopeService.currentScopeCode());
             friendLinkMapper.insert(link);
         } else {
             FriendLink existing = friendLinkMapper.selectById(link.getId());

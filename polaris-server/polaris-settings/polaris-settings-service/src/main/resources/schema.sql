@@ -308,7 +308,7 @@ CREATE TABLE IF NOT EXISTS `cfg_approval_step` (
   `branch_path` varchar(256) NOT NULL DEFAULT '' COMMENT '路径键：主干=空；分支子链=n/<nodeId>，多段用 / 连接，最多 3 层',
   `depth` int(11) NOT NULL DEFAULT '0' COMMENT '嵌套深度：主干=0，第 N 层分支子链=N；上限 3',
   `ui_kind` varchar(32) NOT NULL DEFAULT 'APPROVER' COMMENT '编辑器提示：APPROVER/GATEWAY/PARALLEL/END；引擎不读',
-  `sla_hours` int(11) DEFAULT NULL COMMENT '时效：在当前步骤停留超过该小时数触发超时提醒，NULL=不提醒',
+  `sla_hours` int(11) DEFAULT '24' COMMENT '时效：在当前步骤停留超过该小时数触发超时提醒，NULL=不提醒；新建步骤默认24小时',
   PRIMARY KEY (`id`),
   UNIQUE KEY `uk_appr_step_seq` (`template_id`,`seq`,`deleted`),
   KEY `idx_appr_step_parent` (`template_id`,`parent_node_id`,`seq`)
