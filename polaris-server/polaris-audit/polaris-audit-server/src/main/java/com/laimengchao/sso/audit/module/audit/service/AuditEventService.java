@@ -133,7 +133,10 @@ public class AuditEventService {
         e.setTargetId(trim(req.getTargetId(), 64));
         int fieldLimit = settings.integer(AuditSettingService.COLLECT_TRUNCATE_LENGTH, 1800);
         e.setDetail(mask(trim(req.getDetail(), 2000)));
-        e.setRequestParams(mask(trim(req.getRequestParams(), fieldLimit)));
+        // 网关上报的 requestParams 就是 query 串（body 由业务层 AOP 单独记 detail）；
+        // 关闭采集 Query 参数时接收端直接不落库，开关即时生效且无需改网关。
+        boolean recordQuery = settings.bool(AuditSettingService.COLLECT_QUERY_PARAMS, true);
+        e.setRequestParams(recordQuery ? mask(trim(req.getRequestParams(), fieldLimit)) : "");
         e.setHttpStatus(req.getHttpStatus());
         e.setBizCode(req.getBizCode());
         e.setResponseSummary(mask(trim(req.getResponseSummary(), fieldLimit)));
@@ -162,6 +165,34 @@ public class AuditEventService {
     public PageResult<AuditEvent> page(int page, int size, String app, String eventCategory,
                                        String action, String operator, String httpMethod,
                                        String result, LocalDate startDate, LocalDate endDate) {
+        IPage<AuditEvent> p = mapper.selectPage(new Page<>(page, size),
+                eventQuery(app, eventCategory, action, operator, httpMethod, result, startDate, endDate));
+        return PageResult.of(p.getRecords(), p.getTotal(), page, size);
+    }
+
+    /**
+     * 审计事件导出：按与列表完全相同的筛选条件取数，条数受全局设置 export.maxRows 限制。
+     * 返回条数不超过上限，防止拖库式导出；水印/确认由调用方按全局设置处理。
+     */
+    public List<AuditEvent> export(String app, String eventCategory, String action, String operator,
+                                   String httpMethod, String result, LocalDate startDate, LocalDate endDate) {
+        int maxRows = settings.integer(AuditSettingService.EXPORT_MAX_ROWS, 10000);
+        if (maxRows < 1) {
+            maxRows = 10000;
+        }
+        LambdaQueryWrapper<AuditEvent> w = eventQuery(app, eventCategory, action, operator,
+                httpMethod, result, startDate, endDate);
+        w.last("LIMIT " + maxRows);
+        List<AuditEvent> rows = mapper.selectList(w);
+        log.info("审计事件导出：rows={} maxRows={} app={} category={}",
+                rows.size(), maxRows, app, eventCategory);
+        return rows;
+    }
+
+    /** 列表与导出共用的筛选条件，确保两边口径一致。 */
+    private LambdaQueryWrapper<AuditEvent> eventQuery(String app, String eventCategory, String action,
+                                                       String operator, String httpMethod, String result,
+                                                       LocalDate startDate, LocalDate endDate) {
         LambdaQueryWrapper<AuditEvent> w = new LambdaQueryWrapper<>();
         if (notBlank(app)) w.eq(AuditEvent::getApp, app.trim());
         if (notBlank(eventCategory)) w.eq(AuditEvent::getEventCategory, eventCategory.trim());
@@ -172,8 +203,7 @@ public class AuditEventService {
         if (startDate != null) w.ge(AuditEvent::getCreatedAt, startDate.atStartOfDay());
         if (endDate != null) w.lt(AuditEvent::getCreatedAt, endDate.plusDays(1).atStartOfDay());
         w.orderByDesc(AuditEvent::getCreatedAt).orderByDesc(AuditEvent::getId);
-        IPage<AuditEvent> p = mapper.selectPage(new Page<>(page, size), w);
-        return PageResult.of(p.getRecords(), p.getTotal(), page, size);
+        return w;
     }
 
     /** 登录审计分页：仍按原 sso_login_log 的字段形状返回，前端不用改列。 */

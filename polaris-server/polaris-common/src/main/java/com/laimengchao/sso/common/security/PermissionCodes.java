@@ -515,6 +515,7 @@ public final class PermissionCodes {
     /* 管理端按钮 */
     public static final String AUDIT_OVERVIEW_VIEW = "audit:overview:view";
     public static final String AUDIT_EVENTS_LIST = "audit:events:list";
+    public static final String AUDIT_EVENTS_EXPORT = "audit:events:export";
     public static final String AUDIT_LOGIN_LIST = "audit:login:list";
     public static final String AUDIT_SYSTEM_LOG_LIST = "audit:system-log:list";
     public static final String AUDIT_SETTING_VIEW = "audit:setting:view";

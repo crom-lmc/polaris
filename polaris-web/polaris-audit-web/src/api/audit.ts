@@ -71,6 +71,26 @@ export function fetchAuditEvents(params: {
   return request.get<never, { data: PageResult<AuditEvent> }>('/api/audit/admin/events', { params })
 }
 
+/** 导出审计事件 CSV（鉴权与上限由后端按全局设置校验） */
+export function exportAuditEvents(params: {
+  app?: string
+  eventCategory?: string
+  action?: string
+  operator?: string
+  httpMethod?: string
+  result?: string
+  startDate?: string
+  endDate?: string
+  purpose?: string
+}) {
+  return request.get<never, { data: Blob }>('/api/audit/admin/events/export', { params, responseType: 'blob' })
+}
+
+/** 读取审计全局设置（用于按 enabled/confirmRequired 决定导出 UI 行为） */
+export function fetchExportSettings() {
+  return request.get<never, Record<string, string>>('/api/audit/admin/settings')
+}
+
 /** 审计概览统计 */
 export function fetchAuditOverview() {
   return request.get<never, { data: AuditOverview }>('/api/audit/admin/overview')

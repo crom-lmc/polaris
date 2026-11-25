@@ -35,9 +35,7 @@ public class AuditSettingService {
     public static final String COLLECT_SYSTEM_LOG = "collect.systemLog";
     public static final String COLLECT_LOG_LEVEL = "collect.logLevel";
     public static final String COLLECT_QUERY_PARAMS = "collect.queryParams";
-    public static final String COLLECT_JSON_BODY = "collect.jsonBody";
     public static final String COLLECT_TRUNCATE_LENGTH = "collect.truncateLength";
-    public static final String COLLECT_QUEUE_CAPACITY = "collect.queueCapacity";
 
     /* ---------- 忽略规则 ---------- */
     public static final String IGNORE_PATH_PREFIXES = "ignore.pathPrefixes";
@@ -62,7 +60,6 @@ public class AuditSettingService {
     public static final String EXPORT_MAX_ROWS = "export.maxRows";
     public static final String EXPORT_CONFIRM = "export.confirmRequired";
     public static final String EXPORT_WATERMARK = "export.watermarkText";
-    public static final String EXPORT_RECORD = "export.recordBehavior";
 
     /** 强制不可关闭：登录事件合规必留。 */
     public static final String CATEGORY_LOGIN = "LOGIN";
@@ -80,9 +77,7 @@ public class AuditSettingService {
         d.put(COLLECT_SYSTEM_LOG, "true");
         d.put(COLLECT_LOG_LEVEL, "WARN");
         d.put(COLLECT_QUERY_PARAMS, "true");
-        d.put(COLLECT_JSON_BODY, "false");
         d.put(COLLECT_TRUNCATE_LENGTH, "1800");
-        d.put(COLLECT_QUEUE_CAPACITY, "2000");
 
         d.put(IGNORE_PATH_PREFIXES, "/actuator/**,/internal/**,/api/file/public/**,/favicon.ico");
         d.put(IGNORE_APPS, "");
@@ -103,7 +98,6 @@ public class AuditSettingService {
         d.put(EXPORT_MAX_ROWS, "10000");
         d.put(EXPORT_CONFIRM, "true");
         d.put(EXPORT_WATERMARK, "仅供内部使用 {username} {date}");
-        d.put(EXPORT_RECORD, "true");
         DEFAULTS = java.util.Collections.unmodifiableMap(d);
     }
 

@@ -45,17 +45,11 @@
             <SettingRow label="系统日志最低级别" desc="低于该级别的日志不上报；INFO 会产生大量记录，仅排障期临时调低">
               <template #control><a-select v-model:value="form.collectLogLevel" :disabled="!canEdit" :options="logLevelOptions" style="width:150px" /></template>
             </SettingRow>
-            <SettingRow label="采集 Query 参数" desc="GET 与表单查询串，上报前按脱敏关键词打码">
-              <template #control><a-switch v-model:checked="form.collectQueryParams" :disabled="!canEdit" /></template>
-            </SettingRow>
-            <SettingRow label="采集 JSON Body" desc="写操作请求体；开启后敏感业务建议保持关闭">
-              <template #control><a-switch v-model:checked="form.collectJsonBody" :disabled="!canEdit" /><span class="sw-tip">{{ form.collectJsonBody ? '开启' : '关闭' }}</span></template>
+            <SettingRow label="采集 Query 参数" desc="网关上报的 URL 查询串（已脱敏）；关闭后审计服务接收端不落库 requestParams，即时生效">
+              <template #control><a-switch v-model:checked="form.collectQueryParams" :disabled="!canEdit" /><span class="sw-tip">{{ form.collectQueryParams ? '开启' : '关闭' }}</span></template>
             </SettingRow>
             <SettingRow label="单字段截断长度" desc="请求参数与响应摘要的最大字符数，超出自动截断">
               <template #control><a-input-number v-model:value="form.collectTruncateLength" :disabled="!canEdit" :min="100" :max="1800" /><span class="unit">字符</span></template>
-            </SettingRow>
-            <SettingRow label="系统日志队列容量" desc="有界队列，满时丢弃并计数告警">
-              <template #control><a-input-number v-model:value="form.collectQueueCapacity" :disabled="!canEdit" :min="200" :max="100000" :step="100" /><span class="unit">条</span></template>
             </SettingRow>
           </a-card>
           <a-alert class="tip-alert" type="info" show-icon message="采集源头开关（网关/各服务侧）的完全关闭需通过 Nacos 下发；此处开关在审计服务接收端即时生效，可先按设置收敛落库。" />
@@ -151,17 +145,17 @@
         <!-- 导出与合规 -->
         <a-tab-pane v-if="canExport" key="export" tab="导出与合规">
           <a-card size="small" class="panel" title="审计数据导出">
-            <template #extra><span class="panel-sub">审计事件导出为预留能力，配置先行</span></template>
-            <SettingRow label="开放审计事件导出" desc="预留：导出功能尚未实现，此处为策略预置">
+            <template #extra><span class="panel-sub">在「审计事件」页工具栏导出，配置即时生效</span></template>
+            <SettingRow label="开放审计事件导出" desc="关闭后导出接口直接拒绝，页面导出按钮同步隐藏">
               <template #control><a-switch v-model:checked="form.exportEnabled" :disabled="!canEdit" /><span class="sw-tip">{{ form.exportEnabled ? '开启' : '关闭' }}</span></template>
             </SettingRow>
-            <SettingRow label="单次导出上限" desc="超过上限时提示缩小时间范围，防止拖库式导出">
+            <SettingRow label="单次导出上限" desc="最多导出的条数，超出部分不再导出，请缩小时间范围；防止拖库式导出">
               <template #control><a-input-number v-model:value="form.exportMaxRows" :disabled="!canEdit" :min="100" :max="1000000" :step="1000" /><span class="unit">条</span></template>
             </SettingRow>
-            <SettingRow label="导出二次确认" desc="弹出确认框要求填写用途，用途随导出审计记录保存">
+            <SettingRow label="导出二次确认" desc="开启后导出前弹窗要求填写用途，用途随导出行为审计记录保存">
               <template #control><a-switch v-model:checked="form.exportConfirm" :disabled="!canEdit" /><span class="sw-tip">{{ form.exportConfirm ? '开启' : '关闭' }}</span></template>
             </SettingRow>
-            <SettingRow label="导出文件水印文案" desc="预留：与附件水印一致的身份变量，烧录到导出首页">
+            <SettingRow label="导出文件水印文案" desc="写在 CSV 首行注释，支持 {username} / {date} 变量，留空则不加水印">
               <template #control><a-input v-model:value="form.exportWatermark" :disabled="!canEdit" style="width:320px" /></template>
             </SettingRow>
             <SettingRow label="记录导出行为" desc="每次导出写入审计事件，包含操作人、条件与条数；合规必留，强制开启">
@@ -201,7 +195,7 @@ const visibleTabs = computed(() => [
 const SettingRow = (props: { label: string; desc?: string }, { slots }: any) =>
   h('div', { class: 'setting-row' }, [
     h('div', { class: 'row-info' }, [
-      h('span', { class: 'row-label' }, props.label),
+      h('span', { class: 'row-label' }, props.label + '\u00a0'),
       props.desc
         ? h(Tooltip, { title: props.desc, placement: 'top' }, {
             default: () => h(QuestionCircleOutlined, { class: 'hint-icon' })
@@ -218,9 +212,7 @@ interface FormState {
   collectSystemLog: boolean
   collectLogLevel: string
   collectQueryParams: boolean
-  collectJsonBody: boolean
   collectTruncateLength: number
-  collectQueueCapacity: number
   ignoreApps: string[]
   ignoreCategories: string[]
   retentionEventDays: number
@@ -239,8 +231,8 @@ interface FormState {
 
 const form = reactive<FormState>({
   collectGatewayAccess: true, collectBusinessOp: true, collectSystemLog: true,
-  collectLogLevel: 'WARN', collectQueryParams: true, collectJsonBody: false,
-  collectTruncateLength: 1800, collectQueueCapacity: 2000,
+  collectLogLevel: 'WARN', collectQueryParams: true,
+  collectTruncateLength: 1800,
   ignoreApps: [], ignoreCategories: [],
   retentionEventDays: 180, retentionSyslogDays: 90, retentionCleanTime: '03:00', retentionArchiveBefore: false,
   privacyRecordIp: true, privacyRecordUa: true, privacyRecordOperatorId: true, privacyLogTruncateLength: 4000,
@@ -254,9 +246,7 @@ const KEY_MAP: Record<FormKey, string> = {
   collectSystemLog: 'collect.systemLog',
   collectLogLevel: 'collect.logLevel',
   collectQueryParams: 'collect.queryParams',
-  collectJsonBody: 'collect.jsonBody',
   collectTruncateLength: 'collect.truncateLength',
-  collectQueueCapacity: 'collect.queueCapacity',
   ignoreApps: 'ignore.apps',
   ignoreCategories: 'ignore.categories',
   retentionEventDays: 'retention.eventDays',
@@ -273,13 +263,13 @@ const KEY_MAP: Record<FormKey, string> = {
   exportWatermark: 'export.watermarkText'
 }
 const BOOL_KEYS = new Set<FormKey>([
-  'collectGatewayAccess', 'collectBusinessOp', 'collectSystemLog', 'collectQueryParams', 'collectJsonBody',
+  'collectGatewayAccess', 'collectBusinessOp', 'collectSystemLog', 'collectQueryParams',
   'retentionArchiveBefore', 'privacyRecordIp', 'privacyRecordUa', 'privacyRecordOperatorId',
   'exportEnabled', 'exportConfirm'
 ])
 const LIST_KEYS = new Set<FormKey>(['ignoreApps', 'ignoreCategories'])
 const NUM_KEYS = new Set<FormKey>([
-  'collectTruncateLength', 'collectQueueCapacity', 'retentionEventDays', 'retentionSyslogDays',
+  'collectTruncateLength', 'retentionEventDays', 'retentionSyslogDays',
   'privacyLogTruncateLength', 'exportMaxRows'
 ])
 
@@ -429,7 +419,7 @@ code { background: var(--code-bg, rgba(127,127,127,.12)); padding: 1px 6px; bord
 .kw-wrap { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
 .setting-row { display: flex; align-items: center; gap: 18px; padding: 10px 0; border-bottom: 1px solid var(--border-subtle, rgba(127,127,127,.15)); min-height: 44px; }
 .setting-row:last-child { border-bottom: none; }
-.setting-row .row-info { flex: 1; min-width: 0; display: flex; align-items: center; gap: 6px; }
+.setting-row .row-info { flex: 1; min-width: 0; display: flex; align-items: center; gap: 0; }
 .setting-row .row-label { font-size: 13px; }
 .setting-row .hint-icon { color: var(--muted); font-size: 12px; cursor: help; }
 .setting-row .row-control { flex: 0 0 auto; display: flex; align-items: center; }

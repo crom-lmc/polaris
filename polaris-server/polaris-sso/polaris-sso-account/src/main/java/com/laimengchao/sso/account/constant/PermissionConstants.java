@@ -271,6 +271,7 @@ public final class PermissionConstants {
     /* —— 管理端按钮 —— */
     public static final String AUDIT_OVERVIEW_VIEW = "audit:overview:view";
     public static final String AUDIT_EVENTS_LIST = "audit:events:list";
+    public static final String AUDIT_EVENTS_EXPORT = "audit:events:export";
     public static final String AUDIT_LOGIN_LIST = "audit:login:list";
     public static final String AUDIT_SYSTEM_LOG_LIST = "audit:system-log:list";
     public static final String AUDIT_SETTING_VIEW = "audit:setting:view";
@@ -290,6 +291,7 @@ public final class PermissionConstants {
             new PermDef("全局设置", AUDIT_MENU_SETTING, PermissionType.MENU, null, 5),
             new PermDef("查看概览", AUDIT_OVERVIEW_VIEW, PermissionType.BUTTON, AUDIT_MENU_OVERVIEW, 1),
             new PermDef("查询审计事件", AUDIT_EVENTS_LIST, PermissionType.BUTTON, AUDIT_MENU_EVENTS, 1),
+            new PermDef("导出审计事件", AUDIT_EVENTS_EXPORT, PermissionType.BUTTON, AUDIT_MENU_EVENTS, 2),
             new PermDef("查询登录审计", AUDIT_LOGIN_LIST, PermissionType.BUTTON, AUDIT_MENU_LOGIN, 1),
             new PermDef("查询系统日志", AUDIT_SYSTEM_LOG_LIST, PermissionType.BUTTON, AUDIT_MENU_SYSTEM_LOG, 1),
             new PermDef("查看全局设置", AUDIT_SETTING_VIEW, PermissionType.BUTTON, AUDIT_MENU_SETTING, 1),

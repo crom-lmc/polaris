@@ -13,7 +13,26 @@
       <a-select v-model:value="result" style="width: 120px" :options="resultOptions" @change="handleSearch" />
       <a-range-picker v-model:value="dateRange" style="width: 260px" @change="handleSearch" />
       <a-button @click="load">刷新</a-button>
+      <a-button v-if="canExport && exportEnabled" :loading="exporting" @click="openExport">导出</a-button>
     </div>
+
+    <a-modal
+      v-model:open="exportOpen"
+      title="导出审计事件"
+      ok-text="确认导出"
+      cancel-text="取消"
+      :confirm-loading="exporting"
+      @ok="doExport"
+    >
+      <a-alert type="info" show-icon style="margin-bottom: 12px"
+        message="将按当前筛选条件导出 CSV，条数受全局上限约束；导出行为会记入审计日志。" />
+      <a-form layout="vertical">
+        <a-form-item label="导出用途" required>
+          <a-textarea v-model:value="exportPurpose" :rows="3" :maxlength="200" show-count
+            placeholder="请填写本次导出的用途，随导出记录一并留存" />
+        </a-form-item>
+      </a-form>
+    </a-modal>
 
     <a-alert
       type="info"
@@ -122,8 +141,12 @@
 import { computed, onMounted, ref } from 'vue'
 import type { Dayjs } from 'dayjs'
 import { message } from 'ant-design-vue'
-import { fetchAuditEvents, type AuditEvent } from '@/api/audit'
+import { fetchAuditEvents, exportAuditEvents, fetchExportSettings, type AuditEvent } from '@/api/audit'
 import { appCodes, appLabel, ensureAppNames } from '@/utils/appLabels'
+import { useUserStore } from '@/stores/user'
+
+const store = useUserStore()
+const canExport = computed(() => store.can('audit:events:export'))
 
 const columns = [
   { title: '时间', dataIndex: 'createdAt', key: 'createdAt', width: 170 },
@@ -171,6 +194,13 @@ const total = ref(0)
 const current = ref(1)
 const pageSize = ref(20)
 
+/* 导出：开关与二次确认均读审计全局设置，后端再次校验，防止绕过 UI */
+const exportEnabled = ref(false)
+const exportConfirmRequired = ref(false)
+const exportOpen = ref(false)
+const exportPurpose = ref('')
+const exporting = ref(false)
+
 const pagination = computed(() => ({
   current: current.value,
   pageSize: pageSize.value,
@@ -182,7 +212,73 @@ const pagination = computed(() => ({
 onMounted(() => {
   void ensureAppNames()
   void load()
+  void loadExportSettings()
 })
+
+async function loadExportSettings() {
+  try {
+    const s = await fetchExportSettings()
+    exportEnabled.value = s['export.enabled'] === 'true'
+    exportConfirmRequired.value = s['export.confirmRequired'] !== 'false'
+  } catch {
+    // 设置读取失败时按钮隐藏，避免用户触发必然被后端拒绝的导出
+    exportEnabled.value = false
+  }
+}
+
+/** 当前筛选条件，列表与导出共用，保证导出所见即所列 */
+function currentFilters() {
+  return {
+    app: app.value || undefined,
+    eventCategory: category.value || undefined,
+    result: result.value || undefined,
+    action: keyword.value || undefined,
+    operator: keyword.value || undefined,
+    startDate: dateRange.value?.[0]?.format('YYYY-MM-DD'),
+    endDate: dateRange.value?.[1]?.format('YYYY-MM-DD')
+  }
+}
+
+function openExport() {
+  if (!canExport.value || !exportEnabled.value) return
+  if (exportConfirmRequired.value) {
+    exportPurpose.value = ''
+    exportOpen.value = true
+  } else {
+    void doExportWithPurpose('')
+  }
+}
+
+async function doExport() {
+  if (!exportPurpose.value.trim()) {
+    message.warning('请填写导出用途')
+    return
+  }
+  exportOpen.value = false
+  await doExportWithPurpose(exportPurpose.value.trim())
+}
+
+async function doExportWithPurpose(purpose: string) {
+  if (!canExport.value || !exportEnabled.value) return
+  exporting.value = true
+  try {
+    const res = await exportAuditEvents({ ...currentFilters(), purpose })
+    const url = URL.createObjectURL(new Blob([res.data as Blob], { type: 'text/csv;charset=utf-8' }))
+    const a = document.createElement('a')
+    const today = new Date().toISOString().slice(0, 10)
+    a.href = url
+    a.download = `audit-events-${today}.csv`
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+    message.success('已导出')
+  } catch (e: any) {
+    message.error(e?.message || '导出失败')
+  } finally {
+    exporting.value = false
+  }
+}
 
 async function load() {
   loading.value = true
