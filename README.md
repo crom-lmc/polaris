@@ -9,7 +9,7 @@ polaris/
 ├── README.md            # 本文件：总览与快速入口
 ├── polaris-server/      # 后端：Java 17 + Spring Boot 3 + Spring Cloud，多模块 Maven
 │   └── README.md        # 后端说明：本地部署、生产部署、模块、环境变量、FAQ
-└── polaris-web/         # 前端：Vue 3 + TypeScript + Vite，9 个独立应用
+└── polaris-web/         # 前端：Vue 3 + TypeScript + Vite，11 个独立应用
     └── README.md        # 前端说明：本地部署、生产部署、应用与端口、FAQ
 ```
 
@@ -28,6 +28,8 @@ polaris/
 | 北极星空论坛（前台） | https://polaris-forum.laimengchao.site/ |
 | 论坛管理后台 | https://polaris-forum.laimengchao.site/admin/ |
 | 内容门户 | https://polaris-portal.laimengchao.site/ |
+| 统一文件服务（北极星云） | https://polaris-file.laimengchao.site/ |
+| 审计中心（北极星眼） | https://polaris-audit.laimengchao.site/ |
 
 **演示账号**：`yanshi` / `yanshi`
 
@@ -37,7 +39,7 @@ polaris/
 
 ## 界面预览
 
-以下截图均来自生产环境（[polaris-sso.laimengchao.site](https://polaris-sso.laimengchao.site/)）。共 **80 张**，覆盖全部 9 个前端应用的每个应用 / 模块 / 菜单，原图见 [docs/screenshots/](docs/screenshots/)。
+以下截图共 **92 张**，覆盖全部 11 个前端应用的每个应用 / 模块 / 菜单，均来自生产环境（[polaris-sso.laimengchao.site](https://polaris-sso.laimengchao.site/)），原图见 [docs/screenshots/](docs/screenshots/)。
 
 **快速预览**
 
@@ -56,6 +58,10 @@ polaris/
 | 配置中心-业务点配置 | 论坛管理-抽奖配置 | 人力中心-考勤管理 |
 |:---:|:---:|:---:|
 | ![业务点配置](docs/screenshots/51-settings-bizpoints.png) | ![抽奖配置](docs/screenshots/70-forumadmin-lottery.png) | ![考勤管理](docs/screenshots/41-ehr-attendance.png) |
+
+| 统一文件服务-概览 | 审计中心-审计事件 | 审计中心-全局设置 |
+|:---:|:---:|:---:|
+| ![文件服务](docs/screenshots/81-file-overview.png) | ![审计事件](docs/screenshots/88-audit-events.png) | ![审计设置](docs/screenshots/92-audit-settings.png) |
 
 **完整截图索引（点击展开各应用）**
 
@@ -192,6 +198,32 @@ polaris/
 
 </details>
 
+<details>
+<summary>⑩ 统一文件服务 file-web（6 张，按菜单）</summary>
+
+| 概览 | 文件管理 | 回收站 |
+|:---:|:---:|:---:|
+| ![概览](docs/screenshots/81-file-overview.png) | ![文件管理](docs/screenshots/82-file-files.png) | ![回收站](docs/screenshots/83-file-recycle.png) |
+
+| 分享管理 | 存储策略 | 附件设置 |
+|:---:|:---:|:---:|
+| ![分享管理](docs/screenshots/84-file-shares.png) | ![存储策略](docs/screenshots/85-file-policies.png) | ![附件设置](docs/screenshots/86-file-attachment-settings.png) |
+
+</details>
+
+<details>
+<summary>⑪ 审计中心 audit-web（6 张，按菜单）</summary>
+
+| 概览 | 审计事件 | 登录审计 |
+|:---:|:---:|:---:|
+| ![概览](docs/screenshots/87-audit-overview.png) | ![审计事件](docs/screenshots/88-audit-events.png) | ![登录审计](docs/screenshots/89-audit-login.png) |
+
+| 系统日志 | 日志文件 | 全局设置 |
+|:---:|:---:|:---:|
+| ![系统日志](docs/screenshots/90-audit-system-logs.png) | ![日志文件](docs/screenshots/91-audit-log-files.png) | ![全局设置](docs/screenshots/92-audit-settings.png) |
+
+</details>
+
 ## 快速开始
 
 ```bash
@@ -204,7 +236,7 @@ cd polaris
 
 ## 平台能力
 
-平台由 8 个业务域 + 1 个开放平台组成，每个域都有独立的后端服务与前端应用，经 Gateway 统一接入、共享 SSO 登录与 RBAC 权限体系。
+平台由 10 个业务域 / 平台组成，每个域都有独立的后端服务与前端应用，经 Gateway 统一接入、共享 SSO 登录与 RBAC 权限体系。
 
 | 业务域 | 后端服务（端口） | 前端应用（开发端口） | 核心能力 |
 |---|---|---|---|
@@ -216,12 +248,15 @@ cd polaris
 | 调度中心 Job | job 9008 | `polaris-job-web` (5181) | 任务定义与 Cron、执行器与 Handler、启停/触发、执行日志与失败报警 |
 | 论坛 Forum | forum 9009 | `polaris-forum-web` (5182) / `polaris-forum-admin-web` (5183) | 板块/标签/帖子、积分等级徽章、抽奖（九宫格/转盘）与礼品兑换、内容审核与活动运营 |
 | **接口开放平台** | openapi 9010（独立库 `polaris_openapi`） | `polaris-openapi-web` (5184) | 第三方 `appCode+appSecret` 换票、接口级授权、入/出站调用、限流防重放、调用日志与统计、出站渠道凭证托管 |
+| **统一文件服务** | file 9011（独立库 `polaris_file`） | `polaris-file-web` (5185) | 附件/合同/档案统一存储，PUBLIC 直链与 PRIVATE 签名，分享提取码、回收站、配额、在线预览，图片/PDF/SVG/OFFICE 水印与下载留痕 |
+| **统一审计中心** | audit 9012（独立库 `polaris_audit`） | `polaris-audit-web` (5186) | 全量审计事件与系统日志、登录/敏感操作留痕、全局配置与保留期、CSV 导出，网关异步兜底上报 |
 
-三条横向能力贯穿所有业务域：
+四条横向能力贯穿所有业务域：
 
 - **认证与鉴权**：用户登录由 auth 签发 RS256 令牌，Gateway 验签并查吊销名单；前端经一次性 ticket 换登录态；服务端按权限码 + 组织数据范围双层控制。
 - **审批与消息**：settings 提供统一审批流程与站内消息，EHR/CMS 等业务通过回调接入，失败可重试且回调幂等。
 - **开放能力**：对外由开放平台统一暴露接口并审计，对内经 `X-Internal-Token` 调用 `/internal/**`，私钥与内部令牌只通过环境变量或 `ENC(...)` 注入。
+- **文件与审计**：CMS / 论坛 / EHR 的附件走统一文件服务并支持下载水印；网关与业务服务的审计事件异步上报审计中心，全量留痕且不受业务库分库影响。
 
 各模块的完整功能清单见：[后端 README · 五、功能模块](polaris-server/README.md#五功能模块) 与 [前端 README · 四、功能模块](polaris-web/README.md#四功能模块)。
 
