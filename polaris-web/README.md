@@ -1,6 +1,6 @@
 # Polaris Web（前端）
 
-Polaris 一体化企业平台前端，包含统一账号中心、EHR、配置与审批中心、CMS、门户、调度中心、论坛和**接口开放平台管理端**。各应用独立开发、独立构建、独立部署，通过统一 SSO 登录，并经 Gateway 访问后端。
+Polaris 一体化企业平台前端，包含统一账号中心、EHR、配置与审批中心、CMS、门户、调度中心、论坛、**接口开放平台管理端**、**统一文件服务**和**统一审计中心**共 11 个独立应用。各应用独立开发、独立构建、独立部署，通过统一 SSO 登录，并经 Gateway 访问后端。
 
 技术栈：Vue 3 + TypeScript + Vite 5 + Pinia 2 + Ant Design Vue 4 + axios + vue-router。
 
@@ -21,6 +21,8 @@ Polaris 一体化企业平台前端，包含统一账号中心、EHR、配置与
 | 北极星空论坛（前台） | https://polaris-forum.laimengchao.site/ |
 | 论坛管理后台 | https://polaris-forum.laimengchao.site/admin/ |
 | 内容门户 | https://polaris-portal.laimengchao.site/ |
+| 统一文件服务（北极星云） | https://polaris-file.laimengchao.site/ |
+| 审计中心（北极星眼） | https://polaris-audit.laimengchao.site/ |
 
 **演示账号**：`yanshi` / `yanshi`（全部菜单可查看；写操作由网关拦截，提示「演示账户不能进行操作」）。
 
@@ -37,7 +39,7 @@ node -v   # 推荐 Node.js 20 LTS
 npm -v
 ```
 
-同时需要后端已就绪：至少启动 Gateway(9080)、Auth(9001)、Account(9002)、MySQL、Redis；按使用范围再启动 Settings(9007)、EHR(9006)、CMS(9004)、Portal(9005)、Job(9008)、Forum(9009)、OpenAPI(9010)。详见 [后端 README](../polaris-server/README.md)。
+同时需要后端已就绪：至少启动 Gateway(9080)、Auth(9001)、Account(9002)、MySQL、Redis；按使用范围再启动 Settings(9007)、EHR(9006)、CMS(9004)、Portal(9005)、Job(9008)、Forum(9009)、OpenAPI(9010)、File(9011)、Audit(9012)。详见 [后端 README](../polaris-server/README.md)。
 
 ### 1.2 获取代码
 
@@ -68,6 +70,8 @@ cd polaris-job-web        # http://localhost:5181
 cd polaris-forum-web      # http://localhost:5182
 cd polaris-forum-admin-web # http://localhost:5183，访问需带 /admin/
 cd polaris-openapi-web    # http://localhost:5184
+cd polaris-file-web       # http://localhost:5185
+cd polaris-audit-web      # http://localhost:5186
 ```
 
 普通应用的 Vite 开发服务器把 `/api`、`/actuator` 代理到 `VITE_SSO_TARGET`（默认 `http://127.0.0.1:9080`）。未登录时会跳转账号中心，登录后通过一次性 ticket 返回。
@@ -180,7 +184,7 @@ server {
 
 ## 四、功能模块
 
-各应用界面预览（生产实测）。共 **80 张**截图，覆盖全部 9 个前端应用的每个应用 / 模块 / 菜单，完整原图见 [docs/screenshots/](../docs/screenshots/)。
+各应用界面预览（生产实测，白天模式，每个菜单一张）。共 **92 张**截图，覆盖全部 11 个前端应用的每个应用 / 模块 / 菜单，完整原图见 [docs/screenshots/](../docs/screenshots/)。
 
 | 统一登录 | 账号中心工作台 | 人力中心-组织树 |
 |:---:|:---:|:---:|
@@ -193,6 +197,10 @@ server {
 | 配置中心-业务点配置 | 论坛管理-抽奖配置 | 人力中心-考勤管理 |
 |:---:|:---:|:---:|
 | ![业务点配置](../docs/screenshots/51-settings-bizpoints.png) | ![抽奖配置](../docs/screenshots/70-forumadmin-lottery.png) | ![考勤管理](../docs/screenshots/41-ehr-attendance.png) |
+
+| 统一文件服务-概览 | 审计中心-审计事件 | 审计中心-全局设置 |
+|:---:|:---:|:---:|
+| ![文件服务](../docs/screenshots/81-file-overview.png) | ![审计事件](../docs/screenshots/88-audit-events.png) | ![审计设置](../docs/screenshots/92-audit-settings.png) |
 
 **完整截图索引（点击展开各应用）**
 
@@ -329,6 +337,32 @@ server {
 
 </details>
 
+<details>
+<summary>⑩ 统一文件服务 file-web（6 张，按菜单）</summary>
+
+| 概览 | 文件管理 | 回收站 |
+|:---:|:---:|:---:|
+| ![概览](../docs/screenshots/81-file-overview.png) | ![文件管理](../docs/screenshots/82-file-files.png) | ![回收站](../docs/screenshots/83-file-recycle.png) |
+
+| 分享管理 | 存储策略 | 附件设置 |
+|:---:|:---:|:---:|
+| ![分享管理](../docs/screenshots/84-file-shares.png) | ![存储策略](../docs/screenshots/85-file-policies.png) | ![附件设置](../docs/screenshots/86-file-attachment-settings.png) |
+
+</details>
+
+<details>
+<summary>⑪ 审计中心 audit-web（6 张，按菜单）</summary>
+
+| 概览 | 审计事件 | 登录审计 |
+|:---:|:---:|:---:|
+| ![概览](../docs/screenshots/87-audit-overview.png) | ![审计事件](../docs/screenshots/88-audit-events.png) | ![登录审计](../docs/screenshots/89-audit-login.png) |
+
+| 系统日志 | 日志文件 | 全局设置 |
+|:---:|:---:|:---:|
+| ![系统日志](../docs/screenshots/90-audit-system-logs.png) | ![日志文件](../docs/screenshots/91-audit-log-files.png) | ![全局设置](../docs/screenshots/92-audit-settings.png) |
+
+</details>
+
 ### 4.1 统一账号中心（`polaris-sso-web`）
 
 面向全员与管理员。登录页 `LoginView`、授权页 `AuthorizeView`；登录后的管理后台 `/admin/`（由 `AdminLayout` 承载）包含：
@@ -396,6 +430,28 @@ server {
 
 页面统一遵循：弹窗改抽屉、分页固定右下角、空状态铺满、操作列左对齐不换行、确认框居中；详情见 `src/styles/global.css` 的 `.drawer-body-flex`。
 
+### 4.8 统一文件服务（`polaris-file-web`）
+
+端口 5185，生产域名 `polaris-file.laimengchao.site`，对接后端 file-service（:9011）。6 个功能页：
+
+- **概览 `DashboardView`**：文件总数、公开/私有占比、占用空间、近 10 天上传统计与按存储策略分布。
+- **文件管理 `FilesView`**：文件列表、上传（含秒传与分片）、预览、下载、分享；文件名列长文本省略 + 悬浮展示完整值，回收站操作在行内。
+- **回收站 `RecycleView`**：标记删除文件列表，支持恢复与彻底删除。
+- **分享管理 `SharesView`**：分享链接、提取码、有效期与访问次数管理。
+- **存储策略 `PoliciesView`**：按业务类型配置可见性（PUBLIC/PRIVATE）、大小上限、允许扩展名与启停。
+- **附件设置 `AttachmentSettingsView`**：按业务类型配置水印内容、字号/颜色/透明度、作用文件类型与生效环节（在线预览/分享访问/下载），改动保存后即时生效。
+
+### 4.9 审计中心（`polaris-audit-web`）
+
+端口 5186，生产域名 `polaris-audit.laimengchao.site`，对接后端 audit-server（:9012）。6 个功能页：
+
+- **概览 `DashboardView`**：审计事件与系统日志趋势、来源应用分布、登录与敏感操作统计。
+- **审计事件 `EventsView`**：全量事件查询（操作人/应用/类别/结果/日期）、入参与响应详情抽屉、CSV 导出（按钮挂 `audit:events:export`，导出行为后端强制留痕）。长文本列统一 `cell-ellipsis` + `a-tooltip` 悬浮看全文。
+- **登录审计 `LoginAuditView`**：登录成功/失败记录，失败原因与客户端列宽内省略 + 悬浮完整值。
+- **系统日志 `SystemLogsView`**：common Logback Appender 采集的 WARN/ERROR 日志查询。
+- **日志文件 `LogFilesView`**：服务日志文件浏览与下载。
+- **全局设置 `SettingView`**：采集/忽略/留存/脱敏隐私/导出合规五个分区，按 `audit:setting:*` 分区权限显示，保存/放弃/恢复默认。
+
 ---
 
 ## 五、技术栈与通用结构
@@ -451,7 +507,8 @@ npm run dev
 
 ```text
 账号中心 5173 / CMS 5177 / Portal 5178 / EHR 5179 / Settings 5180
-Job 5181 / 论坛前台 5182 / 论坛管理 5183 / 开放平台 5184 / Gateway 9080
+Job 5181 / 论坛前台 5182 / 论坛管理 5183 / 开放平台 5184
+文件服务 5185 / 审计中心 5186 / Gateway 9080
 ```
 
 应用登记检查项：应用已启用且当前账号有权限；`base_url` 与浏览器 origin 完全一致；后端 `*_APP_SECRET` 与登记值一致；账号具备角色、功能权限与数据范围。

@@ -76,4 +76,4 @@ noticeApi.send(dto);
 - [ ] 权限码四联动齐，角色已授权，内置码未删
 - [ ] 数据范围服务端注入，空范围返回空集
 - [ ] `mvn -o -q -pl <模块> -am -DskipTests compile` 通过
-- [ ] 迭代记录已写入仓库外 `F:\code\sso\tmp\repo\迭代文档\polaris-server\update.md`
+- [ ] 迭代记录已写入仓库外 `F:\code\迭代文档\polaris-server\update.md`

@@ -13,7 +13,7 @@ level: L1
 ## 协作与发布
 
 - MUST NOT 未经用户明确指令执行 `git commit` / `git push` / 部署 / 重启线上服务；本地类型检查、本地构建可以做。
-- MUST 每次改动在仓库外 `F:\code\sso\tmp\repo\迭代文档\polaris-server\update.md` 顶部追加记录（该文件不入库）。
+- MUST 每次改动在仓库外 `F:\code\迭代文档\polaris-server\update.md` 顶部追加记录（该文件不入库）。
 - MUST 最终回复列明需发布的应用；只改前端要明确写"无需重启后端"。
 - MUST NOT 把 appSecret、内部令牌、私钥写入代码或文档；用时从环境变量/Nacos 现取。
 - MUST NOT 引入新依赖、新框架、新 UI 库、新状态库、新 CSS 框架；栈已锁定 Vue 3.5 / Vite 5 / TS 5.6 / Pinia / Ant Design Vue。

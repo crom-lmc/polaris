@@ -374,5 +374,5 @@ catch (FeignException e) {
 - [ ] 新增配置项有真实引用点，不是空配置。
 - [ ] Nacos 配置纯 ASCII、无下标覆盖、密钥未轮换。
 - [ ] `mvn -o -q -pl <模块> -am -DskipTests compile` 通过。
-- [ ] 迭代记录已写入仓库外 `F:\code\sso\tmp\repo\迭代文档\polaris-server\update.md`。
+- [ ] 迭代记录已写入仓库外 `F:\code\迭代文档\polaris-server\update.md`。
 - [ ] 最终回复列出了需重启的应用与未部署/未提交状态。

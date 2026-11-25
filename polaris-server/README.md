@@ -1,6 +1,6 @@
 # Polaris Server（后端）
 
-Polaris 一体化企业平台后端，提供统一认证、账号与权限、人力管理、配置与审批、内容管理、门户聚合、**接口开放平台**和任务调度能力。
+Polaris 一体化企业平台后端，提供统一认证、账号与权限、人力管理、配置与审批、内容管理、门户聚合、**接口开放平台**、任务调度、**统一文件服务**和**统一审计中心**能力。
 
 技术栈：Java 17 + Spring Boot 3.2.5 + Spring Cloud 2023.0.1 + MyBatis-Plus 3.5.7 + MySQL 5.7+ + Redis。Gateway 是统一入口，MySQL 按业务分库，Redis 用于令牌吊销和缓存。Nacos 配置中心/注册中心均为可选项，本地开发可不安装。
 
@@ -35,7 +35,7 @@ cd polaris/polaris-server
 
 ### 1.3 创建数据库
 
-用有建库权限的 MySQL 账号执行（开放平台独立库 `polaris_openapi`）：
+用有建库权限的 MySQL 账号执行（开放平台、文件服务、审计中心各自独立库）：
 
 ```sql
 CREATE DATABASE IF NOT EXISTS sso_ms          DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci;
@@ -44,9 +44,11 @@ CREATE DATABASE IF NOT EXISTS settings        DEFAULT CHARACTER SET utf8mb4 COLL
 CREATE DATABASE IF NOT EXISTS cms             DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci;
 CREATE DATABASE IF NOT EXISTS polaris_job     DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci;
 CREATE DATABASE IF NOT EXISTS polaris_openapi DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci;
+CREATE DATABASE IF NOT EXISTS polaris_file    DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci;
+CREATE DATABASE IF NOT EXISTS polaris_audit   DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci;
 ```
 
-只跑 SSO + EHR 时，先建 `sso_ms`、`ehr`、`settings` 即可；接口开放平台额外需要 `polaris_openapi`。
+只跑 SSO + EHR 时，先建 `sso_ms`、`ehr`、`settings` 即可；接口开放平台、统一文件服务、统一审计中心分别额外需要 `polaris_openapi`、`polaris_file`、`polaris_audit`。
 
 ### 1.4 初始化业务库
 
@@ -68,6 +70,14 @@ mysql -uroot -p --default-character-set=utf8mb4 polaris_job < polaris-job/polari
 # 接口开放平台
 mysql -uroot -p --default-character-set=utf8mb4 polaris_openapi < polaris-openapi/polaris-openapi-service/src/main/resources/schema.sql
 mysql -uroot -p --default-character-set=utf8mb4 polaris_openapi < polaris-openapi/polaris-openapi-service/src/main/resources/data.sql
+
+# 统一文件服务
+mysql -uroot -p --default-character-set=utf8mb4 polaris_file < polaris-file/polaris-file-service/src/main/resources/schema.sql
+mysql -uroot -p --default-character-set=utf8mb4 polaris_file < polaris-file/polaris-file-service/src/main/resources/data.sql
+
+# 统一审计中心
+mysql -uroot -p --default-character-set=utf8mb4 polaris_audit < polaris-audit/polaris-audit-server/src/main/resources/schema.sql
+mysql -uroot -p --default-character-set=utf8mb4 polaris_audit < polaris-audit/polaris-audit-server/src/main/resources/data.sql
 ```
 
 Account 默认 `sql.init.mode=never`，其余服务本地默认 `always`；生产环境必须统一设为 `never`。Account 首次启动可通过 `SSO_ADMIN_USERNAME/PASSWORD/EMAIL` 创建内置管理员（已存在则不重置密码）。
@@ -112,6 +122,13 @@ $env:OPENAPI_DB_USER = "your_db_user"; $env:OPENAPI_DB_PASSWORD = "your_db_passw
 $env:OPENAPI_SQL_INIT_MODE = "never"
 $env:OPENAPI_CHANNEL_KEY = "replace-with-32-byte-aes-key"
 
+# 统一文件服务 / 统一审计中心
+$env:FILE_DB_URL = "jdbc:mysql://127.0.0.1:3306/polaris_file?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&useSSL=false"
+$env:FILE_DB_USER = "your_db_user"; $env:FILE_DB_PASSWORD = "your_db_password"
+$env:FILE_SIGN_SECRET = "replace-with-a-long-random-file-sign-secret"   # PRIVATE 文件 HMAC 签名密钥
+$env:AUDIT_DB_URL = "jdbc:mysql://127.0.0.1:3306/polaris_audit?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&useSSL=false"
+$env:AUDIT_DB_USER = "your_db_user"; $env:AUDIT_DB_PASSWORD = "your_db_password"
+
 # 服务间内部令牌：所有涉及内部调用的服务必须一致
 $env:SSO_INTERNAL_TOKEN = "replace-with-a-long-random-token"
 
@@ -146,6 +163,8 @@ mvn -DskipTests compile                                                   # 只�
 | 5 | Gateway | 9080 | 必需，前端统一入口 |
 | 6 | 接口开放平台 OpenAPI | 9010 | 使用开放平台时必需 |
 | 7 | CMS、Portal、Job、Forum | 9004/9005/9008/9009 | 按业务需要 |
+| 8 | 统一文件服务 File | 9011 | 使用附件/水印时必需 |
+| 9 | 统一审计中心 Audit | 9012 | 生产环境必备（异步接收审计与系统日志） |
 
 IDEA 启动：运行对应 `*Application` 启动类，每个 Run Configuration 配置相同环境变量。命令行启动：每个服务独立终端，`java -jar <target 下的 jar>`。开放平台启动类为 `OpenapiApplication`，产物 `polaris-openapi/polaris-openapi-service/target/openapi-service.jar`。
 
@@ -157,6 +176,8 @@ http://127.0.0.1:9002/actuator/health
 http://127.0.0.1:9006/actuator/health
 http://127.0.0.1:9007/actuator/health
 http://127.0.0.1:9010/actuator/health   # 接口开放平台
+http://127.0.0.1:9011/actuator/health   # 统一文件服务
+http://127.0.0.1:9012/actuator/health   # 统一审计中心
 http://127.0.0.1:9080/actuator/health
 ```
 
@@ -194,6 +215,8 @@ sudo install -m 644 polaris-sso/polaris-sso-account/target/polaris-sso-account-1
 sudo install -m 644 polaris-settings/polaris-settings-service/target/settings-service.jar /opt/polaris/jars/settings.jar
 sudo install -m 644 polaris-ehr/polaris-ehr-service/target/ehr-service.jar /opt/polaris/jars/ehr.jar
 sudo install -m 644 polaris-openapi/polaris-openapi-service/target/openapi-service.jar /opt/polaris/jars/openapi-service.jar
+sudo install -m 644 polaris-file/polaris-file-service/target/file-service.jar       /opt/polaris/jars/file-service.jar
+sudo install -m 644 polaris-audit/polaris-audit-server/target/audit-server.jar     /opt/polaris/jars/audit-server.jar
 # 其余 cms / portal / job / forum 同理
 ```
 
@@ -210,7 +233,7 @@ sudo mkdir -p /opt/polaris/www/openapi
 sudo cp -r dist/. /opt/polaris/www/openapi/
 ```
 
-其他应用（sso / ehr / cms / portal / settings / job / forum）同样处理，域名与环境注入详见 [前端 README](../polaris-web/README.md)。
+其他应用（sso / ehr / cms / portal / settings / job / forum / file / audit）同样处理。注意 `server-deploy.sh` 的 `build_site` 只覆盖 8 个站点，openapi / file / audit 需单独发布；域名与环境注入详见 [前端 README](../polaris-web/README.md)。
 
 ### 2.4 重启与验证
 
@@ -254,6 +277,8 @@ polaris-sso-gateway :9080
         ├──────────────► sso-account :9002     账号、角色、权限、应用
         ├──────────────► cms :9004 / portal :9005 / ehr :9006
         ├──────────────► settings :9007 / job :9008 / forum :9009
+        ├──────────────► file :9011（统一文件服务，独立库 polaris_file）
+        ├──────────────► audit :9012（统一审计中心，独立库 polaris_audit）
         └──────────────► (内部服务) X-Internal-Token
 
 第三方系统 ──appCode+appSecret 换票──► polaris-openapi :9010 ──Bearer Token──► 开放接口
@@ -280,6 +305,8 @@ polaris/
 │   ├── polaris-job/                 # 调度中心 :9008 + client
 │   ├── polaris-forum/               # 论坛服务 :9009
 │   ├── polaris-openapi/             # 接口开放平台 :9010（独立库 polaris_openapi）
+│   ├── polaris-file/                # 统一文件服务 :9011（独立库 polaris_file）+ client
+│   ├── polaris-audit/               # 统一审计中心 :9012（独立库 polaris_audit）+ client
 │   ├── polaris-nacos/               # 可选 Nacos 配置与密钥模板
 │   ├── deploy/                      # Docker Compose、Nginx、初始化 SQL
 │   └── scripts/                     # 构建、发布、备份、配置导入脚本
@@ -394,9 +421,48 @@ polaris/
 
 数据表：`api_open_endpoint`、`api_call_log`、`api_open_setting`、`api_outbound_channel`、`api_client_app`、`api_client_app_permission`。第三方接入的完整调用示例（换票、Bearer Token 调用、错误码说明）见项目目录下的迭代文档 `openapi-platform-design.md`（迭代文档放仓库外，不纳入 Git）。
 
-### 5.8 Common 与各 Client
+### 5.8 统一文件服务（File）
 
-`R<T>` 统一响应、`BizException`/`ErrorCode` 统一异常码、`LoginUser` 安全上下文、JWT 与可信头工具、`ENC(...)` 启动期配置解密；各 `*-client`（sso/client、settings/client、job/client）封装 Feign 契约与 `X-Internal-Token` 注入，不单独启动。
+独立服务 `polaris-file :9011`，独立库 `polaris_file`，管理端为前端 `polaris-file-web`（:5185）。定位：**全平台附件、合同、档案的统一存储与访问入口**，业务服务通过 `polaris-file-client` 的 `FileApi`（`/internal/files/**`）调用，业务表只存 `file_id`，不自建附件表、不另存 URL。
+
+管理端界面（生产实测，白天模式，每个菜单一张）：
+
+| 概览 | 文件管理 | 回收站 |
+|:---:|:---:|:---:|
+| ![文件概览](../docs/screenshots/81-file-overview.png) | ![文件管理](../docs/screenshots/82-file-files.png) | ![回收站](../docs/screenshots/83-file-recycle.png) |
+
+| 分享管理 | 存储策略 | 附件设置 |
+|:---:|:---:|:---:|
+| ![分享管理](../docs/screenshots/84-file-shares.png) | ![存储策略](../docs/screenshots/85-file-policies.png) | ![附件设置](../docs/screenshots/86-file-attachment-settings.png) |
+
+- **对象与访问**：`file_object`/`file_storage_policy`/`file_alias` 三张核心表；PUBLIC 文件直链访问，PRIVATE 文件走 HMAC 签名 URL（`FILE_SIGN_SECRET`），签名 TTL 可配且有上限。
+- **能力**：秒传（哈希去重）、分片上传、回收站（标记删除与恢复）、分享（提取码 + 有效期/次数）、配额（上传前校验）、在线预览（图片/PDF）。
+- **水印**：图片、PDF、SVG、DOCX/XLSX/PPTX 全类型覆盖，**下载链路同样加水印**，不只加在预览；水印内容与生效环节在「附件设置」按业务类型配置，改动即时生效。
+- **接入纪律**：附件上传前校验配额与扩展名/魔数；PRIVATE 下载必须走签名接口；新业务表只存 `file_id`。
+
+### 5.9 统一审计中心（Audit）
+
+独立服务 `polaris-audit :9012`，独立库 `polaris_audit`，管理端为前端 `polaris-audit-web`（:5186）。定位：**全平台审计事件与系统日志的统一归集、检索与合规出口**。审计上报异步且失败只 warn，绝不回滚业务。
+
+管理端界面（生产实测，白天模式，每个菜单一张）：
+
+| 概览 | 审计事件 | 登录审计 |
+|:---:|:---:|:---:|
+| ![审计概览](../docs/screenshots/87-audit-overview.png) | ![审计事件](../docs/screenshots/88-audit-events.png) | ![登录审计](../docs/screenshots/89-audit-login.png) |
+
+| 系统日志 | 日志文件 | 全局设置 |
+|:---:|:---:|:---:|
+| ![系统日志](../docs/screenshots/90-audit-system-logs.png) | ![日志文件](../docs/screenshots/91-audit-log-files.png) | ![全局设置](../docs/screenshots/92-audit-settings.png) |
+
+- **采集链路**：Gateway `JwtAuthFilter` → `AuditReporter`（WebClient 异步）全量兜底，含 GET（只采 query 串并脱敏，不采 JSON body）；POST/PUT/PATCH/DELETE 由业务侧 `AuditLogAspect` 补记详情。
+- **合规下限**：LOGIN / SENSITIVE 事件强制留库，登录事件记**尝试登录的用户名**（失败也记）；有主体记 USER，无主体内部调用记 SYSTEM；匿名 `/public/**` 不在审计范围。
+- **系统日志**：由 common 的 Logback Appender 采集 WARN/ERROR 异步落 `system_log`；audit 自身关闭采集（`polaris.system-log.enabled=false`）防递归。
+- **全局设置**：采集开关、忽略规则、留存清理、脱敏与隐私、导出合规五个分区，每项均有真实代码引用；无实际功能的配置项不保留。生产 `AUDIT_SQL_INIT_MODE=never`，新表须手工执行 schema。
+- **导出**：`GET /api/audit/admin/events/export` 导出 CSV，每次导出强制记一条 SENSITIVE 留痕，不提供关闭开关；权限码 `audit:events:export` 四联动。
+
+### 5.10 Common 与各 Client
+
+`R<T>` 统一响应、`BizException`/`ErrorCode` 统一异常码、`LoginUser` 安全上下文、JWT 与可信头工具、`ENC(...)` 启动期配置解密；各 `*-client`（sso/client、settings/client、job/client、file/client、audit/client）封装 Feign 契约与 `X-Internal-Token` 注入，不单独启动。
 
 ---
 
@@ -414,6 +480,8 @@ polaris/
 | Job | 9008 | `polaris_job` | always | `JobApplication` | `job-service.jar` |
 | Forum | 9009 | `forum` | always | `ForumApplication` | `forum-service.jar` |
 | OpenAPI | 9010 | `polaris_openapi` | always | `OpenapiApplication` | `openapi-service.jar` |
+| File | 9011 | `polaris_file` | always（生产 never） | `FileApplication` | `file-service.jar` |
+| Audit | 9012 | `polaris_audit` | always（生产 never） | `AuditApplication` | `audit-server.jar` |
 
 ---
 
@@ -435,6 +503,11 @@ polaris/
 | `OPENAPI_TOKEN_SECRET`、`OPENAPI_TOKEN_TTL_SECONDS` | 开放平台令牌相关 |
 | `OPENAPI_SIGNATURE_TOLERANCE_SECONDS` | 签名时间戳容差 |
 | `SSO_OPENAPI_APP_CODE` / `SSO_OPENAPI_APP_SECRET` | 开放平台向 sso-auth 换票用的应用凭证 |
+| `FILE_DB_*`、`FILE_SQL_INIT_MODE` | 统一文件服务库（生产 `never`） |
+| `FILE_SIGN_SECRET` | PRIVATE 文件 HMAC 签名密钥，生产必须替换为随机长串 |
+| `FILE_STORAGE_ROOT` / `FILE_PUBLIC_BASE_URL` | 文件存储根目录 / PUBLIC 直链前缀 |
+| `AUDIT_DB_*`、`AUDIT_SQL_INIT_MODE` | 统一审计中心库（生产 `never`） |
+| `AUDIT_RETENTION_DAYS` | 审计事件保留天数，默认 180 |
 
 完整列表以各服务 `application.yml` 为准。
 
