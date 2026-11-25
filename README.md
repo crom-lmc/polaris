@@ -229,4 +229,5 @@ cd polaris
 
 - 后端各服务按业务分库；Gateway(9080) 是统一入口。
 - 生产 `sql.init.mode=never`，密钥只用环境变量或 `ENC(...)` 注入，绝不入库。
-- 新增功能按前后端 README 的「开发规范」执行；迭代文档放仓库外，不纳入 Git。
+- **项目规约**：前后端规范与红线由 IDE 从工作区根 `.workbuddy/` 自动加载（`rules/` 与 `skills/` 按 backend / frontend 分开），无需手动查阅；新增功能另按前后端 README 的「开发规范」执行。
+- 迭代文档放仓库外，不纳入 Git。
