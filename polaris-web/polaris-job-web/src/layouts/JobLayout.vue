@@ -69,7 +69,7 @@ function onUserMenuClick({ key }: { key: string }) {
         </a-button>
         <a-dropdown :trigger="['hover']">
           <span class="who">
-            {{ user.accountName || user.accountId || '未登录' }}
+            {{ user.displayName || user.accountName || '未登录' }}
             <down-outlined class="caret" />
           </span>
           <template #overlay>

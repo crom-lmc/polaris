@@ -3,6 +3,7 @@ import request from '@/api/request'
 import {
   clearTokens,
   getAccessToken,
+  getNickname,
   getRefreshToken,
   setAccessToken,
   setRefreshToken,
@@ -56,6 +57,8 @@ export const useUserStore = defineStore('user', {
   }),
   getters: {
     loggedIn: () => !!getAccessToken(),
+    /** 顶栏展示名：优先 JWT 中文昵称，回退登录名（accountName 来自 /me） */
+    displayName: (s) => getNickname() || s.accountName,
     hasPerm: (s) => (code: string) => s.superAdmin || s.perms.includes(code),
     hasAny: (s) => (codes: string[]) => s.superAdmin || codes.some((c) => s.perms.includes(c))
   },

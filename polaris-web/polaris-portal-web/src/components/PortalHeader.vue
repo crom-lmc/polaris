@@ -135,7 +135,7 @@ function onMenu({ key }: { key: string }) {
         </a-button>
         <template v-if="store.isLoggedIn">
           <a-dropdown :trigger="['hover']">
-            <span class="who">{{ store.username }}</span>
+            <span class="who">{{ store.displayName }}</span>
             <template #overlay>
               <a-menu @click="onMenu">
                 <a-menu-item key="logout">退出登录</a-menu-item>

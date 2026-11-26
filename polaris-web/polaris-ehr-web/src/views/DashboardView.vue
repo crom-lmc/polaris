@@ -2,7 +2,7 @@
   <div class="page-root dash">
     <section class="hero">
       <div>
-        <div class="hello">你好，{{ store.username || '同事' }}</div>
+        <div class="hello">你好，{{ store.displayName || '同事' }}</div>
         <div class="sub">这里是人力中心：组织架构、人员档案与请假都在这一处维护。</div>
       </div>
       <div class="hero-actions">

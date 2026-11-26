@@ -11,7 +11,7 @@
           <ThemeToggleIcon :mode="theme.mode" />
         </a-button>
         <a-dropdown :trigger="['hover']">
-          <span class="who">{{ store.username || '未登录' }}<down-outlined class="caret" /></span>
+          <span class="who">{{ store.displayName || '未登录' }}<down-outlined class="caret" /></span>
           <template #overlay>
             <a-menu @click="onUserMenuClick">
               <a-menu-item key="logout"><logout-outlined class="menu-item-icon" />退出登录</a-menu-item>
