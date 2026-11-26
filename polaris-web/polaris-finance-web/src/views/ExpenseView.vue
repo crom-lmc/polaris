@@ -5,14 +5,17 @@ import dayjs, { type Dayjs } from 'dayjs'
 import { message, Modal } from 'ant-design-vue'
 import {
   listExpenses, createExpense, submitExpense, approveExpense, rejectExpense,
-  postExpense, payExpense, deleteExpense, subjectOptions, listBudgets,
-  type ExpenseVO, type ExpenseSave, type SubjectVO, type BudgetVO
+  postExpense, payExpense, deleteExpense, subjectOptions,
+  type ExpenseVO, type ExpenseSave, type SubjectVO
 } from '@/api/finance'
 import { useUserStore } from '@/stores/user'
+import { useOrgDirectory, filterOption as orgFilterOption } from '@/composables/useOrgDirectory'
 import { dateOf, fmtDate, statusColor, statusLabel, yuan } from '@/utils/format'
 
 const router = useRouter()
 const store = useUserStore()
+const { deptOptions, employeeOptions, load: loadOrgDirectory } = useOrgDirectory()
+const filterOption = orgFilterOption
 const canCreate = () => store.can('finance:expense:create')
 const canAudit = () => store.can('finance:expense:audit')
 
@@ -27,7 +30,6 @@ const dept = ref<string>()
 const range = ref<[Dayjs, Dayjs] | null>(null)
 
 const subjects = ref<SubjectVO[]>([])
-const depts = ref<string[]>([])
 const statusOptions = [
   { label: '草稿', value: 'DRAFT' }, { label: '待审批', value: 'PENDING' },
   { label: '已通过', value: 'APPROVED' }, { label: '已驳回', value: 'REJECTED' },
@@ -76,11 +78,8 @@ function reset() {
 watch([keyword, status, dept, range], () => { page.value = 1; load() })
 
 onMounted(async () => {
-  try {
-    const [ss, bs] = await Promise.all([subjectOptions(), listBudgets({ page: 1, size: 500 })])
-    subjects.value = ss
-    depts.value = [...new Set((bs.list || []).map((b: BudgetVO) => b.dept).filter(Boolean))]
-  } catch { /* 下拉可空，不阻断列表 */ }
+  try { subjects.value = await subjectOptions() } catch { /* 下拉可空，不阻断列表 */ }
+  await loadOrgDirectory()
   load()
 })
 
@@ -110,7 +109,7 @@ const form = reactive<ExpenseSave>({
   applicant: '', reason: '', amount: 0, dept: '', subject: '', date: dayjs().format('YYYY-MM-DD')
 })
 function openCreate() {
-  Object.assign(form, { applicant: '', reason: '', amount: 0, dept: depts.value[0] || '', subject: '', date: dayjs().format('YYYY-MM-DD') })
+  Object.assign(form, { applicant: '', reason: '', amount: 0, dept: '', subject: '', date: dayjs().format('YYYY-MM-DD') })
   drawerOpen.value = true
 }
 async function submit() {
@@ -136,7 +135,7 @@ async function submit() {
       <span class="divider" />
       <a-input-search v-model:value="keyword" placeholder="单号 / 申请人 / 事由" style="width: 220px" allow-clear />
       <a-select v-model:value="status" :options="statusOptions" placeholder="状态" style="width: 110px" allow-clear />
-      <a-select v-model:value="dept" :options="depts.map((d) => ({ label: d, value: d }))" placeholder="归属部门" style="width: 130px" allow-clear />
+      <a-select v-model:value="dept" :options="deptOptions" placeholder="归属部门" style="width: 160px" allow-clear show-search :filter-option="filterOption" />
       <a-range-picker v-model:value="range" format="YYYY-MM-DD" />
       <a-button @click="reset">重置</a-button>
       <span class="grow" />
@@ -179,7 +178,10 @@ async function submit() {
 
     <a-drawer v-model:open="drawerOpen" title="发起报销申请" :width="520" placement="right">
       <a-form layout="vertical">
-        <a-form-item label="申请人" required><a-input v-model:value="form.applicant" placeholder="请输入申请人" /></a-form-item>
+        <a-form-item label="申请人" required>
+          <a-select v-model:value="form.applicant" :options="employeeOptions" placeholder="从组织架构选择" show-search
+                    :filter-option="filterOption" allow-clear style="width: 100%" />
+        </a-form-item>
         <a-form-item label="费用事由" required>
           <a-textarea v-model:value="form.reason" :rows="3" placeholder="请输入报销事由" />
         </a-form-item>
@@ -191,7 +193,8 @@ async function submit() {
           </a-col>
           <a-col :span="12">
             <a-form-item label="归属部门">
-              <a-select v-model:value="form.dept" :options="depts.map((d) => ({ label: d, value: d }))" allow-clear placeholder="请选择部门" />
+              <a-select v-model:value="form.dept" :options="deptOptions" allow-clear show-search :filter-option="filterOption"
+                        placeholder="从组织架构选择" />
             </a-form-item>
           </a-col>
         </a-row>

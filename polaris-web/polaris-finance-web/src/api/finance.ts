@@ -368,3 +368,31 @@ export const updateBudgetSubject = (id: string, data: BudgetSubjectSave) =>
 export const toggleBudgetSubject = (id: string, status?: string) =>
   request.post<never, void>(`/api/finance/budget-subjects/${id}/toggle`, null, { params: { status } })
 export const deleteBudgetSubject = (id: string) => request.delete<never, void>(`/api/finance/budget-subjects/${id}`)
+
+/* ==================== 组织 / 人员（EHR 只读引用，经财务服务内部令牌代理） ==================== */
+
+/** EHR 组织节点（/internal/orgs/tree 扁平列表，id/parentId 已字符串化）；dept 字段存组织名称 */
+export interface OrgNodeVO {
+  id: string
+  parentId: string | null
+  type: string
+  typeName: string
+  code: string
+  name: string
+  status?: number
+  employeeCount?: number
+}
+
+/** 在职员工候选（已开户、未离职；id 为字符串化账号 ID） */
+export interface OrgEmployeeVO {
+  id: string
+  name: string
+  empNo: string
+  orgId?: string
+}
+
+/** 全量组织节点扁平列表，前端自行组树 */
+export const fetchOrgTree = () => request.get<never, OrgNodeVO[]>('/api/finance/orgs/tree')
+
+/** 全部已开户、未离职员工，人员下拉候选（姓名/工号） */
+export const fetchActiveEmployees = () => request.get<never, OrgEmployeeVO[]>('/api/finance/orgs/employees/active')

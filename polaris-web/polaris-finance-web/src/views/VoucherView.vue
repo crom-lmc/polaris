@@ -8,11 +8,14 @@ import {
   type VoucherVO, type VoucherSave, type SubjectVO
 } from '@/api/finance'
 import { useUserStore } from '@/stores/user'
+import { useOrgDirectory, filterOption as orgFilterOption } from '@/composables/useOrgDirectory'
 import { dateOf, fmtDate, sourceLabel, statusColor, statusLabel, yuan } from '@/utils/format'
 
 const route = useRoute()
 const store = useUserStore()
 const canEdit = () => store.can('finance:voucher:edit')
+const { deptOptions, employeeOptions, load: loadOrgDirectory } = useOrgDirectory()
+const filterOption = orgFilterOption
 
 const loading = ref(false)
 const rows = ref<VoucherVO[]>([])
@@ -87,6 +90,7 @@ watch([keyword, status, sourceType, range], () => { page.value = 1; load() })
 
 onMounted(async () => {
   try { subjects.value = await subjectOptions() } catch { /* 下拉可空，不阻断列表 */ }
+  await loadOrgDirectory()
   load()
 })
 
@@ -213,8 +217,14 @@ async function submit() {
         <a-form-item label="金额" required>
           <a-input-number v-model:value="form.amount" :min="0" :precision="2" style="width: 100%" />
         </a-form-item>
-        <a-form-item label="制单人"><a-input v-model:value="form.creator" /></a-form-item>
-        <a-form-item label="归属部门"><a-input v-model:value="form.dept" /></a-form-item>
+        <a-form-item label="制单人">
+          <a-select v-model:value="form.creator" :options="employeeOptions" placeholder="从组织架构选择" show-search
+                    :filter-option="filterOption" allow-clear style="width: 100%" />
+        </a-form-item>
+        <a-form-item label="归属部门">
+          <a-select v-model:value="form.dept" :options="deptOptions" placeholder="从组织架构选择" show-search
+                    :filter-option="filterOption" allow-clear style="width: 100%" />
+        </a-form-item>
         <a-form-item label="关联合同号"><a-input v-model:value="form.contractNo" /></a-form-item>
       </a-form>
       <template #footer>

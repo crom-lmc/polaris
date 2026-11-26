@@ -3,15 +3,17 @@ import { computed, onMounted, reactive, ref } from 'vue'
 import { message } from 'ant-design-vue'
 import { useUserStore } from '@/stores/user'
 import { useIsMobile } from '@/composables/useIsMobile'
+import { useOrgDirectory, filterOption as orgFilterOption } from '@/composables/useOrgDirectory'
 import {
   listPurchasePlans, getPurchasePlan, savePurchasePlan, approvePurchasePlan, rejectPurchasePlan,
-  convertPurchasePlan, listPartners, getMaterialTree,
-  type PurchasePlanVO, type MaterialVO
+  convertPurchasePlan, listPartners, getMaterialTree, fetchBudgetSubjectOptions,
+  type PurchasePlanVO, type MaterialVO, type BudgetSubjectVO
 } from '@/api/contract'
 import { yuan } from '@/utils/format'
 
 const store = useUserStore()
 const isMobile = useIsMobile()
+const { deptOptions, employeeOptions, load: loadOrgDirectory } = useOrgDirectory()
 const drawerWidth = computed(() => (isMobile.value ? '100%' : 760))
 
 const loading = ref(false)
@@ -26,7 +28,7 @@ const statusColor: Record<string, string> = {
   DRAFT: 'default', PENDING: 'orange', APPROVED: 'blue', REJECTED: 'red', CONVERTED: 'green'
 }
 const statusOptions = Object.entries(statusLabel).map(([value, label]) => ({ value, label }))
-const deptOptions = computed(() => [...new Set(rows.value.map((r) => r.dept).filter(Boolean))].map((v) => ({ label: v, value: v })))
+const queryDeptOptions = computed(() => [...new Set(rows.value.map((r) => r.dept).filter(Boolean))].map((v) => ({ label: v, value: v })))
 
 const pagination = computed(() => ({
   current: query.page, pageSize: query.size, total: total.value, showSizeChanger: true,
@@ -115,7 +117,7 @@ async function loadOptions() {
   } catch { /* 往来单位不可用时保持空 */ }
 }
 function filterOption(input: string, option: any) {
-  return String(option?.label || '').toLowerCase().includes(input.toLowerCase())
+  return orgFilterOption(input, option)
 }
 
 /* 新建 */
@@ -127,7 +129,19 @@ const createForm = reactive({
   budgetSubject: '', items: [] as DraftItem[]
 })
 const createTotal = computed(() => createForm.items.reduce((s, i) => s + (Number(i.qty) || 0) * (Number(i.price) || 0), 0))
-const budgetSubjects = computed(() => [...new Set(rows.value.map((r) => r.budgetSubject).filter(Boolean))])
+/** 预算科目只能从财务主数据选，不允许手输或从已有单据派生 */
+const budgetSubjectOptions = ref<{ label: string; value: string }[]>([])
+async function loadBudgetSubjects() {
+  try {
+    const list = await fetchBudgetSubjectOptions() || []
+    // 同一科目可能多年份重复，按 name 去重；label 带编码便于识别
+    const seen = new Map<string, string>()
+    list.forEach((s: BudgetSubjectVO) => {
+      if (s.name && !seen.has(s.name)) seen.set(s.name, s.code)
+    })
+    budgetSubjectOptions.value = [...seen.entries()].map(([name, code]) => ({ label: `${code} · ${name}`, value: name }))
+  } catch { budgetSubjectOptions.value = [] }
+}
 function openCreate() {
   createForm.title = ''
   createForm.dept = ''
@@ -203,7 +217,7 @@ async function submitConvert() {
   finally { convertSaving.value = false }
 }
 
-onMounted(() => { load(); loadOptions() })
+onMounted(() => { load(); loadOptions(); loadOrgDirectory(); loadBudgetSubjects() })
 </script>
 
 <template>
@@ -214,7 +228,7 @@ onMounted(() => { load(); loadOptions() })
       <a-input-search v-model:value="query.no" placeholder="计划编号" style="width: 170px" allow-clear @search="resetAndLoad" />
       <a-input-search v-model:value="query.keyword" placeholder="名称 / 申请人" style="width: 200px" allow-clear @search="resetAndLoad" />
       <a-select v-model:value="query.status" :options="statusOptions" placeholder="计划状态" style="width: 120px" allow-clear @change="resetAndLoad" />
-      <a-select v-model:value="query.dept" :options="deptOptions" placeholder="需求部门" style="width: 130px" allow-clear @change="resetAndLoad" />
+      <a-select v-model:value="query.dept" :options="queryDeptOptions" placeholder="需求部门" style="width: 130px" allow-clear @change="resetAndLoad" />
       <span class="grow" />
       <span class="hint">审批通过后转采购合同并带入清单</span>
       <a-button v-if="store.can('contract:plan:edit')" type="primary" @click="openCreate">＋ 新建计划</a-button>
@@ -303,8 +317,18 @@ onMounted(() => { load(); loadOptions() })
         </a-form-item>
         <a-form-item label="所属项目编码"><a-input v-model:value="convertForm.projectNo" placeholder="选填，项目编码" /></a-form-item>
         <a-row :gutter="12">
-          <a-col :span="12"><a-form-item label="需求部门"><a-input v-model:value="convertForm.dept" /></a-form-item></a-col>
-          <a-col :span="12"><a-form-item label="负责人"><a-input v-model:value="convertForm.owner" /></a-form-item></a-col>
+          <a-col :span="12">
+            <a-form-item label="需求部门">
+              <a-select v-model:value="convertForm.dept" :options="deptOptions" placeholder="从组织架构选择" show-search
+                        :filter-option="filterOption" allow-clear style="width: 100%" />
+            </a-form-item>
+          </a-col>
+          <a-col :span="12">
+            <a-form-item label="负责人">
+              <a-select v-model:value="convertForm.owner" :options="employeeOptions" placeholder="从组织架构选择" show-search
+                        :filter-option="filterOption" allow-clear style="width: 100%" />
+            </a-form-item>
+          </a-col>
         </a-row>
         <a-form-item label="付款条款"><a-input v-model:value="convertForm.paymentTerms" /></a-form-item>
         <a-form-item label="合同标的"><a-input v-model:value="convertForm.subject" /></a-form-item>
@@ -321,8 +345,18 @@ onMounted(() => { load(); loadOptions() })
       <a-form layout="vertical">
         <a-form-item label="计划名称" required><a-input v-model:value="createForm.title" placeholder="如：研发服务器扩容计划" /></a-form-item>
         <a-row :gutter="12">
-          <a-col :span="12"><a-form-item label="需求部门"><a-input v-model:value="createForm.dept" /></a-form-item></a-col>
-          <a-col :span="12"><a-form-item label="申请人"><a-input v-model:value="createForm.applicant" /></a-form-item></a-col>
+          <a-col :span="12">
+            <a-form-item label="需求部门">
+              <a-select v-model:value="createForm.dept" :options="deptOptions" placeholder="从组织架构选择" show-search
+                        :filter-option="filterOption" allow-clear style="width: 100%" />
+            </a-form-item>
+          </a-col>
+          <a-col :span="12">
+            <a-form-item label="申请人">
+              <a-select v-model:value="createForm.applicant" :options="employeeOptions" placeholder="从组织架构选择" show-search
+                        :filter-option="filterOption" allow-clear style="width: 100%" />
+            </a-form-item>
+          </a-col>
         </a-row>
         <a-row :gutter="12">
           <a-col :span="12">
@@ -332,7 +366,8 @@ onMounted(() => { load(); loadOptions() })
           </a-col>
           <a-col :span="12">
             <a-form-item label="预算科目">
-              <a-input v-model:value="createForm.budgetSubject" :list="budgetSubjects" placeholder="可输入或从已有值选择" />
+              <a-select v-model:value="createForm.budgetSubject" :options="budgetSubjectOptions" placeholder="从主数据选择" show-search
+                        :filter-option="filterOption" allow-clear style="width: 100%" />
             </a-form-item>
           </a-col>
         </a-row>

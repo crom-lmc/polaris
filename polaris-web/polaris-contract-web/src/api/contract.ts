@@ -489,8 +489,12 @@ export const convertPurchasePlan = (id: string, data: PlanConvertRequest) =>
 export const deletePurchasePlan = (id: string) =>
   request.delete<never, void>(`/api/contract/purchase-plans/${id}`)
 
-/* ==================== 组织节点（EHR 只读引用） ==================== */
+/* ==================== 组织 / 人员（EHR 只读引用，经合同服务内部令牌代理） ==================== */
 
+/**
+ * EHR 组织节点（/internal/orgs/tree 扁平列表，id/parentId 已字符串化）。
+ * dept 等字段存的是组织「名称」（审批按名称取负责人），code 仅用于成本中心/项目组级联。
+ */
 export interface OrgNodeVO {
   id: string
   parentId: string | null
@@ -498,9 +502,35 @@ export interface OrgNodeVO {
   typeName: string
   code: string
   name: string
-  costCenter: string
+  status?: number
+  employeeCount?: number
+  costCenter?: string
   children?: OrgNodeVO[]
 }
 
+/** 在职员工候选（已开户、未离职；id 为字符串化账号 ID） */
+export interface OrgEmployeeVO {
+  id: string
+  name: string
+  empNo: string
+  orgId?: string
+}
+
 /** 成本中心（公司主体）与项目组从 EHR 组织树只读引用，不在本应用维护。 */
-export const fetchOrgTree = () => request.get<never, OrgNodeVO[]>('/api/ehr/orgs/flatten')
+export const fetchOrgTree = () => request.get<never, OrgNodeVO[]>('/api/contract/orgs/tree')
+
+/** 全部已开户、未离职员工，人员下拉候选（姓名/工号）。 */
+export const fetchActiveEmployees = () => request.get<never, OrgEmployeeVO[]>('/api/contract/orgs/employees/active')
+
+/* ==================== 预算科目主数据（财务域只读引用） ==================== */
+
+/** 预算科目（真相源在财务域 fin_budget_subject，经合同服务内部令牌代理） */
+export interface BudgetSubjectVO {
+  code: string
+  name: string
+  year: number
+}
+
+/** 启用中的预算科目，采购计划只能从中选择，不允许手输 */
+export const fetchBudgetSubjectOptions = (year?: number) =>
+  request.get<never, BudgetSubjectVO[]>('/api/contract/budget-subjects/options', { params: { year } })

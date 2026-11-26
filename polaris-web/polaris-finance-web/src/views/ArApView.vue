@@ -7,10 +7,13 @@ import {
   type ArApVO, type ArApSave, type AgingBucketVO, type WriteOffRequest
 } from '@/api/finance'
 import { useUserStore } from '@/stores/user'
+import { useOrgDirectory, filterOption as orgFilterOption } from '@/composables/useOrgDirectory'
 import { arApTypeColor, arApTypeLabel, dateOf, fmtDate, statusColor, statusLabel, yuan, yuanOrMasked } from '@/utils/format'
 
 const store = useUserStore()
 const canWrite = () => store.can('finance:ar-ap:write')
+const { deptOptions, load: loadOrgDirectory } = useOrgDirectory()
+const filterOption = orgFilterOption
 
 const loading = ref(false)
 const rows = ref<ArApVO[]>([])
@@ -86,7 +89,7 @@ function reset() {
 }
 watch([type, status, keyword, contractNo, range], () => { page.value = 1; load(); loadStats() })
 
-onMounted(() => { load(); loadStats() })
+onMounted(() => { load(); loadStats(); loadOrgDirectory() })
 
 const unsettled = (a: ArApVO) => a.status === 'APPROVED' || a.status === 'POSTED'
 const arBalance = computed(() => statRows.value.filter((a) => a.type === 'AR' && unsettled(a)).reduce((s, a) => s + Number(a.balance || 0), 0))
@@ -283,7 +286,12 @@ async function submitCreate() {
               <a-date-picker v-model:value="form.date" value-format="YYYY-MM-DD" style="width: 100%" />
             </a-form-item>
           </a-col>
-          <a-col :span="12"><a-form-item label="归属部门"><a-input v-model:value="form.dept" /></a-form-item></a-col>
+          <a-col :span="12">
+            <a-form-item label="归属部门">
+              <a-select v-model:value="form.dept" :options="deptOptions" placeholder="从组织架构选择" show-search
+                        :filter-option="filterOption" allow-clear style="width: 100%" />
+            </a-form-item>
+          </a-col>
         </a-row>
       </a-form>
       <template #footer>

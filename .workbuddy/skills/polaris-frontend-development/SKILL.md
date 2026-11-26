@@ -35,7 +35,7 @@ agent_created: true
 4. **实现**：`<script setup lang="ts">`；列表页用 `ft-scroll ft-bottom` + `.ft-table` CSS sticky 固定操作列 + 表头 `align` 一致；`ft-head` 加 `.toolbar`（gap/margin-bottom 12px）让标题、搜索栏、卡片之间留白；长文本用 `.cell-ellipsis` 省略 + `a-tooltip` 悬浮展示完整值；颜色走 CSS 变量。
 5. **自检**：按 L1 + L2 检查权限、表格、长文本、响应式、主题、回调、监听器清理、换行符与 BOM。
 6. **验证**：`vue-tsc --noEmit` + `vite build` 通过；改 `_shared/` 时 11 个应用全量验证；本地清理守卫拦截时用 `--outDir /tmp/<唯一目录> --emptyOutDir false`。
-7. **收尾**：在仓库外 `F:\code\迭代文档\polaris-server\update.md` 顶部追加记录；最终回复列明需发布的应用、无需重启后端、未提交/未部署状态；未经明确指令不提交不部署。
+7. **收尾**：在仓库外 `F:\code\迭代文档\polaris-server\update.md` 顶部追加记录；最终回复列明需发布的应用、无需重启后端、未提交/未部署状态；未经明确指令不提交不部署。提交时备注用中文（格式 `类型(范围): 中文概述`），前后端改动必须分开提交——前端代码一个 commit，后端代码及平台侧配套（SQL/Nacos/网关/部署）另一个 commit，不混提。
 
 ## 资源索引
 

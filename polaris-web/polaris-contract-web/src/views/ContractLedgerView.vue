@@ -3,6 +3,7 @@ import { computed, onMounted, reactive, ref } from 'vue'
 import { message, Modal } from 'ant-design-vue'
 import { useUserStore } from '@/stores/user'
 import { useIsMobile } from '@/composables/useIsMobile'
+import { useOrgDirectory, filterOption as orgFilterOption } from '@/composables/useOrgDirectory'
 import {
   listContracts, getContractStats, getContract, saveContract, updateContract, deleteContract, changeContractStatus,
   listContractChanges, getProjectOptions, listPartners,
@@ -14,6 +15,8 @@ import PaymentPlanEditor from '@/components/PaymentPlanEditor.vue'
 
 const store = useUserStore()
 const isMobile = useIsMobile()
+const { deptOptions, employeeOptions, load: loadOrgDirectory } = useOrgDirectory()
+const filterOption = orgFilterOption
 const drawerWidth = computed(() => (isMobile.value ? '100%' : 900))
 const descColumn = computed(() => (isMobile.value ? 1 : 2))
 
@@ -166,7 +169,7 @@ function remove(row: ContractVO) {
     onOk: async () => { try { await deleteContract(row.id); message.success('已删除'); load() } catch (e: any) { message.error(e?.message || '删除失败') } }
   })
 }
-onMounted(() => { load(); loadOptions() })
+onMounted(() => { load(); loadOptions(); loadOrgDirectory() })
 </script>
 
 <template>
@@ -312,8 +315,18 @@ onMounted(() => { load(); loadOptions() })
             </a-col>
           </a-row>
           <a-row :gutter="12">
-            <a-col :span="12"><a-form-item label="归属部门"><a-input v-model:value="createForm.dept" /></a-form-item></a-col>
-            <a-col :span="12"><a-form-item label="负责人"><a-input v-model:value="createForm.owner" /></a-form-item></a-col>
+            <a-col :span="12">
+              <a-form-item label="归属部门">
+                <a-select v-model:value="createForm.dept" :options="deptOptions" placeholder="从组织架构选择" show-search
+                          :filter-option="filterOption" allow-clear style="width: 100%" />
+              </a-form-item>
+            </a-col>
+            <a-col :span="12">
+              <a-form-item label="负责人">
+                <a-select v-model:value="createForm.owner" :options="employeeOptions" placeholder="从组织架构选择" show-search
+                          :filter-option="filterOption" allow-clear style="width: 100%" />
+              </a-form-item>
+            </a-col>
           </a-row>
           <a-row :gutter="12">
             <a-col :span="8">

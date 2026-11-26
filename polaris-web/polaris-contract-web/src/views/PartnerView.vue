@@ -138,13 +138,16 @@ function openEdit(row?: PartnerVO) {
 }
 async function submit() {
   const missing: string[] = []
-  if (!form.code?.trim()) missing.push('单位编码')
+  // 新建时编码由 settings 单号规则自动生成（GYS-yyyy-XXXXXX），不需要手输
+  if (editing.value && !form.code?.trim()) missing.push('单位编码')
   if (!form.name?.trim()) missing.push('单位名称')
   if (!form.creditCode?.trim()) missing.push(form.subjectType === 'PERSON' ? '身份证号' : '统一社会信用代码')
   if (missing.length) { message.warning(`请填写必填项：${missing.join('、')}`); return }
   saving.value = true
   try {
-    const payload: PartnerSave = { ...form, code: form.code.trim(), name: form.name.trim() }
+    const payload: PartnerSave = editing.value
+      ? { ...form, code: form.code.trim(), name: form.name.trim() }
+      : { ...form, code: '', name: form.name.trim() }
     if (editing.value) await updatePartner(editing.value, payload)
     else await savePartner(payload)
     editOpen.value = false
@@ -267,7 +270,12 @@ onMounted(load)
       <a-form layout="vertical">
         <a-card class="panel-card" size="small" title="基本信息">
           <a-row :gutter="12">
-            <a-col :span="12"><a-form-item label="单位编码" required><a-input v-model:value="form.code" :disabled="!!editing" /></a-form-item></a-col>
+            <a-col :span="12">
+              <a-form-item :label="editing ? '单位编码' : '单位编码（自动生成）'">
+                <a-input v-model:value="form.code" :disabled="!!editing"
+                         :placeholder="editing ? '' : '保存时按规则自动生成'" />
+              </a-form-item>
+            </a-col>
             <a-col :span="12"><a-form-item label="单位名称" required><a-input v-model:value="form.name" /></a-form-item></a-col>
           </a-row>
           <a-row :gutter="12">

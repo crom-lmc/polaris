@@ -13,6 +13,8 @@ level: L1
 ## 协作与发布
 
 - MUST NOT 未经用户明确指令执行 `git commit` / `git push` / 部署 / 重启线上服务；本地类型检查、本地构建可以做。
+- MUST 提交备注（commit message）用中文，MUST NOT 使用英文 subject（如 `feat(xxx): launch ...`）；格式用 `类型(范围): 中文概述`，例如 `feat(contract-web): 合同台账支持变更记录`、`fix(meeting-web): 修正两点选时结束边界`。
+- MUST 前后端分开提交：一次任务同时改动 `polaris-web/` 与 `polaris-server/` 时，必须拆成至少两个 commit——前端代码走一个前端提交，后端代码及其平台侧配套（SQL / Nacos / 网关 / 部署配置）走一个后端提交；MUST NOT 混在一个 commit 里。只改一端时按实际范围提交即可。
 - MUST 每次改动在仓库外 `F:\code\迭代文档\polaris-server\update.md` 顶部追加记录（该文件不入库）。
 - MUST 最终回复列明需发布的应用；只改前端要明确写"无需重启后端"。
 - MUST NOT 把 appSecret、内部令牌、私钥写入代码或文档；用时从环境变量/Nacos 现取。

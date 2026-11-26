@@ -6,10 +6,13 @@ import {
   listBudgets, createBudget, updateBudget, deleteBudget, type BudgetVO, type BudgetSave
 } from '@/api/finance'
 import { useUserStore } from '@/stores/user'
+import { useOrgDirectory, filterOption as orgFilterOption } from '@/composables/useOrgDirectory'
 import { yuan } from '@/utils/format'
 
 const store = useUserStore()
 const canEdit = () => store.can('finance:budget:edit')
+const { deptOptions, load: loadOrgDirectory } = useOrgDirectory()
+const filterOption = orgFilterOption
 
 const loading = ref(false)
 const rows = ref<BudgetVO[]>([])
@@ -59,7 +62,7 @@ function onTableChange(p: any) {
 }
 function reset() { year.value = currentYear; dept.value = undefined; page.value = 1; load() }
 watch([year, dept], () => { page.value = 1; load() })
-onMounted(load)
+onMounted(() => { load(); loadOrgDirectory() })
 
 /** 前端硬底线 95%；后端 alertFlag=RED 同样变红（阈值来自埋点，默认 80） */
 const RED_LINE = 95
@@ -129,7 +132,7 @@ function onDelete(row: BudgetVO) {
       <h2>预算管理</h2>
       <span class="divider" />
       <a-select v-model:value="year" :options="yearOptions" style="width: 110px" />
-      <a-input-search v-model:value="dept" placeholder="部门" style="width: 160px" allow-clear />
+      <a-select v-model:value="dept" :options="deptOptions" placeholder="归属部门" style="width: 180px" allow-clear show-search :filter-option="filterOption" />
       <a-button @click="reset">重置</a-button>
       <span class="grow" />
       <span class="hint">已用 = 历史归档 + 本期凭证；合同承诺单独列示，不重复计入已用</span>
@@ -164,7 +167,10 @@ function onDelete(row: BudgetVO) {
 
     <a-drawer v-model:open="drawerOpen" :title="editing ? '编辑预算' : '新增预算'" :width="520" placement="right">
       <a-form layout="vertical">
-        <a-form-item label="归属部门" required><a-input v-model:value="form.dept" placeholder="如：研发中心" /></a-form-item>
+        <a-form-item label="归属部门" required>
+          <a-select v-model:value="form.dept" :options="deptOptions" placeholder="从组织架构选择" show-search
+                    :filter-option="filterOption" allow-clear style="width: 100%" />
+        </a-form-item>
         <a-form-item label="预算年度" required>
           <a-select v-model:value="form.year" :options="yearOptions" />
         </a-form-item>

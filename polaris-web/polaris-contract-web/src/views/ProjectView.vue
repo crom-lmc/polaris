@@ -3,15 +3,18 @@ import { computed, onMounted, reactive, ref } from 'vue'
 import { message, Modal } from 'ant-design-vue'
 import { useUserStore } from '@/stores/user'
 import { useIsMobile } from '@/composables/useIsMobile'
+import { useOrgDirectory, filterOption as orgFilterOption } from '@/composables/useOrgDirectory'
 import {
   listProjects, getProject, saveProject, updateProject, changeProjectStatus, deleteProject,
-  fetchOrgTree, listContracts,
+  listContracts,
   type ProjectVO, type ProjectSave, type OrgNodeVO, type ContractVO
 } from '@/api/contract'
 import { yuan } from '@/utils/format'
 
 const store = useUserStore()
 const isMobile = useIsMobile()
+const { orgNodes, employeeOptions, load: loadOrgDirectory } = useOrgDirectory()
+const filterOption = orgFilterOption
 const drawerWidth = computed(() => (isMobile.value ? '100%' : 760))
 const descColumn = computed(() => (isMobile.value ? 1 : 2))
 
@@ -81,16 +84,11 @@ const contractColumns = [
   { title: '金额', key: 'amount', align: 'right' as const, width: 130 }
 ]
 
-/* 组织级联：优先 EHR 组织树（只读引用），失败则从已有项目数据派生，不写死常量 */
-const orgNodes = ref<OrgNodeVO[]>([])
+/* 组织级联：真相源 EHR 组织树（本域代理只读引用），失败则从已有项目数据派生，不写死常量 */
 const COMPANY_TYPES = ['GROUP', 'COMPANY', 'SUB_COMPANY']
 const TEAM_TYPES = ['PROJECT', 'DEPARTMENT']
-function flattenOrg(nodes: OrgNodeVO[], out: OrgNodeVO[] = []): OrgNodeVO[] {
-  nodes.forEach((n) => { out.push(n); if (n.children?.length) flattenOrg(n.children, out) })
-  return out
-}
 async function loadOrg() {
-  try { orgNodes.value = flattenOrg(await fetchOrgTree()) } catch { orgNodes.value = [] }
+  await loadOrgDirectory()
 }
 function companyOf(node: OrgNodeVO): string {
   const byId = new Map(orgNodes.value.map((n) => [n.id, n]))
@@ -118,7 +116,6 @@ const editableTeamOptions = computed(() => teamOptionsAll.value.filter((t) =>
   !form.costCenterCode || !t.companyCode || t.companyCode === form.costCenterCode))
 const teamFilterOptions = computed(() => [...new Map(teamOptionsAll.value.map((t) => [t.value, t])).values()]
   .map((t) => ({ label: t.label, value: t.value })))
-const ownerOptions = computed(() => [...new Set(rows.value.map((r) => r.owner).filter(Boolean))])
 
 function onCostCenterChange() {
   if (!editableTeamOptions.value.some((o) => o.value === form.teamCode)) {
@@ -335,8 +332,8 @@ onMounted(() => { load(); loadOrg() })
             <a-col :span="12"><a-form-item label="项目类型"><a-select v-model:value="form.type" :options="typeOptions" /></a-form-item></a-col>
             <a-col :span="12">
               <a-form-item label="负责人">
-                <a-input v-model:value="form.owner" :list="ownerOptions.length ? 'project-owners' : undefined" />
-                <datalist id="project-owners"><option v-for="o in ownerOptions" :key="o" :value="o" /></datalist>
+                <a-select v-model:value="form.owner" :options="employeeOptions" placeholder="从组织架构选择" show-search
+                          :filter-option="filterOption" allow-clear style="width: 100%" />
               </a-form-item>
             </a-col>
           </a-row>
