@@ -27,6 +27,7 @@
         :loading="loading"
         row-key="id"
         :pagination="pagination"
+        :scroll="{ x: 1140 }"
         @change="handleTableChange"
       >
         <template #bodyCell="{ column, record }">
@@ -67,7 +68,7 @@ const columns = [
   { title: '结果', key: 'result', width: 90 },
   { title: '失败原因', key: 'failReason', width: 240 },
   { title: 'IP', dataIndex: 'clientIp', key: 'clientIp', width: 140 },
-  { title: '客户端', key: 'userAgent' }
+  { title: '客户端', key: 'userAgent', width: 240 }
 ]
 // 登录方式编码 → 中文名；表格与筛选下拉共用，未知编码回退原值
 const loginTypeNames: Record<string, string> = {
@@ -125,10 +126,12 @@ function handleTableChange(pag: any) { current.value = pag.current; pageSize.val
 </script>
 
 <style scoped>
-.login-audit-table { --ft-min-width: 1220px; }
+.login-audit-table { --ft-min-width: 1140px; }
 .toolbar { display: flex; gap: 8px; align-items: center; margin-bottom: 16px; flex-wrap: wrap; }
 .muted { color: var(--muted); }
 .ua { font-size: 12px; }
+/* 表头按列宽单行展示，避免「登录方式 / 失败原因」被挤成竖排 */
+:deep(.ant-table-thead > tr > th) { white-space: nowrap; }
 /* 长文本按列宽自适应省略，完整内容由 a-tooltip 悬浮展示 */
 .cell-ellipsis { display: block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 </style>

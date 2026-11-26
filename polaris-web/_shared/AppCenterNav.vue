@@ -5,7 +5,7 @@
       class="ac-trigger"
       :class="{ 'is-open': open }"
       type="button"
-      :title="`应用中心（共 ${apps.length} 个应用）`"
+      :title="`应用中心（共 ${visibleCount} 个应用）`"
       @click="toggle"
     >
       <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" aria-hidden="true">
@@ -135,7 +135,16 @@ const GROUP_DEFS = [
   { type: 'PORTAL', label: '星辰生活区', codes: ['portal', 'forum'] }
 ]
 
-const apps = ALL_APPS
+/** 门户、论坛、北极星会是全员应用：即使账号授权接口不可用，也始终在应用中心保留入口 */
+const PUBLIC_APP_CODES = ['portal', 'forum', 'meeting']
+
+/** 应用中心只展示已授权应用；接口失败时收敛为「全员应用 + 当前应用」，不再展示全部应用 */
+const authorizedCodes = ref<Set<string>>(new Set(PUBLIC_APP_CODES))
+const visibleApps = computed(() => ALL_APPS.filter(
+  a => authorizedCodes.value.has(a.code) || a.code === props.currentCode
+))
+const visibleCount = computed(() => visibleApps.value.length)
+
 const open = ref(false)
 const keyword = ref('')
 const groupLabels = ref<Record<string, string>>(
@@ -162,36 +171,44 @@ function resolvedName(app: AppItem) {
 
 const filteredGroups = computed<Group[]>(() => {
   const kw = keyword.value.trim().toLowerCase()
+  const visible = new Set(visibleApps.value.map(a => a.code))
   const match = (a: AppItem) => !kw || `${resolvedName(a)} ${a.code} ${a.desc} ${a.mark}`.toLowerCase().includes(kw)
   return GROUP_DEFS.map(g => ({
     type: g.type,
     label: groupLabels.value[g.type] || g.label,
-    apps: g.codes.map(c => ALL_APPS.find(a => a.code === c)).filter((a): a is AppItem => !!a && match(a))
+    apps: g.codes.map(c => ALL_APPS.find(a => a.code === c))
+      .filter((a): a is AppItem => !!a && visible.has(a.code) && match(a))
   })).filter(g => g.apps.length > 0)
 })
 
 /**
- * 应用名与「我的应用」同源，取 sso_application.name；各应用响应壳有两种：
+ * 已授权应用与应用名同源，取 /api/accounts/me/apps；各应用响应壳有两种：
  * { code:0, data:[{code,name}] } 与 { code:0, data:{ data:[...] } }，两种都兼容。
  */
-async function loadAppNames() {
+async function loadAuthorizedApps() {
   try {
     const token = findAccessToken()
     const headers: Record<string, string> = {}
     if (token) headers.Authorization = `Bearer ${token}`
     const res = await fetch('/api/accounts/me/apps', { credentials: 'include', headers })
     const body = await res.json()
+    if (!res.ok || body?.code !== 0) throw new Error('加载应用列表失败')
     const raw = body?.data
     const list = Array.isArray(raw) ? raw : Array.isArray(raw?.data) ? raw.data : []
+    const codes = new Set<string>(PUBLIC_APP_CODES)
     const names: Record<string, string> = {}
     for (const item of list) {
-      if (item?.code && typeof item.name === 'string' && item.name.trim()) {
+      if (!item?.code) continue
+      codes.add(item.code)
+      if (typeof item.name === 'string' && item.name.trim()) {
         names[item.code] = item.name.trim()
       }
     }
+    authorizedCodes.value = codes
     if (Object.keys(names).length) appNames.value = names
   } catch {
-    // 接口不可用时保留兜底名称，不影响应用跳转
+    // 接口不可用时收敛为全员应用 + 当前应用，不把未授权应用展示出来
+    authorizedCodes.value = new Set(PUBLIC_APP_CODES)
   }
 }
 
@@ -316,7 +333,7 @@ onMounted(() => {
   document.addEventListener('click', onDocClick)
   document.addEventListener('keydown', onKey)
   void loadGroupLabels()
-  void loadAppNames()
+  void loadAuthorizedApps()
 })
 onBeforeUnmount(() => {
   document.removeEventListener('click', onDocClick)

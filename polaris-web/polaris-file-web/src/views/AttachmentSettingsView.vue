@@ -134,7 +134,9 @@
                 </a-tooltip>
               </template>
               <template v-else-if="column.key === 'fileTypes'">
-                <span>{{ fileTypesLabel(record.fileTypes) }}</span>
+                <a-tooltip :title="fileTypesLabel(record.fileTypes)">
+                  <span class="cell-ellipsis">{{ fileTypesLabel(record.fileTypes) }}</span>
+                </a-tooltip>
               </template>
               <template v-else-if="column.key === 'scenes'">
                 <span>{{ scenesLabel(record.scenes) }}</span>
@@ -245,7 +247,7 @@ const wmColumns = [
   { title: '业务类型', dataIndex: 'bizType', key: 'bizType', width: 180 },
   { title: '水印内容', dataIndex: 'content', key: 'content', ellipsis: true },
   { title: '排布', key: 'layout', width: 100 },
-  { title: '文件类型', dataIndex: 'fileTypes', key: 'fileTypes', width: 210 },
+  { title: '文件类型', dataIndex: 'fileTypes', key: 'fileTypes', width: 340 },
   { title: '生效环节', dataIndex: 'scenes', key: 'scenes', width: 230 },
   { title: '状态', key: 'enabled', width: 90 },
   { title: '操作', key: 'action', width: 120 }

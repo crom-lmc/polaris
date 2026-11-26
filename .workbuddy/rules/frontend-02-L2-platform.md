@@ -17,7 +17,7 @@ level: L2
 | 选项型数据（下拉/单选） | settings `dict`，`GET /api/settings/public/dicts/<typeCode>` | 写死在前端常量、每个应用各建一份本地列表 |
 | 可配参数/阈值/SLA 展示 | 由后端接口随业务数据返回；**每个**阈值/开关埋点都在 settings 有结构化编辑表单并登记 `EDITOR_BY_CODE` | 前端直读 settings 内部接口、裸 JSON 编辑入口、未登记埋点只读兜底 |
 | 业务编号/审批/消息 | 只展示结果与发起动作，配置与调用全在后端 | 前端自行生成编号、拼接审批流、自建通知 |
-| 文件附件 | `file_id` + `/api/file/{public,secure,admin,legacy}/**` | 另存 URL、自建附件上传页 |
+| 文件附件（上传+预览） | 上传走业务服务代理接口落 `fileId`（后端转 `FileApi`）；预览用 `file_id` + `/api/file/{public,secure,admin,legacy}/**` 或后端签名 URL | 另存 URL、自建附件上传页、前端本地静态路径预览 |
 | 水印展示/下载 | 复用已有水印链路 | 只在预览加水印而下载不带 |
 
 ## 接入契约

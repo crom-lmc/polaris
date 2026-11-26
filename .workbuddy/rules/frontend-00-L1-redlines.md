@@ -25,6 +25,7 @@ level: L1
 - MUST 列表页分页固定右下（`ft-scroll ft-bottom`）、操作列用 `.ft-table` CSS sticky 固定右侧（不用 antd `fixed:'right'`）、表头 `align` 与内容一致。
 - MUST 权限只用 `store.can()` / job `hasPerm()` / 路由 `meta.perm`，MUST NOT 新建 `v-perm` 指令（全仓无实现）。
 - MUST 19 位雪花 ID 用字符串或本应用已有的 `quoteLongIntegers()` 转换，MUST NOT 用 number 承载。
+- MUST 所有附件/图片的**上传与预览**走统一文件服务：上传经本业务服务的代理接口落 `fileId`（如 meeting `uploadRoomImage` → `/api/meetingroom/files/upload` → `FileApi`），预览用后端签发的临时 URL（如 `a-image :src` 取 `signed url`）；MUST NOT 前端直连自建上传页、把文件另存为 URL、或自己拼接本地静态路径绕过文件服务。
 
 ## 应用与回跳
 

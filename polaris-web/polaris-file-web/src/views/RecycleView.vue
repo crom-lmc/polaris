@@ -10,7 +10,11 @@
     <a-alert v-if="errorMsg" :message="errorMsg" type="warning" show-icon style="margin-bottom: 12px" />
 
     <section class="ft-scroll ft-bottom">
-      <a-table :columns="columns" :data-source="records" :loading="loading" row-key="id" :pagination="pagination" @change="handleTableChange">
+      <a-table :columns="columns" :data-source="records" :loading="loading" row-key="id" :pagination="pagination"
+               :class="{ 'tbl-empty-mode': !loading && !records.length }" @change="handleTableChange">
+        <template #emptyText>
+          <div class="tbl-empty"><a-empty v-if="!loading" description="暂无数据" /></div>
+        </template>
         <template #bodyCell="{ column, record }">
           <template v-if="column.key === 'name'">
             <a-tooltip v-if="record.originalName" :title="record.originalName">
@@ -147,4 +151,25 @@ function formatSize(size: number) {
 .name-cell { display: inline-flex; align-items: center; gap: 6px; max-width: 100%; min-width: 0; }
 .name-cell .cell-ellipsis { flex: 1 1 auto; min-width: 0; }
 .thumb { width: 28px; height: 28px; object-fit: cover; border-radius: 4px; flex: none; }
+/* 空态铺满内容区（标准三件套，与全局版等价）：触发类 + 表格链撑满 + placeholder 居中 */
+.tbl-empty-mode :deep(.ant-table-container),
+.tbl-empty-mode :deep(.ant-table-content) {
+  flex: 1 0 auto;
+  display: flex;
+  flex-direction: column;
+}
+.tbl-empty-mode :deep(.ant-table-content > table) { height: 100%; }
+.tbl-empty-mode :deep(.ant-table-content) { overflow-x: hidden; }
+.tbl-empty-mode :deep(.ant-table-placeholder > td) {
+  height: 100%;
+  padding: 0;
+  border-bottom: none;
+}
+.tbl-empty {
+  height: 100%;
+  min-height: 240px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
 </style>

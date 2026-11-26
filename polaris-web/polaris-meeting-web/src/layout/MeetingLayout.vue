@@ -2,11 +2,22 @@
   <a-layout class="shell">
     <a-layout-header class="header">
       <div class="logo" :class="{ 'is-collapsed': collapsed }">
-        <menu-outlined class="menu-toggle" :title="collapsed ? '展开菜单' : '收起菜单'" @click="toggleCollapse" />
+        <menu-outlined v-if="!mobile" class="menu-toggle" :title="collapsed ? '展开菜单' : '收起菜单'" @click="toggleCollapse" />
         <span class="logo-text">{{ appName }}</span>
       </div>
+      <strong v-if="mobile" class="mobile-title">{{ pageTitle }}</strong>
       <div class="right">
-        <AppCenterNav current-code="meeting" />
+        <a-dropdown v-if="mobile && moreMenus.length" :trigger="['click']">
+          <a-button type="text" class="more-btn" aria-label="更多菜单"><more-outlined /></a-button>
+          <template #overlay>
+            <a-menu @click="handleMenuClick">
+              <a-menu-item v-for="m in moreMenus" :key="m.path">
+                <component :is="m.icon" /> {{ m.title }}
+              </a-menu-item>
+            </a-menu>
+          </template>
+        </a-dropdown>
+        <AppCenterNav v-if="!mobile" current-code="meeting" />
         <a-button
           type="text"
           class="theme-toggle"
@@ -17,7 +28,7 @@
         </a-button>
         <a-dropdown :trigger="['hover']">
           <span class="who">
-            {{ store.username || '未登录' }}
+            {{ store.displayName || '未登录' }}
             <down-outlined class="caret" />
           </span>
           <template #overlay>
@@ -51,10 +62,10 @@
       </a-layout-content>
     </a-layout>
     <nav v-if="mobile" class="mobile-tabs">
-      <a v-for="m in menus" v-show="store.can(m.perm)" :key="m.path"
+      <a v-for="m in mobileMenus" v-show="store.can(m.perm)" :key="m.path"
          :class="{ active: route.path === m.path }" @click="router.push(m.path)">
         <component :is="m.icon" />
-        <span>{{ m.short }}</span>
+        <span>{{ m.tabLabel || m.short }}</span>
       </a>
     </nav>
   </a-layout>
@@ -64,8 +75,8 @@
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import {
-  CalendarOutlined, DashboardOutlined, DownOutlined, EnvironmentOutlined,
-  LogoutOutlined, MenuOutlined, ScheduleOutlined, TeamOutlined
+  BarChartOutlined, CalendarOutlined, DashboardOutlined, DownOutlined, EnvironmentOutlined,
+  LogoutOutlined, MenuOutlined, MoreOutlined, ScheduleOutlined, TeamOutlined, WarningOutlined
 } from '@ant-design/icons-vue'
 import { Modal } from 'ant-design-vue'
 import { useUserStore } from '@/stores/user'
@@ -90,8 +101,10 @@ const menus = [
   { path: '/overview', title: '概览', short: '概览', icon: DashboardOutlined, perm: 'meeting:overview:view' },
   { path: '/location', title: '位置维护', short: '位置', icon: EnvironmentOutlined, perm: 'meeting:room:list' },
   { path: '/rooms', title: '会议室维护', short: '会议室', icon: TeamOutlined, perm: 'meeting:room:list' },
-  { path: '/booking', title: '会议室预定', short: '预定', icon: CalendarOutlined, perm: 'meeting:booking:view' },
-  { path: '/my-bookings', title: '我的预定', short: '我的', icon: ScheduleOutlined, perm: 'meeting:booking:list' }
+  { path: '/booking', title: '会议室预定', short: '预定', tabLabel: '会议室预定', icon: CalendarOutlined, perm: 'meeting:booking:view' },
+  { path: '/my-bookings', title: '我的预定', short: '我的', tabLabel: '预定列表', icon: ScheduleOutlined, perm: 'meeting:booking:list' },
+  { path: '/no-shows', title: '爽约记录', short: '爽约', icon: WarningOutlined, perm: 'meeting:noshow:view' },
+  { path: '/usage', title: '会议室使用率', short: '使用率', icon: BarChartOutlined, perm: 'meeting:usage:view' }
 ]
 
 const mobile = ref(false)
@@ -102,6 +115,12 @@ onMounted(() => {
   mq.addEventListener('change', syncMobile)
 })
 onBeforeUnmount(() => mq.removeEventListener('change', syncMobile))
+/** 手机端只保留预定主流程两个入口：概览、维护、爽约记录、使用率一律不在手机端出现 */
+const mobileMenus = computed(() => menus.filter(m => ['/booking', '/my-bookings'].includes(m.path)))
+const MOBILE_HIDDEN_PATHS = ['/overview', '/location', '/rooms', '/no-shows', '/usage']
+const moreMenus = computed(() => menus.filter(m =>
+  !mobileMenus.value.includes(m) && !MOBILE_HIDDEN_PATHS.includes(m.path) && store.can(m.perm)))
+const pageTitle = computed(() => (route.meta.title as string) || appName)
 
 function toggleCollapse() {
   collapsed.value = !collapsed.value
@@ -154,6 +173,14 @@ function onUserMenuClick({ key }: { key: string }) {
 .right { display: flex; align-items: center; gap: 8px; line-height: normal; padding-right: 16px; }
 .sider { background: var(--sider-bg) !important; }
 .sider :deep(.ant-menu) { background: transparent !important; }
+.mobile-title {
+  flex: 1 1 auto; min-width: 0; text-align: center; font-size: 14px; color: var(--header-text);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.right .more-btn {
+  color: var(--header-text); display: inline-flex; align-items: center; justify-content: center;
+  width: 32px; height: 32px; min-width: 32px; padding: 0; line-height: 1;
+}
 .right .theme-toggle {
   color: var(--header-text); display: inline-flex; align-items: center; justify-content: center;
   width: 32px; height: 32px; min-width: 32px; padding: 0; line-height: 1;
@@ -179,4 +206,13 @@ function onUserMenuClick({ key }: { key: string }) {
 }
 .mobile-tabs a.active { color: var(--primary, #2f54eb); font-weight: 600; }
 .mobile-tabs a .anticon { font-size: 17px; }
+/* 移动端顶栏收紧两侧留白，保证中文昵称完整露出且不贴屏幕边缘 */
+@media (max-width: 767px) {
+  .logo { padding-left: 12px; font-size: 13px; gap: 4px; }
+  .mobile-title { font-size: 13px; padding: 0 4px; }
+  .right { padding-right: 20px; gap: 4px; flex: 0 0 auto; }
+  .right .theme-toggle { width: 28px; min-width: 28px; }
+  .right .who { padding: 4px 2px; font-size: 12px; white-space: nowrap; }
+  .right .caret { font-size: 10px; }
+}
 </style>

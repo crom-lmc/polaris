@@ -102,9 +102,12 @@ function onClick(cell: Slot) {
 }
 .slot-cell.DISABLED, .slot-cell.UNSELECTABLE { background: var(--disabled-bg, #bfbfbf); }
 .slot-cell.chosen { background: #52c41a !important; box-shadow: inset 0 0 0 1px #389e0d; }
+/* 悬停格提升层级，否则后面兄弟格子的背景会盖住提示右侧 */
+.slot-cell:hover { z-index: 2; }
 .slot-cell:hover::after {
   content: attr(title); position: absolute; bottom: calc(100% + 4px); left: 0; z-index: 5;
   white-space: nowrap; background: var(--header-bg, #fff); color: var(--header-text, #333);
-  border: 1px solid var(--border, #ddd); border-radius: 4px; padding: 2px 6px; font-size: 11px;
+  border: 1px solid var(--border, #ddd); border-radius: 4px; padding: 2px 6px;
+  font-size: 11px; line-height: 16px; pointer-events: none;
 }
 </style>

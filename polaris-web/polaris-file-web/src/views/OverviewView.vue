@@ -92,7 +92,16 @@
             size="small"
           >
             <template #bodyCell="{ column, record }">
-              <template v-if="column.key === 'cnt'">{{ fmt(record.cnt) }}</template>
+              <template v-if="column.key === 'bizType'">
+                <a-tooltip :title="record.bizType"><span class="cell-ellipsis">{{ record.bizType }}</span></a-tooltip>
+              </template>
+              <template v-else-if="column.key === 'bizName'">
+                <a-tooltip :title="record.bizName"><span class="cell-ellipsis">{{ record.bizName }}</span></a-tooltip>
+              </template>
+              <template v-else-if="column.key === 'allowedExt'">
+                <a-tooltip :title="record.allowedExt"><span class="cell-ellipsis">{{ record.allowedExt }}</span></a-tooltip>
+              </template>
+              <template v-else-if="column.key === 'cnt'">{{ fmt(record.cnt) }}</template>
               <template v-else-if="column.key === 'bytes'">{{ sizeLabel(record.bytes) }}</template>
               <template v-else-if="column.key === 'visibility'">
                 <a-tag :color="record.forcePrivate || record.visibility === 'PRIVATE' ? 'blue' : 'green'">
@@ -123,7 +132,13 @@
             size="small"
           >
             <template #bodyCell="{ column, record }">
-              <template v-if="column.key === 'size'">{{ sizeLabel(record.size) }}</template>
+              <template v-if="column.key === 'originalName'">
+                <a-tooltip :title="record.originalName"><span class="cell-ellipsis">{{ record.originalName }}</span></a-tooltip>
+              </template>
+              <template v-else-if="column.key === 'bizType'">
+                <a-tooltip :title="record.bizType"><span class="cell-ellipsis">{{ record.bizType }}</span></a-tooltip>
+              </template>
+              <template v-else-if="column.key === 'size'">{{ sizeLabel(record.size) }}</template>
               <template v-else-if="column.key === 'visibility'">
                 <a-tag :color="record.visibility === 'PUBLIC' ? 'green' : 'blue'">
                   {{ record.visibility === 'PUBLIC' ? '公开' : '私有' }}
@@ -191,21 +206,21 @@ const policies = ref<StoragePolicy[]>([])
 const router = useRouter()
 
 const recentColumns = [
-  { title: '文件名', dataIndex: 'originalName', key: 'originalName', ellipsis: true },
-  { title: '业务类型', dataIndex: 'bizType', key: 'bizType', width: 130 },
+  { title: '文件名', dataIndex: 'originalName', key: 'originalName' },
+  { title: '业务类型', dataIndex: 'bizType', key: 'bizType', width: 300 },
   { title: '可见性', key: 'visibility', width: 80 },
   { title: '大小', key: 'size', width: 80 },
   { title: '上传时间', dataIndex: 'createdAt', key: 'createdAt', width: 160 }
 ]
 const policyColumns = [
-  { title: '业务类型', dataIndex: 'bizType', key: 'bizType', width: 150 },
-  { title: '策略名称', dataIndex: 'bizName', key: 'bizName', ellipsis: true },
-  { title: '可见性', key: 'visibility', width: 90 },
-  { title: '大小上限', dataIndex: 'maxSizeMb', key: 'maxSizeMb', width: 100 },
-  { title: '允许扩展名', dataIndex: 'allowedExt', key: 'allowedExt', width: 170, ellipsis: true },
-  { title: '状态', key: 'enabled', width: 80 },
-  { title: '文件数', key: 'cnt', width: 90 },
-  { title: '占用空间', key: 'bytes', width: 110 }
+  { title: '业务类型', dataIndex: 'bizType', key: 'bizType', width: 180 },
+  { title: '策略名称', dataIndex: 'bizName', key: 'bizName' },
+  { title: '可见性', key: 'visibility', width: 76 },
+  { title: '大小上限', dataIndex: 'maxSizeMb', key: 'maxSizeMb', width: 84 },
+  { title: '允许扩展名', dataIndex: 'allowedExt', key: 'allowedExt', width: 240 },
+  { title: '状态', key: 'enabled', width: 68 },
+  { title: '文件数', key: 'cnt', width: 76 },
+  { title: '占用空间', key: 'bytes', width: 96 }
 ]
 const trendColumns = [
   { title: '日期', dataIndex: 'day', key: 'day', width: 130 },

@@ -113,7 +113,7 @@ function onUserMenuClick({ key }: { key: string }) {
         </a-menu>
       </a-layout-sider>
 
-      <a-layout-content class="content" :class="{ 'is-fixed': currentPath === '/jobs' }">
+      <a-layout-content class="content" :class="{ 'is-fixed': currentPath === '/jobs' || currentPath === '/logs' }">
         <RouterView />
       </a-layout-content>
     </a-layout>

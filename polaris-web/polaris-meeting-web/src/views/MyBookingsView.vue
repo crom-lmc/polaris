@@ -1,13 +1,18 @@
 <template>
   <div class="ft-page">
     <section class="ft-head tabs-head">
-      <div class="tabs">
+      <div class="tabs" :class="{ 'mobile-tabs': mobile }">
         <button v-for="t in tabs" :key="t.key" :class="{ active: tab === t.key }" @click="switchTab(t.key)">
           {{ t.label }} <em>{{ counts[t.key] || 0 }}</em>
         </button>
       </div>
     </section>
-    <section class="ft-head toolbar">
+    <section v-if="mobile" class="ft-head mobile-toolbar">
+      <a-button size="small" @click="filterOpen = true">筛选<span v-if="activeFilterCount"> ·{{ activeFilterCount }}</span></a-button>
+      <span class="mt-hint">仅显示本人创建的预定</span>
+      <a-button size="small" @click="reload">刷新</a-button>
+    </section>
+    <section v-else class="ft-head toolbar">
       <a-select v-model:value="city" :options="cityOptions" placeholder="城市" style="width: 120px" allow-clear @change="reload" />
       <a-select v-model:value="status" :options="statusOptions" placeholder="状态" style="width: 130px" allow-clear @change="reload" />
       <a-input-search v-model:value="keyword" placeholder="主题/预定单号" style="width: 190px" allow-clear @search="reload" />
@@ -17,7 +22,36 @@
       <span class="hint">仅显示本人创建的预定；被邀请人可从消息链接查看会议详情</span>
     </section>
 
-    <section class="ft-scroll ft-bottom">
+    <!-- 移动端：卡片列表，字段与表格完全一致 -->
+    <section v-if="mobile" class="ft-scroll mobile-booking-scroll">
+      <div v-if="!loading && !visibleRows.length" class="mobile-empty">
+        <a-empty description="暂无预定" />
+      </div>
+      <div v-for="record in visibleRows" :key="record.id" class="booking-card">
+        <div class="bc-head">
+          <strong>{{ record.roomName || '会议室' }}</strong>
+          <a-tag :color="statusColor(record.status)">{{ statusText(record) }}</a-tag>
+        </div>
+        <div class="bc-time">{{ record.startTime?.slice(0, 10) }} {{ timeRange(record) }}</div>
+        <div class="bc-title">{{ record.title }}</div>
+        <div class="bc-loc" v-if="record.location">{{ record.location }}</div>
+        <div class="bc-actions">
+          <a @click="openDetail(record.id)">详情</a>
+          <a v-if="record.status === 'PENDING' && store.can('meeting:booking:create')" @click="openEdit(record)">修改</a>
+          <a v-if="record.status === 'PENDING' && store.can('meeting:booking:checkin')" @click="act('checkin', record)">签到</a>
+          <a v-if="record.status === 'CHECKED_IN' && store.can('meeting:booking:extend')" @click="openExtend(record)">延时</a>
+          <a v-if="record.status === 'PENDING' && store.can('meeting:booking:cancel')" @click="act('cancel', record)">取消</a>
+          <a v-if="['PENDING','CHECKED_IN'].includes(record.status) && store.can('meeting:booking:release')"
+             @click="act('release', record)">释放</a>
+        </div>
+      </div>
+      <div v-if="visibleRows.length && rows.length < total" class="load-more">
+        <a-button size="small" :loading="loading" @click="loadMore">加载更多</a-button>
+      </div>
+      <div v-else-if="visibleRows.length" class="load-end">没有更多了</div>
+    </section>
+
+    <section v-else class="ft-scroll ft-bottom">
       <a-table class="ft-table booking-table" row-key="id" :columns="columns" :data-source="rows"
                :class="{ 'tbl-empty-mode': !loading && !rows.length }"
                :loading="loading" :pagination="pagination" @change="onTableChange"
@@ -105,11 +139,38 @@
       <p>当前结束：{{ editing?.endTime }}</p>
       <a-time-picker v-model:value="extendTime" format="HH:mm" :minute-step="30" :use12-hours="false" />
     </a-modal>
+
+    <a-modal v-model:open="filterOpen" title="筛选预定" :width="'100%'" centered :footer="null">
+      <a-form layout="vertical">
+        <a-form-item label="会议室">
+          <span v-if="roomFilter" class="filter-room">仅看当前会议室 · {{ roomNameOf(roomFilter) }}
+            <a @click="roomFilter = ''">清除</a>
+          </span>
+          <span v-else class="muted">全部会议室</span>
+        </a-form-item>
+        <a-form-item label="城市">
+          <a-select v-model:value="city" :options="cityOptions" placeholder="全部城市" allow-clear />
+        </a-form-item>
+        <a-form-item label="状态">
+          <a-select v-model:value="status" :options="statusOptions" placeholder="全部状态" allow-clear />
+        </a-form-item>
+        <a-form-item label="主题/预定单号">
+          <a-input v-model:value="keyword" placeholder="输入关键词" allow-clear />
+        </a-form-item>
+        <a-form-item label="日期范围">
+          <a-range-picker v-model:value="rangeDates" format="YYYY-MM-DD" style="width: 100%" />
+        </a-form-item>
+      </a-form>
+      <div class="filter-modal-footer">
+        <a-button @click="resetMobileFilters">重置</a-button>
+        <a-button type="primary" @click="applyMobileFilters">查看结果</a-button>
+      </div>
+    </a-modal>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import dayjs from 'dayjs'
 import { message, Modal } from 'ant-design-vue'
@@ -123,6 +184,15 @@ import { useUserStore } from '@/stores/user'
 
 const store = useUserStore()
 const route = useRoute()
+/** 与 MeetingLayout / 预定页共用 767px 断点 */
+const mobile = ref(false)
+const mq = window.matchMedia('(max-width: 767px)')
+const syncMobile = () => { mobile.value = mq.matches }
+onMounted(() => { syncMobile(); mq.addEventListener('change', syncMobile) })
+onBeforeUnmount(() => mq.removeEventListener('change', syncMobile))
+/** 从会议室简介/时间选择页跳过来时只看该会议室的预定记录 */
+const roomFilter = ref((route.query.room as string) || '')
+const filterOpen = ref(false)
 const tabs = [
   { key: 'booked', label: '已预约' }, { key: 'started', label: '已开始' },
   { key: 'ended', label: '已结束' }, { key: 'cancelled', label: '已取消' }
@@ -136,6 +206,24 @@ const keyword = ref('')
 /** 查询类日期范围默认最近 7 天（含今天），与平台规范一致 */
 const rangeDates = ref<[dayjs.Dayjs, dayjs.Dayjs] | null>([dayjs().subtract(6, 'day').startOf('day'), dayjs()])
 const rows = ref<Booking[]>([])
+const visibleRows = computed(() => roomFilter.value ? rows.value.filter(r => r.roomId === roomFilter.value) : rows.value)
+function roomNameOf(id: string) { return rows.value.find(r => r.roomId === id)?.roomName || id }
+const activeFilterCount = computed(() => {
+  const from = rangeDates.value?.[0].format('YYYY-MM-DD')
+  const to = rangeDates.value?.[1].format('YYYY-MM-DD')
+  const dateChanged = from !== dayjs().subtract(6, 'day').format('YYYY-MM-DD') || to !== dayjs().format('YYYY-MM-DD')
+  return (city.value ? 1 : 0) + (status.value ? 1 : 0) + (keyword.value ? 1 : 0) +
+    (roomFilter.value ? 1 : 0) + (dateChanged ? 1 : 0)
+})
+function resetMobileFilters() {
+  city.value = undefined
+  status.value = undefined
+  keyword.value = ''
+  roomFilter.value = ''
+  rangeDates.value = [dayjs().subtract(6, 'day').startOf('day'), dayjs()]
+}
+function applyMobileFilters() { filterOpen.value = false; reload() }
+function loadMore() { page.value += 1; void load(true) }
 const loading = ref(false)
 const saving = ref(false)
 const page = ref(1)
@@ -198,8 +286,8 @@ function timeRange(record: Booking) {
 function endSlotOf(record: Booking) { return midnightEnd(record) ? '24:00' : record.endTime.slice(11, 16) }
 function endDateTime(date: string, end: string) {
   return end === '24:00'
-    ? `${dayjs(date).add(1, 'day').format('YYYY-MM-DD')} 00:00:00`
-    : `${date} ${end}:00`
+    ? `${dayjs(date).add(1, 'day').format('YYYY-MM-DD')}T00:00:00`
+    : `${date}T${end}:00`
 }
 const columns = [
   { title: '主题', key: 'title', width: 200 },
@@ -223,7 +311,7 @@ async function loadCounts() {
     }))
   } catch { /* 角标失败不影响列表 */ }
 }
-async function load() {
+async function load(append = false) {
   loading.value = true
   try {
     const res = await listBookings({
@@ -231,7 +319,8 @@ async function load() {
       from: rangeDates.value?.[0].format('YYYY-MM-DD'), to: rangeDates.value?.[1].format('YYYY-MM-DD'),
       page: page.value, size: size.value
     })
-    rows.value = res.list || []
+    const list = res.list || []
+    rows.value = append ? [...rows.value, ...list] : list
     total.value = res.total || 0
   } catch (e: any) { message.error(e?.message || '加载预定失败') }
   finally { loading.value = false }
@@ -277,7 +366,7 @@ async function submitExtend() {
     const base = dayjs(editing.value.endTime.replace(' ', 'T'))
     let target = base.hour(extendTime.value.hour()).minute(extendTime.value.minute()).second(0).millisecond(0)
     if (!target.isAfter(base)) target = target.add(1, 'day')
-    const endTime = target.format('YYYY-MM-DD HH:mm:ss')
+    const endTime = target.format('YYYY-MM-DDTHH:mm:ss')
     await extendBooking(editing.value.id, endTime)
     message.success('延时成功')
     extendOpen.value = false
@@ -341,7 +430,7 @@ async function submitEdit() {
   try {
     await updateBooking(editing.value.id, {
       roomId: editForm.roomId, title: editForm.title,
-      startTime: `${editForm.date} ${editRange.value.start}:00`,
+      startTime: `${editForm.date}T${editRange.value.start}:00`,
       endTime: endDateTime(editForm.date, editRange.value.end),
       attendeeCount: editForm.attendeeCount, attendeeIds: editForm.attendeeIds, remark: editForm.remark
     })
@@ -377,5 +466,44 @@ onMounted(async () => {
 .booking-table { min-width: 1200px; }
 /* 空态无横向数据：去掉最小宽度，避免底部出现横向滚动条 */
 .booking-table.tbl-empty-mode { min-width: 0; }
-.slot-scroll { overflow-x: auto; }
+/* 与新建预定一致：宽屏弹窗内 48 格无需滚动，避免 overflow-x:auto 裁掉格子的时间提示 */
+.slot-scroll { overflow: visible; }
+/* ===== 移动端卡片列表：与表格字段同源，页签角标口径不变 ===== */
+.mobile-tabs { gap: 14px; overflow-x: auto; white-space: nowrap; scrollbar-width: none; }
+.mobile-tabs::-webkit-scrollbar { display: none; }
+.mobile-tabs button { flex: 0 0 auto; font-size: 13px; }
+.mobile-toolbar { display: flex; align-items: center; gap: 8px; padding: 8px 0 10px; }
+.mt-hint {
+  flex: 1 1 auto; min-width: 0; font-size: 11px; color: var(--text-secondary, #8c8c8c);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.mobile-booking-scroll { padding: 0 2px; }
+.booking-card {
+  background: var(--panel-bg, var(--header-bg)); border: 1px solid var(--border-subtle, #f0f0f0);
+  border-radius: 8px; padding: 10px 12px; margin-bottom: 10px;
+}
+.bc-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.bc-head strong {
+  font-size: 14px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.bc-head .ant-tag { margin: 0; flex: 0 0 auto; }
+.bc-time { font-size: 12px; color: var(--text-secondary, #8c8c8c); margin-top: 4px; }
+.bc-title {
+  font-size: 13px; margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.bc-loc {
+  font-size: 11px; color: var(--text-secondary, #8c8c8c); margin-top: 2px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.bc-actions {
+  display: flex; gap: 14px; margin-top: 8px; padding-top: 8px; font-size: 12px;
+  border-top: 1px dashed var(--border-subtle, #f0f0f0);
+}
+.mobile-empty { padding: 40px 0; }
+.load-more, .load-end {
+  text-align: center; padding: 10px 0 16px; font-size: 12px; color: var(--text-secondary, #8c8c8c);
+}
+.filter-room { font-size: 13px; }
+.filter-modal-footer { display: flex; gap: 8px; }
+.filter-modal-footer .ant-btn { flex: 1 1 0; }
 </style>

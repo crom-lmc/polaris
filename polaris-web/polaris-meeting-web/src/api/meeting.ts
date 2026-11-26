@@ -86,7 +86,9 @@ export const getEmployeeNames = (ids: string[]) =>
 
 export interface Overview {
   date: string
-  /** 所选日期的全平台有效预约数 */
+  /** 实际生效的地区过滤（空=全平台） */
+  city: string
+  /** 所选日期+地区的有效预约数 */
   meetingCount: number
   toCheckinCount: number
   inProgressCount: number
@@ -94,10 +96,19 @@ export interface Overview {
   /** 日期过滤最大可往后选择的天数（埋点 meeting.booking.max_advance_days） */
   maxDays: number
   calendar: Record<string, number>
+  /** 月历格子内展示的会议摘要（按开始时间升序） */
+  calendarEvents: Record<string, CalendarEvent[]>
   agenda: Booking[]
 }
-export const getOverview = (date?: string, month?: string) =>
-  request.get<never, Overview>('/api/meetingroom/overview', { params: { date, month } })
+export interface CalendarEvent {
+  bookingId: string
+  title: string
+  startTime: string
+  status: string
+  relation: 'CREATOR' | 'INVITEE'
+}
+export const getOverview = (date?: string, month?: string, city?: string) =>
+  request.get<never, Overview>('/api/meetingroom/overview', { params: { date, month, city } })
 
 export interface Slot {
   start: string
@@ -250,3 +261,47 @@ export const cancelBooking = (id: string) => request.post<never, void>(`/api/mee
 export const releaseBooking = (id: string) => request.post<never, void>(`/api/meetingroom/bookings/${id}/release`)
 
 export interface Employee { accountId: string; name: string; empNo: string }
+
+/** 爽约记录：status=RELEASED 且 releaseReason=NO_SHOW 的派生记录 */
+export interface NoShowRecord {
+  bookingId: string
+  bookingNo: string
+  title: string
+  roomId: string
+  roomName?: string
+  location?: string
+  city: string
+  startTime: string
+  endTime: string
+  /** 实际释放时刻 */
+  releasedAt?: string
+  creatorId: string
+  creatorName?: string
+}
+export interface NoShowPage { list: NoShowRecord[]; total: number }
+export const getNoShows = (scope: 'mine' | 'all', params: {
+  from?: string; to?: string; city?: string; page?: number; size?: number
+}) => request.get<never, NoShowPage>(`/api/meetingroom/stats/no-shows/${scope}`, { params })
+
+/** 会议室使用率：X 轴为会议室；仅 9-18 工作时间，重叠预约叠加后可超过 100% */
+export interface UsageStats {
+  city: string
+  from: string
+  to: string
+  workStart: string
+  workEnd: string
+  workMinutesPerRoom: number
+  totalRooms: number
+  items: UsageRoom[]
+}
+export interface UsageRoom {
+  roomId: string
+  roomName: string
+  city: string
+  location: string
+  bookings: number
+  usedMinutes: number
+  rate: number
+}
+export const getUsageStats = (params: { from?: string; to?: string; city?: string }) =>
+  request.get<never, UsageStats>('/api/meetingroom/stats/usage', { params })

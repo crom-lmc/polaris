@@ -12,11 +12,13 @@
 - 各应用 `src/utils/appTitle.ts` 动态取名；登录接口返回结构 sso/audit 读 `res.data`，其余读数组本体，跨应用复制必错。
 - 门户已并入 CMS 域名 `https://polaris-cms.laimengchao.site/portal/`；forum-admin 在 `/admin/`。
 - 全局登出调 `/api/auth/logout` 作废旧 token，不只清 localStorage。
+- 应用中心只展示 `/api/accounts/me/apps` 已授权应用；全员应用白名单 `PUBLIC_APP_CODES = ['portal','forum','meeting']`（接口失败时只保留全员 + 当前应用）。`file` 北极星云非全员应用，授权由账号显式维护，MUST NOT 加入白名单。
 
 ## 2. 文件与水印
 
 - 文件管理界面在 `polaris-file-web`（:5185，域名 `polaris-file.laimengchao.site`）。
-- 附件/合同/档案均以 `file_id` 关联，前端展示走已有 `/api/file/{public,secure,admin,legacy}/**`；PRIVATE 文件走 HMAC 签名 URL。
+- **上传+预览 MUST 都走统一文件服务**（红线）：上传走本业务服务的代理接口落 `fileId`（前端不做本地落盘、不自建上传页、不另存 URL）；预览用后端签发的临时 URL。范式可直接抄 meeting：`uploadRoomImage`（`api/meeting.ts`）用 `FileReader.readAsDataURL` → `POST /api/meetingroom/files/upload` → `{fileId,url}`；`RoomsView.vue` 把 `fileId` 存进表单、`a-image :src` 取签名 URL 预览，保存时提交 `fileIds`。
+- 附件/合同/档案均以 `file_id` 关联，前端展示走已有 `/api/file/{public,secure,admin,legacy}/**` 或后端签名 URL；PRIVATE 文件走 HMAC 签名 URL。
 - 水印覆盖图片、PDF、SVG、DOCX、XLSX、PPTX；**下载附件必须带水印**，不能只加在预览链路。
 - 水印设置是配置项且有真实引用点；新增菜单/按钮要挂权限码。
 

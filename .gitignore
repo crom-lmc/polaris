@@ -6,6 +6,9 @@ target/
 # 运行期日志与 PID
 logs/
 *.log
+# 放行前端页面源码目录（src/views/logs/ 会被上面的 logs/ 误伤，导致源码无法入库、构建缺文件）
+!polaris-web/polaris-job-web/src/views/logs/
+!polaris-web/polaris-job-web/src/views/logs/*.vue
 
 # 密钥材料：绝不入库（JWT 私钥、app-secret、内部 token、配置主密钥、管理口令备份）
 **/.secrets/

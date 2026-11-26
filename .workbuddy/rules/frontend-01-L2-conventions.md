@@ -14,6 +14,8 @@ level: L2
 - MUST 先核实本应用的响应解包（A：直接 `body.data` / B：sso、audit 需 `{data:T}` / C：forum-web fetch）、401 行为、token localStorage 键名、是否已有 `ft-*` 与 `useSessionGuard`。
 - MUST NOT 把 job 的 `quoteLongIntegers()` 转换绕过（19 位 ID 精度）；MUST NOT 跨应用照抄 API 层泛型。
 - MUST 请求集中在 `src/api/`，`baseURL:''` + `/api` 代理，`withCredentials:true` 保留中心会话；错误对象业务码优先、HTTP 码兜底。
+- **提交给 `LocalDateTime` 的时间**：MUST 用 ISO 8601（`dayjs(...).format('YYYY-MM-DDTHH:mm:ss')`，日期与时间之间是 `T`），MUST NOT 提交空格分隔的 `YYYY-MM-DD HH:mm:ss`——Jackson 默认只认 `T`，空格会直接导致 `HttpMessageNotReadableException`；后端返回的时间串展示时再 `replace('T', ' ')`。新建/修改预定、延时曾因此整批提交失败。
+- **顶栏用户名展示**：MUST 展示中文昵称（JWT payload 的 `nick` claim），MUST NOT 直接展示登录名/英文拼音。网关按约定不注入中文头（`X-Account-Name` 是登录名），下游 `/me` 若也把它当姓名返回，前端须自行从 accessToken 解出 `nick` 作为 `displayName`，失败再回退登录名；解析只用于展示、不参与鉴权。
 
 ## 组件、权限与路由
 
@@ -27,6 +29,10 @@ level: L2
 ## 表格与交互
 
 **列表页骨架**：MUST 用 `<section class="ft-page"><section class="ft-head">…<section class="ft-scroll ft-bottom">`；`ft-scroll` 是唯一滚动容器，`ft-bottom` 让分页 margin:auto 贴底 + sticky bottom:0（z-index 5）。
+
+**分页与日期筛选口径**：
+- MUST 列表默认 `pageSize: 20`、开 `showSizeChanger`；MUST NOT 写死 5 或更小的每页条数（meeting 爽约记录页曾写死 5 被要求改）。换每页条数时回到第 1 页，翻页/换 size 走同一 `@change` 入口。
+- MUST 查询用的 `a-range-picker` 允许清空（`allow-clear` 默认开，MUST NOT 写 `:allow-clear="false"`），清空即「不限日期」——前端传空 from/to，后端不得兜底回「最近 7 天」；默认值可用最近一周，但用户清空后必须真正查全部（meeting 爽约记录页曾前后端同时踩坑）。
 
 **空数据铺满 + 分页固定（三条必须同时落地）**：
 - MUST 在 `a-table` 上绑定空态触发类 `:class="{ 'tbl-empty-mode': !loading && !rows.length }"`（`rows` 为本页数据数组名），并在 `#emptyText` 插槽用 `<div class="tbl-empty"><a-empty v-if="!loading" description="…" /></div>`。
@@ -64,6 +70,7 @@ level: L2
 - MUST 应用中心签码先同步开窗，再 `POST /api/auth/oauth/authorize`；callback 用注册的完整 `redirect_uri`，state 与 `expired=1` 分支保留。
 - MUST 回调页必须选一种 state 校验口径（多数仅 warn、forum 系阻断），并过滤 redirect 不以 `/callback` 开头防自循环。
 - MUST 门户/论坛前台 `v-if="store.isLoggedIn"` 才渲染应用中心；正式应用名（含应用中心卡片、布局标题、浏览器标签、favicon 无障碍名）从 `sso_application.name`（`/api/accounts/me/apps`）动态取，MUST NOT 在 `AppCenterNav.vue` 的 `ALL_APPS` 里写死展示名；接口失败才用兜底名。
+- **应用中心授权过滤**：MUST 只展示 `/api/accounts/me/apps` 返回的已授权应用，外加全员应用 `portal`/`forum`/`meeting` 与当前应用；接口失败时收敛为「全员应用 + 当前应用」，MUST NOT 把 `ALL_APPS` 全量写死展示（谢强强仅 5 个应用却在应用中心看到 12 个曾造成误解）；`file` 北极星云非全员应用，MUST NOT 加入 `PUBLIC_APP_CODES`。
 - MUST 全局登出调用 `/api/auth/logout` 作废旧 token，MUST NOT 只清 localStorage。
 
 ## 工程与交付

@@ -117,10 +117,12 @@ const columns = [
 - [ ] 菜单/按钮权限码与后端一致，未新建 `v-perm`
 - [ ] 本应用 `public/favicon.svg` 与应用中心 `icons/<code>.svg` 图形/配色一致，Nginx 对 `favicon.svg` 禁缓存；应用中心卡片名从 `/api/accounts/me/apps` 动态取，不写死 `ALL_APPS.name`（meeting 改名后曾仍显示旧名）
 - [ ] 表格 `ft-scroll ft-bottom` 分页固定右下；`.ft-table` sticky 固定操作列，左对齐不换行；页签角标与列表共用筛选条件并同步刷新（范围内无数据时角标为 0）；空表无横向滚动条（`:scroll` 按数据条数条件绑定）
+- [ ] 列表默认每页 20 条并开 `showSizeChanger`（不写死 5），翻页/换 size 走同一 `@change`，换 size 回到第 1 页（meeting 爽约记录页曾写死 5）
 - [ ] 表头 `align` 与列内容一致，无错位
 - [ ] 状态/枚举比较与提交值同后端常量、字典 value 一致，未在前端另造编码
 - [ ] 长文本省略 + tooltip，无 JS 硬截断；label 与 hint 用 `&nbsp;`
 - [ ] 查询/筛选/统计日期范围默认最近 7 天（含今天），重置同样回到最近 7 天；表单录入类与月份统计除外；单日期统计过滤默认今天且不可选过去日期、最大可选日期来自配置（meeting 概览曾因此统计为 0）
+- [ ] 查询日期选择器允许清空（不加 `:allow-clear="false"`），清空即「不限日期」需前后端同时生效：前端传空 from/to，后端不得兜底回最近 7 天（meeting 爽约记录页曾前后端一起踩坑）
 - [ ] PC / Pad 下验证过，无横向溢出，侧栏抽屉正常
 - [ ] 浅色/深色两套主题都验证过，颜色走 CSS 变量
 - [ ] SSO 回调用注册的完整 `redirect_uri`，state 与 `expired=1` 分支保留

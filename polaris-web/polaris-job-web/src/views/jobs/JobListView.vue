@@ -65,6 +65,7 @@ const statusOptions = [
 
 const columns = [
   { title: '任务名称', key: 'name', dataIndex: 'name' },
+  { title: '所属应用', key: 'appCode', dataIndex: 'appCode', width: 110 },
   { title: '调度计划', key: 'plan', width: 190 },
   { title: '状态 / 最近结果', key: 'state', width: 230 },
   { title: '操作', key: 'action', width: 250 }
@@ -536,7 +537,7 @@ async function removeJob() {
         :columns="columns"
         :data-source="rows"
         :pagination="pagination"
-        :scroll="{ x: 960, y: scrollY }"
+        :scroll="{ x: 1040, y: scrollY }"
         @change="onTableChange"
       >
         <template #bodyCell="{ column, record }">
@@ -544,9 +545,11 @@ async function removeJob() {
             <div class="job-name">
               <a-tooltip v-if="record.name" :title="record.name"><span class="cell-ellipsis">{{ record.name }}</span></a-tooltip>
               <span v-else>-</span>
-              <a-tag color="blue" class="app-tag">{{ appLabel(record.appCode) }}</a-tag>
             </div>
             <div class="text-secondary mono">{{ record.handler }}</div>
+          </template>
+          <template v-else-if="column.key === 'appCode'">
+            <a-tag color="blue" class="app-tag">{{ appLabel(record.appCode) }}</a-tag>
           </template>
           <template v-else-if="column.key === 'plan'">
             <div class="mono">{{ triggerText(record) }}</div>
