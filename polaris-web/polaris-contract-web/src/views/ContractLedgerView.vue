@@ -6,7 +6,7 @@ import { useIsMobile } from '@/composables/useIsMobile'
 import { useOrgDirectory, filterOption as orgFilterOption } from '@/composables/useOrgDirectory'
 import {
   listContracts, getContractStats, getContract, saveContract, updateContract, deleteContract, changeContractStatus,
-  listContractChanges, getProjectOptions, listPartners,
+  listContractChanges, getProjectOptions, listPartners, fetchBudgetSubjectOptions,
   type ContractVO, type ContractSave, type ContractStats, type ProjectOptionVO, type ChangeLogVO
 } from '@/api/contract'
 import { yuan } from '@/utils/format'
@@ -42,6 +42,8 @@ const statusOptions = Object.entries(statusLabel).map(([value, label]) => ({ val
 
 const projectOptions = ref<{ label: string; value: string }[]>([])
 const partnerOptions = ref<{ label: string; value: string }[]>([])
+const budgetSubjectOptions = ref<{ label: string; value: string }[]>([])
+const sourceLabel: Record<string, string> = { DIRECT: '直接新建', FROM_PLAN: '计划转入' }
 
 const pagination = computed(() => ({
   current: query.page, pageSize: query.size, total: total.value, showSizeChanger: true,
@@ -76,11 +78,18 @@ async function loadOptions() {
     const res = await listPartners({ page: 1, size: 200 })
     partnerOptions.value = (res.records || []).map((p) => ({ label: `${p.code} · ${p.name}`, value: p.code }))
   } catch { partnerOptions.value = [] }
+  try {
+    const list = await fetchBudgetSubjectOptions() || []
+    const seen = new Map<string, string>()
+    list.forEach((s) => { if (s.name && !seen.has(s.name)) seen.set(s.name, s.code) })
+    budgetSubjectOptions.value = [...seen.entries()].map(([name, code]) => ({ label: `${code} · ${name}`, value: name }))
+  } catch { budgetSubjectOptions.value = [] }
 }
 
 const columns = [
   { title: '合同编号', dataIndex: 'no', key: 'no', width: 170 },
   { title: '类型', key: 'type', align: 'center' as const, width: 100 },
+  { title: '来源', key: 'contractSource', align: 'center' as const, width: 90 },
   { title: '合同名称', key: 'name', width: 230 },
   { title: '对方单位', key: 'partnerName', width: 180 },
   { title: '所属项目', key: 'projectName', width: 180 },
@@ -100,12 +109,12 @@ const createOpen = ref(false)
 const saving = ref(false)
 const createForm = reactive<ContractSave>({
   type: 'PURCHASE', name: '', partnerCode: '', projectNo: undefined, dept: '', owner: '',
-  signedDate: undefined, effectiveDate: undefined, endDate: undefined, paymentTerms: '', subject: ''
+  signedDate: undefined, effectiveDate: undefined, endDate: undefined, paymentTerms: '', subject: '', budgetSubject: undefined
 })
 function resetCreate() {
   Object.assign(createForm, {
     type: 'PURCHASE', name: '', partnerCode: '', projectNo: undefined, dept: '', owner: '',
-    signedDate: undefined, effectiveDate: undefined, endDate: undefined, paymentTerms: '', subject: ''
+    signedDate: undefined, effectiveDate: undefined, endDate: undefined, paymentTerms: '', subject: '', budgetSubject: undefined
   })
 }
 function openCreate() { resetCreate(); createOpen.value = true }
@@ -194,7 +203,7 @@ onMounted(() => { load(); loadOptions(); loadOrgDirectory() })
       </div>
       <a-table class="ft-table" row-key="id" :columns="columns" :data-source="rows" :loading="loading"
                :pagination="pagination" :class="{ 'tbl-empty-mode': !loading && !rows.length }"
-               :scroll="rows.length ? { x: 1950 } : undefined">
+               :scroll="rows.length ? { x: 2040 } : undefined">
         <template #bodyCell="{ column, record }">
           <template v-if="column.key === 'name'">
             <a-tooltip :title="record.name"><span class="cell-ellipsis">{{ record.name }}</span></a-tooltip>
@@ -210,6 +219,11 @@ onMounted(() => { load(); loadOptions(); loadOrgDirectory() })
           </template>
           <template v-else-if="column.key === 'type'">
             <a-tag :color="record.type === 'PURCHASE' ? 'geekblue' : 'purple'">{{ typeLabel[record.type] || record.type }}</a-tag>
+          </template>
+          <template v-else-if="column.key === 'contractSource'">
+            <a-tag :color="record.contractSource === 'FROM_PLAN' ? 'blue' : 'default'">
+              {{ sourceLabel[record.contractSource] || record.contractSource || '直接新建' }}
+            </a-tag>
           </template>
           <template v-else-if="['amount', 'paidAmount', 'inFlightAmount', 'pendingAmount'].includes(String(column.key))">
             {{ yuan(record[column.key as 'amount' | 'paidAmount' | 'inFlightAmount' | 'pendingAmount']) }}
@@ -248,6 +262,12 @@ onMounted(() => { load(); loadOptions(); loadOrgDirectory() })
               <a-descriptions-item label="签订 / 生效 / 到期">{{ detail.signedDate || '-' }} / {{ detail.effectiveDate || '-' }} / {{ detail.endDate || '-' }}</a-descriptions-item>
               <a-descriptions-item label="付款条款">{{ detail.paymentTerms || '-' }}</a-descriptions-item>
               <a-descriptions-item label="合同标的">{{ detail.subject || '-' }}</a-descriptions-item>
+              <a-descriptions-item label="预算科目">{{ detail.budgetSubject || '-' }}</a-descriptions-item>
+              <a-descriptions-item label="来源">
+                <a-tag :color="detail.contractSource === 'FROM_PLAN' ? 'blue' : 'default'">
+                  {{ sourceLabel[detail.contractSource] || detail.contractSource || '直接新建' }}
+                </a-tag>
+              </a-descriptions-item>
               <a-descriptions-item label="合同金额">{{ yuan(detail.amount) }}</a-descriptions-item>
               <a-descriptions-item label="已入账 / 在途 / 待支付">{{ yuan(detail.paidAmount) }} / {{ yuan(detail.inFlightAmount) }} / {{ yuan(detail.pendingAmount) }}</a-descriptions-item>
               <a-descriptions-item label="执行进度">{{ detail.progress }}%</a-descriptions-item>
@@ -347,6 +367,10 @@ onMounted(() => { load(); loadOptions(); loadOrgDirectory() })
           </a-row>
           <a-form-item label="付款条款"><a-input v-model:value="createForm.paymentTerms" /></a-form-item>
           <a-form-item label="合同标的"><a-input v-model:value="createForm.subject" /></a-form-item>
+          <a-form-item label="预算科目">
+            <a-select v-model:value="createForm.budgetSubject" :options="budgetSubjectOptions" placeholder="从财务主数据选择（选填）"
+                      allow-clear show-search :filter-option="filterOption" style="width: 100%" />
+          </a-form-item>
         </a-card>
       </a-form>
       <template #footer>

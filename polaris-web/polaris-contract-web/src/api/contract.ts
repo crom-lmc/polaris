@@ -256,7 +256,12 @@ export interface ContractVO {
   endDate: string
   status: string
   paymentTerms: string
+  /** 合同标的 */
   subject: string
+  /** 预算科目（财务主数据名称） */
+  budgetSubject: string
+  /** 来源 DIRECT 直接新建 / FROM_PLAN 采购计划转入 */
+  contractSource: string
   orgCode: string
   amount: number
   paidAmount: number
@@ -281,7 +286,10 @@ export interface ContractSave {
   endDate?: string
   status?: string
   paymentTerms?: string
+  /** 合同标的 */
   subject?: string
+  /** 预算科目（财务主数据名称） */
+  budgetSubject?: string
   orgCode?: string
   /** 变更原因（仅用于变更留痕） */
   remark?: string

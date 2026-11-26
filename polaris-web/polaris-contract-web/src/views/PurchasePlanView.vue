@@ -190,8 +190,10 @@ const convertOpen = ref(false)
 const convertSaving = ref(false)
 const convertId = ref('')
 const convertForm = reactive({ partnerCode: undefined as string | undefined, projectNo: '', dept: '', owner: '', paymentTerms: '', subject: '' })
+const convertBudgetSubject = ref('')
 function openConvert(id: string) {
   convertId.value = id
+  convertBudgetSubject.value = rows.value.find((r) => r.id === id)?.budgetSubject || ''
   convertForm.partnerCode = undefined
   convertForm.projectNo = ''
   convertForm.dept = ''
@@ -332,6 +334,10 @@ onMounted(() => { load(); loadOptions(); loadOrgDirectory(); loadBudgetSubjects(
         </a-row>
         <a-form-item label="付款条款"><a-input v-model:value="convertForm.paymentTerms" /></a-form-item>
         <a-form-item label="合同标的"><a-input v-model:value="convertForm.subject" /></a-form-item>
+        <a-form-item label="预算科目">
+          <a-input :value="convertBudgetSubject || '未设置'" readonly placeholder="自动取采购计划的预算科目" />
+          <span class="panel-hint">预算科目固定取采购计划值，转入后不可在此改写</span>
+        </a-form-item>
       </a-form>
       <template #footer>
         <div class="drawer-footer">
