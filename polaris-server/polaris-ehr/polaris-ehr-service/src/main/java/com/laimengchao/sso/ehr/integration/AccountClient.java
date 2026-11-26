@@ -31,7 +31,7 @@ public class AccountClient {
     private static final String EMBED_DEFAULT_APPS = "ehr.account.default-apps";
     /** 配置中心读不到时的内置兜底角色 / 应用 */
     private static final List<String> FALLBACK_ROLES = List.of("EMPLOYEE_SELF");
-    private static final List<String> FALLBACK_APPS = List.of("sso-center", "portal", "ehr");
+    private static final List<String> FALLBACK_APPS = List.of("sso-center", "portal", "ehr", "forum", "meeting");
 
     private final AccountApi accountApi;
     private final EmbedPointReader embedPointReader;

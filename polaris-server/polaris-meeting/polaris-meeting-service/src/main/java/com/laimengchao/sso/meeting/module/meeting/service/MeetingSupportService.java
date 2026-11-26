@@ -132,7 +132,8 @@ public class MeetingSupportService {
         try {
             EmbedPointDTO point = settingsClient.embedPoint(code);
             if (point == null || point.getValue() == null || point.getValue().isBlank()) {
-                log.error("埋点 {} 未配置，使用内置兜底值", code);
+                // 埋点缺失/配置中心短暂不可用时走内置兜底是预期路径，不该记 ERROR。
+                log.warn("埋点 {} 未配置，使用内置兜底值", code);
                 return null;
             }
             return objectMapper.readTree(point.getValue());

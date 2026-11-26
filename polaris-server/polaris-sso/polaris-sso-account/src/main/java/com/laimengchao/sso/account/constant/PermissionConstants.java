@@ -319,24 +319,48 @@ public final class PermissionConstants {
     public static final String MEETING_BOOKING_EXTEND = "meeting:booking:extend";
     public static final String MEETING_BOOKING_CANCEL = "meeting:booking:cancel";
     public static final String MEETING_BOOKING_RELEASE = "meeting:booking:release";
+    /* —— 统计：爽约记录（全员）/ 全部爽约与使用率（仅会议室管理员） —— */
+    public static final String MEETING_NOSHOW_VIEW = "meeting:noshow:view";
+    public static final String MEETING_NOSHOW_ALL = "meeting:noshow:all";
+    public static final String MEETING_USAGE_VIEW = "meeting:usage:view";
 
     /**
-     * 会议室管理内置权限：4 个菜单 + 6 个按钮。
+     * 会议室管理内置权限：6 个菜单 + 7 个按钮。
      * <p>位置维护与会议室维护共用 room:list 父级；预定页按钮挂 booking:view；
-     * 我的预定页按钮挂 booking:list。超管全量授权由 initSuperAdmin 覆盖。
+     * 我的预定页按钮挂 booking:list；查看全部爽约挂 noshow:view。超管全量授权由 initSuperAdmin 覆盖。
      */
     public static final java.util.List<PermDef> MEETING_BUILTIN = java.util.List.of(
             new PermDef("概览", MEETING_OVERVIEW_VIEW, PermissionType.MENU, null, 1),
             new PermDef("位置与会议室维护", MEETING_ROOM_LIST, PermissionType.MENU, null, 2),
             new PermDef("会议室预定", MEETING_BOOKING_VIEW, PermissionType.MENU, null, 3),
             new PermDef("我的预定", MEETING_BOOKING_LIST, PermissionType.MENU, null, 4),
+            new PermDef("爽约记录", MEETING_NOSHOW_VIEW, PermissionType.MENU, null, 5),
+            new PermDef("会议室使用率", MEETING_USAGE_VIEW, PermissionType.MENU, null, 6),
             new PermDef("维护位置与会议室", MEETING_ROOM_EDIT, PermissionType.BUTTON, MEETING_ROOM_LIST, 1),
             new PermDef("新建/修改预定", MEETING_BOOKING_CREATE, PermissionType.BUTTON, MEETING_BOOKING_VIEW, 1),
             new PermDef("签到", MEETING_BOOKING_CHECKIN, PermissionType.BUTTON, MEETING_BOOKING_LIST, 1),
             new PermDef("延时", MEETING_BOOKING_EXTEND, PermissionType.BUTTON, MEETING_BOOKING_LIST, 2),
             new PermDef("取消预定", MEETING_BOOKING_CANCEL, PermissionType.BUTTON, MEETING_BOOKING_LIST, 3),
-            new PermDef("释放会议室", MEETING_BOOKING_RELEASE, PermissionType.BUTTON, MEETING_BOOKING_LIST, 4)
+            new PermDef("释放会议室", MEETING_BOOKING_RELEASE, PermissionType.BUTTON, MEETING_BOOKING_LIST, 4),
+            new PermDef("查看全部爽约", MEETING_NOSHOW_ALL, PermissionType.BUTTON, MEETING_NOSHOW_VIEW, 1)
     );
+
+    /**
+     * 默认角色授权：全员基础预定 + 我的爽约；会议室管理员额外拿到维护与使用统计。
+     * 与 deploy/sql/20-meeting-admin-stats.sql 保持一致，只增不减。
+     */
+    public static final java.util.List<String> MEETING_SELF_ROLE_CODES = java.util.List.of("EMPLOYEE_SELF");
+    public static final String[] MEETING_SELF_PERMISSIONS = {
+            MEETING_OVERVIEW_VIEW, MEETING_BOOKING_VIEW, MEETING_BOOKING_LIST,
+            MEETING_BOOKING_CREATE, MEETING_BOOKING_CHECKIN, MEETING_BOOKING_CANCEL,
+            MEETING_NOSHOW_VIEW
+    };
+    public static final java.util.List<String> MEETING_ADMIN_ROLE_CODES = java.util.List.of("MEETING_ADMIN");
+    public static final String[] MEETING_ADMIN_PERMISSIONS = {
+            MEETING_NOSHOW_ALL, MEETING_USAGE_VIEW
+    };
+    public static final java.util.List<String> MEETING_USER_ROLE_CODES = java.util.List.of("MEETING_USER");
+    public static final String[] MEETING_USER_PERMISSIONS = { MEETING_NOSHOW_VIEW };
 
     /* ---------- 业务应用 forum（社区论坛）的内置权限 ---------- */
 

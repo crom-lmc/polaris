@@ -86,8 +86,9 @@ public class MeetingMetaController {
     public R<MeetingVOs.OverviewVO> overview(
             @RequestParam(value = "date", required = false)
             @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,
-            @RequestParam(value = "month", required = false) String month) {
-        return R.ok(bookingService.overview(date, month));
+            @RequestParam(value = "month", required = false) String month,
+            @RequestParam(value = "city", required = false) String city) {
+        return R.ok(bookingService.overview(date, month, city));
     }
 
     @GetMapping("/schedule")

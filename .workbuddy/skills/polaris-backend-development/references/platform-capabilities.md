@@ -7,6 +7,10 @@
 
 - 调用链：业务服务 → `file-client` 的 `FileApi`（`/internal/files/**`）→ `file-service`（库 `polaris_file`）。
 - 数据模型：`file_object`（对象元数据）、`file_storage_policy`（存储策略）、`file_alias`（业务别名）。**业务表只存 `file_id`，不自建附件表、不另存 URL**。
+- **上传+预览全链路 MUST 走文件服务**（红线）：上传 `FileApi.upload`（`FileUploadRequest.content` 用 base64 内联是契约传输方式，不是自建 base64 落库）；预览 `FileApi.sign` 出临时 URL；PRIVATE 下载带水印。MUST NOT 本地 `MultipartFile` 落盘、`@Value` 自定义上传根目录、静态资源映射、base64 直存业务表、或以"统一服务失败"为由降级本地磁盘。
+- **新 bizType 必须同步登记 `file_storage_policy`**（红线）：`FileService.policy(bizType)` 按 `biz_type` 精确匹配 + `enabled=1`，查不到抛 `POLICY_NOT_FOUND(8102)`/HTTP 404，**无 default 兜底、不会自动建策略**。新增上传接口写了 bizType 却漏登记策略，上传必然失败（meeting `meeting_room_image` 曾踩此坑）。登记方式：`file-service/src/main/resources/data.sql` 加固定 ID 种子（FILE_SQL_INIT_MODE=always 时重启自动写入）+ `deploy/sql/NN-*.sql` 加同 id 的 `INSERT IGNORE`（never 模式手工执行）。策略只管 `maxSizeMb`/`allowedExt`/`defaultVisibility`/`forcePrivate`/`quotaGb`/`ttlDays`，不管 bucket/path/签名。
+- 新增上传接口范式（可直接抄）：meeting `RoomFileController.upload` 收 `{originalName, contentType, content(base64)}` → `fileApi.upload(bizType/visibility/owner/uploaderId)` → 返回 `fileId + sign 后的 url`；`RoomService.decorate` 按 `file_ids` 逗号串逐个 `fileApi.sign` 回填 `roomImages` 给前端预览。业务表 `meeting_room.file_ids` 只存 id。
+- **存量本地回退只用于读历史**：CMS `LocalStorageService` + `WebMvcConfig` 静态映射、forum `ForumStorageService`、EHR `ehr.file-root` 是历史遗留，仅读取存量文件；新增上传 MUST NOT 复制这些降级分支。
 - 访问控制：PUBLIC 直链；PRIVATE 走 HMAC 签名 URL，不绕开签名接口直出。
 - 已实现能力（先复用）：附件（`file_id` 关联 + CMS 存量回填）、分享（提取码随机、有效期/次数限制）、回收站（标记删除与恢复）、配额（上传前校验，超限给业务错误码）、预览（图片/PDF）、水印（图片/PDF/SVG/DOCX/XLSX/PPTX；**下载链路也要加水印，不能只加在预览**）。
 - 水印设置是配置项且必须有真实引用点；新增菜单/按钮仍需权限码四联动。

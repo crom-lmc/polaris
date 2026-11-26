@@ -42,8 +42,9 @@ public class RoomController {
         return R.ok(roomService.list(city, buildingId, floorId, roomType, capacityTier, status, deviceCode, keyword));
     }
 
+    /** 预定弹窗的「会议室简介」也要读详情：只读放宽到预定页权限，维护列表仍限 room:list */
     @GetMapping("/{id}")
-    @Permit(PermissionCodes.MEETING_ROOM_LIST)
+    @Permit({PermissionCodes.MEETING_ROOM_LIST, PermissionCodes.MEETING_BOOKING_VIEW})
     public R<MeetingRoom> detail(@PathVariable("id") Long id) {
         MeetingRoom room = roomService.require(id);
         roomService.decorate(room);

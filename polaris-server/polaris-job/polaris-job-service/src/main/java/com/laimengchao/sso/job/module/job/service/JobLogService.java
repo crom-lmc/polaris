@@ -39,8 +39,15 @@ public class JobLogService {
         qw.eq(status != null, JobLog::getStatus, status);
         qw.ge(startTime != null, JobLog::getStartedAt, startTime);
         qw.le(endTime != null, JobLog::getStartedAt, endTime);
+        // 显式按雪花 ID 倒序（ID 单调递增，等价于执行时间倒序）：最新日志稳定落在第 1 页。
+        // 不加 ORDER BY 时 MySQL 按主键升序返回最老数据，前端只能反向映射页码，导致第一页只剩余数条。
+        qw.orderByDesc(JobLog::getId);
 
-        Page<JobLog> result = jobLogMapper.selectPage(new Page<>(page, pageSize), qw);
+        // job_log 有 output 列，JSqlParser 会把 output 当关键字导致 MP 自动 count 优化失败，
+        // 每次分页都刷 "optimize this sql to a count sql has exception" WARN；直接关掉该优化。
+        Page<JobLog> pageParam = new Page<>(page, pageSize);
+        pageParam.setOptimizeCountSql(false);
+        Page<JobLog> result = jobLogMapper.selectPage(pageParam, qw);
 
         // 关联回填任务名 / appCode / handler（尽量走索引 + 单次批量查）
         Map<Long, JobInfo> cache = new HashMap<>();

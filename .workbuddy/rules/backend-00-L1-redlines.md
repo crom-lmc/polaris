@@ -29,6 +29,8 @@ level: L1
 ## 平台契约
 
 - MUST 跨服务调用经 `*-client` 的 Feign 接口；`/internal/**` MUST 校验 `X-Internal-Token` 且 fail-closed。
+- MUST 所有附件/图片的**上传与预览**都走统一文件服务：上传经 `FileApi.upload`、业务表只存 `file_id`、预览经 `FileApi.sign` 出临时 URL；MUST NOT 自建附件表、本地磁盘落盘、`MultipartFile` 自写保存、base64 落库或本地静态资源映射回退（含"统一服务失败降级本地"）。存量本地回退只允许读取历史数据，新增上传路径 MUST 无条件走文件服务。
+- MUST 新增上传业务时，`bizType` 必须在 `file_storage_policy` 有对应启用策略（file-service 按 bizType 精确匹配且无兜底，缺策略上传直接 8102）；MUST 同步在 `file-service/src/main/resources/data.sql` 加种子并在 `deploy/sql/NN-*.sql` 加生产迁移，两者 `id` 一致。MUST NOT 只在代码写 bizType 而不登记策略，也 MUST NOT 复用其它业务的 bizType 绕过。
 - MUST 新表手工执行 schema（生产 `sql.init.mode=never`），MUST NOT 依赖启动自动建表。
 - MUST 所有配置类数据只在 settings 一处维护，MUST NOT 写死在服务本地表或代码常量。
 - MUST 匿名 `/public/**` 不在审计范围；登录后才能做的动作 MUST 全审计。

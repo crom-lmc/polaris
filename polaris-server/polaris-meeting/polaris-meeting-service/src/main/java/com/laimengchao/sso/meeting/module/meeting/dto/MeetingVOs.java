@@ -113,20 +113,36 @@ public final class MeetingVOs {
 
     @Data
     public static class OverviewVO {
-        /** 所选日期的全平台有效预约数（不含取消/释放） */
+        /** 实际生效的地区过滤（空=全平台） */
+        private String city;
+        /** 所选日期+地区的有效预约数（不含取消/释放） */
         private long meetingCount;
-        /** 所选日期待签到预约数（全平台） */
+        /** 所选日期+地区待签到预约数 */
         private long toCheckinCount;
-        /** 所选日期当前进行中的预约数（全平台） */
+        /** 所选日期+地区当前进行中的预约数 */
         private long inProgressCount;
-        /** 可用会议室数（全平台，与日期无关） */
+        /** 所选地区的可用会议室数（与日期无关） */
         private long availableRooms;
         /** 日期过滤可选的最大提前天数，来自埋点 meeting.booking.max_advance_days */
         private int maxDays;
-        /** yyyy-MM-dd → 本人创建或被邀请的会议数 */
+        /** yyyy-MM-dd → 本人创建或被邀请且属于所选地区的会议数 */
         private Map<String, Long> calendar;
+        /** yyyy-MM-dd → 当日会议摘要（用于月历格子内展示彩色标签），按开始时间升序 */
+        private Map<String, List<CalendarEventVO>> calendarEvents;
         private List<MeetingBooking> agenda;
         private LocalDate date;
+    }
+
+    /** 月历格子内的会议标签：只带展示所需字段，避免把整单塞进 VO */
+    @Data
+    public static class CalendarEventVO {
+        @JsonSerialize(using = ToStringSerializer.class)
+        private Long bookingId;
+        private String title;
+        private String startTime;
+        private String status;
+        /** CREATOR=本人创建，INVITEE=被邀请 */
+        private String relation;
     }
 
     @Data
@@ -141,5 +157,55 @@ public final class MeetingVOs {
         private MeetingBooking booking;
         /** 详情链接是否可访问（创建人或被邀请人） */
         private boolean canView;
+    }
+
+    /** 爽约记录：由 RELEASED + NO_SHOW 派生，不额外落表 */
+    @Data
+    public static class NoShowVO {
+        @JsonSerialize(using = ToStringSerializer.class)
+        private Long bookingId;
+        private String bookingNo;
+        private String title;
+        @JsonSerialize(using = ToStringSerializer.class)
+        private Long roomId;
+        private String roomName;
+        private String location;
+        private String city;
+        private LocalDateTime startTime;
+        private LocalDateTime endTime;
+        /** 实际释放时间（爽约判定发生时刻） */
+        private LocalDateTime releasedAt;
+        @JsonSerialize(using = ToStringSerializer.class)
+        private Long creatorId;
+        private String creatorName;
+    }
+
+    /** 会议室使用率：按 9:00–18:00 工作时间裁剪，重叠预约叠加，故可超过 100% */
+    @Data
+    public static class UsageVO {
+        private String city;
+        private LocalDate from;
+        private LocalDate to;
+        private String workStart;
+        private String workEnd;
+        /** 单间会议室在统计区间内的理论工作分钟数（天数 × 540） */
+        private long workMinutesPerRoom;
+        private int totalRooms;
+        private List<UsageItemVO> items;
+    }
+
+    @Data
+    public static class UsageItemVO {
+        @JsonSerialize(using = ToStringSerializer.class)
+        private Long roomId;
+        private String roomName;
+        private String city;
+        private String location;
+        /** 计入使用时长的有效预约数（不含取消/爽约释放） */
+        private int bookings;
+        /** 工作时间内重叠预约累计分钟数，可大于 workMinutesPerRoom */
+        private long usedMinutes;
+        /** usedMinutes / workMinutesPerRoom × 100，保留一位小数 */
+        private double rate;
     }
 }

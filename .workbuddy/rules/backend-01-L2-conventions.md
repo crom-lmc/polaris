@@ -69,6 +69,7 @@ level: L2
 - MUST `deploy/sql/NN-*` 编号递增、幂等，新变更新增脚本不改历史脚本。
 - MUST 存量补列走 `*SchemaInitializer`（查 `information_schema` 后 ALTER，失败只 warn），因 MySQL 5.7 不支持 `ADD COLUMN IF NOT EXISTS`。
 - MUST 手写 SQL 显式 `AND deleted=0`；唯一索引列为空存 `null` 而非空串；逻辑删除同码新增先查含 deleted 记录再 restore。
+- MUST 分页表若含 JSqlParser 关键字列（实证：`job_log.output`），在 `Page` 上 `setOptimizeCountSql(false)` 关闭 MyBatis-Plus count 优化，否则每次分页刷 `optimize this sql to a count sql has exception` WARN；MUST NOT 用「只是警告」放任。
 - MUST 新增错误码前查重（Ehr/Portal 7001、Settings/File 8101+、Job/Openapi 9001+ 已有碰撞）。
 
 ## 配置与审计
@@ -76,6 +77,7 @@ level: L2
 - MUST Nacos yaml 纯 ASCII、`optional:` 前缀保留、List 型配置整体覆盖；MUST NOT 用下标覆盖网关路由。
 - MUST 审计上报异步且失败只 warn；脱敏规则在 common `AuditDataMasker` 与 audit-client 两份，改一处 MUST 同步另一处。
 - MUST audit 服务自身关闭日志采集（`polaris.system-log.enabled=false`）防递归。
+- MUST 埋点缺失或配置中心短暂不可用而走内置兜底属预期路径，用 `WARN`（如 `meeting.booking.*`），MUST NOT 记 ERROR 制造假异常。
 
 ## 交付验证
 

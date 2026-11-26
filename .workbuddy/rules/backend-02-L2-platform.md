@@ -32,7 +32,8 @@ level: L2
 
 ## 已落地能力复用
 
-- MUST 文件与附件走 `FileApi` + file-service，业务表只存 `file_id`；MUST NOT 自建附件表或另存 URL。
+- MUST 文件与附件的**上传、存储、预览、下载全链路**走 `FileApi` + file-service：上传 `FileApi.upload`（`FileUploadRequest.content` 用 base64 内联是契约规定的传输方式，不是自建 base64 落库）、业务表只存 `file_id`、预览 `FileApi.sign` 出临时 URL（PRIVATE 文件）、下载带水印；MUST NOT 自建附件表、另存 URL、`MultipartFile` 自写本地落盘、本地静态资源映射，MUST NOT 以"统一服务失败"为由降级本地磁盘（CMS/forum/EHR 的本地回退仅用于读存量，新增上传 MUST NOT 照抄）。实证范式见 meeting `RoomFileController.upload` + `RoomService.decorate`。
+- MUST 新 `bizType` 同步登记 `file_storage_policy`：`data.sql`（固定 ID 种子）+ `deploy/sql/NN-*.sql`（生产手工执行）各一条，`enabled=1`，`force_private`/`default_visibility`/`max_size_mb`/`allowed_ext` 按业务定；file-service 按 bizType 精确匹配、查不到抛 8102，无 default 兜底、不会自动建策略。缺策略的上传接口等于不可用。
 - MUST PRIVATE 文件走 HMAC 签名 URL；下载附件 MUST 带水印，不能只在预览链路加水印。
 - MUST 水印设置属于配置项且有真实引用点；上传前 MUST 校验配额。
 - MUST 审计全局设置的每一项都有真实代码引用；没有实际功能的配置 MUST 去掉，不留空开关。
@@ -40,6 +41,8 @@ level: L2
 - MUST 数据范围服务端注入；已知缺口（CMS fail-open、薪资未脱敏、forum/job/settings/portal/openapi 未接入）MUST NOT 照抄。
 - MUST 新建业务表若数据天然归属组织（即使本期只按创建人过滤），预留的字段一律命名 **`org_code`**（存平台组织编码，如 `XC000100010001`），MUST NOT 用 `org_id` 或自造枚举代替；与 `DataScopeHelper.canAccessOrg(scopeCode, orgCode)` 的前缀匹配口径保持一致。
 - MUST NOT 把 `scopeCode` 当成 `SELF / ORG / DEPT / ALL` 枚举：平台 `scopeCode` 是账号级数据权限根组织编码（如 `XC00010001`，支持逗号多值），空值一律 fail-closed 返回空集。详见 `../skills/polaris-backend-development/references/platform-capabilities.md` 第 4 节。
+
+- MUST 全员应用（当前为 `portal` 北极星门、`forum` 北极星空、`meeting` 北极星会）同时落到 `ehr.account.default-apps` 埋点、EHR `AccountClient.FALLBACK_APPS` 兜底、前端 `AppCenterNav.PUBLIC_APP_CODES` 白名单与存量账号迁移脚本，且补 `forum` 应用授权时同步绑定 `FORUM_MEMBER` 角色；MUST NOT 只改新开账号默认值而遗漏存量账号。**授权一致性**：账号通过角色拥有某 `app_code` 的任意有效权限码时，Must 在 `sso_account_app` 补该应用授权（sso 权限码映射到 `sso-center`），否则应用中心隐藏入口且 OAuth 换票 403；非全员应用（如 `file` 北极星云）按显式授权维护，MUST NOT 因角色有权限码就自动全员开放。
 
 ## 不存在的后端能力（不要假设存在）
 

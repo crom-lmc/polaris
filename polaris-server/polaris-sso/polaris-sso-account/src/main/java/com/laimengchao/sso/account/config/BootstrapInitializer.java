@@ -67,6 +67,7 @@ public class BootstrapInitializer implements ApplicationRunner {
         migrateSchema();
         initPermissions();
         initNoticeRoleBindings();
+        initMeetingRoleBindings();
         initForumAdmin();
         initForumOperationRoles();
         initForumMemberRole();
@@ -265,6 +266,26 @@ public class BootstrapInitializer implements ApplicationRunner {
                 PermissionConstants.EHR_MENU_ANNOUNCEMENT, PermissionConstants.EHR_ANNOUNCEMENT_MANAGE);
         if (changed) {
             log.info("通知相关权限已按角色补齐");
+        }
+    }
+
+    /**
+     * 会议室默认角色授权（幂等，只增不减）：
+     * <ul>
+     *   <li>{@code EMPLOYEE_SELF} → 概览/预定/我的预定/新建/签到/取消/我的爽约；不含位置与会议室维护；</li>
+     *   <li>{@code MEETING_USER} → 补我的爽约记录；</li>
+     *   <li>{@code MEETING_ADMIN} → 补全部爽约与会议室使用率（维护权限由 14-meeting-init.sql 播种）。</li>
+     * </ul>
+     */
+    private void initMeetingRoleBindings() {
+        boolean changed = bindRolePermissions(PermissionConstants.MEETING_SELF_ROLE_CODES,
+                PermissionConstants.MEETING_APP, PermissionConstants.MEETING_SELF_PERMISSIONS);
+        changed |= bindRolePermissions(PermissionConstants.MEETING_USER_ROLE_CODES,
+                PermissionConstants.MEETING_APP, PermissionConstants.MEETING_USER_PERMISSIONS);
+        changed |= bindRolePermissions(PermissionConstants.MEETING_ADMIN_ROLE_CODES,
+                PermissionConstants.MEETING_APP, PermissionConstants.MEETING_ADMIN_PERMISSIONS);
+        if (changed) {
+            log.info("会议室相关权限已按角色补齐");
         }
     }
 

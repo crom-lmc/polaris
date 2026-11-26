@@ -97,6 +97,21 @@ public class RoomService {
         return out;
     }
 
+    /** 可用会议室数量：city 非空时按城市（经大楼→楼层关联）过滤，空则全平台 */
+    public long availableCountOfCity(String city) {
+        if (city == null || city.isBlank()) {
+            return roomMapper.selectCount(new LambdaQueryWrapper<MeetingRoom>()
+                    .eq(MeetingRoom::getStatus, AVAILABLE));
+        }
+        Set<Long> floorIds = floorIdsOfCity(city.trim());
+        if (floorIds.isEmpty()) {
+            return 0;
+        }
+        return roomMapper.selectCount(new LambdaQueryWrapper<MeetingRoom>()
+                .in(MeetingRoom::getFloorId, floorIds)
+                .eq(MeetingRoom::getStatus, AVAILABLE));
+    }
+
     private Set<Long> floorIdsOfBuilding(Long buildingId) {
         return floorMapper.selectList(new LambdaQueryWrapper<MeetingFloor>()
                         .eq(MeetingFloor::getBuildingId, buildingId))

@@ -382,8 +382,8 @@ public class BookingService {
         return booking;
     }
 
-    /** 概览：统计卡按所选日期取全平台口径；月历与日程为本人创建或被邀请 */
-    public MeetingVOs.OverviewVO overview(LocalDate date, String month) {
+    /** 概览：统计卡按所选日期+地区取全平台口径；月历与日程为本人创建或被邀请并按地区过滤 */
+    public MeetingVOs.OverviewVO overview(LocalDate date, String month, String city) {
         Long account = support.requireAccountId();
         LocalDate day = date == null ? LocalDate.now() : date;
         LocalDate monthDay = parseMonth(month, day);
@@ -391,30 +391,43 @@ public class BookingService {
         List<Long> invitedIds = invitedBookingIds(account);
         MeetingVOs.OverviewVO vo = new MeetingVOs.OverviewVO();
         vo.setDate(day);
+        vo.setCity(city == null ? "" : city.trim());
         vo.setMaxDays(support.maxAdvanceDays());
-        vo.setMeetingCount(bookingMapper.selectCount(dayQuery(day)
+        vo.setMeetingCount(bookingMapper.selectCount(dayQuery(day, city)
                 .notIn(MeetingBooking::getStatus, CANCELLED, RELEASED)));
         LocalDateTime checkinFrom = day.isAfter(LocalDate.now()) ? day.atStartOfDay() : now;
-        vo.setToCheckinCount(bookingMapper.selectCount(dayQuery(day)
+        vo.setToCheckinCount(bookingMapper.selectCount(dayQuery(day, city)
                 .eq(MeetingBooking::getStatus, PENDING)
                 .ge(MeetingBooking::getStartTime, checkinFrom)));
-        vo.setInProgressCount(bookingMapper.selectCount(dayQuery(day)
+        vo.setInProgressCount(bookingMapper.selectCount(dayQuery(day, city)
                 .eq(MeetingBooking::getStatus, CHECKED_IN)
                 .le(MeetingBooking::getStartTime, now)
                 .ge(MeetingBooking::getEndTime, now)));
-        vo.setAvailableRooms(roomMapperAvailableCount());
+        vo.setAvailableRooms(roomService.availableCountOfCity(city));
         Map<String, Long> calendar = new LinkedHashMap<>();
+        Map<String, List<MeetingVOs.CalendarEventVO>> calendarEvents = new LinkedHashMap<>();
         LocalDateTime monthStart = monthDay.withDayOfMonth(1).atStartOfDay();
         LocalDateTime monthEnd = monthDay.withDayOfMonth(monthDay.lengthOfMonth()).plusDays(1).atStartOfDay();
-        List<MeetingBooking> monthBookings = bookingMapper.selectList(relatedQuery(account, invitedIds)
+        List<MeetingBooking> monthBookings = bookingMapper.selectList(relatedQuery(account, invitedIds, city)
                 .ge(MeetingBooking::getStartTime, monthStart)
                 .lt(MeetingBooking::getStartTime, monthEnd)
-                .select(MeetingBooking::getStartTime));
+                .orderByAsc(MeetingBooking::getStartTime));
+        Set<Long> invitedSet = new HashSet<>(invitedIds);
         for (MeetingBooking b : monthBookings) {
-            calendar.merge(b.getStartTime().toLocalDate().toString(), 1L, Long::sum);
+            String key = b.getStartTime().toLocalDate().toString();
+            calendar.merge(key, 1L, Long::sum);
+            MeetingVOs.CalendarEventVO event = new MeetingVOs.CalendarEventVO();
+            event.setBookingId(b.getId());
+            event.setTitle(b.getTitle());
+            event.setStartTime(b.getStartTime().format(SLOT));
+            event.setStatus(b.getStatus());
+            event.setRelation(account.equals(b.getCreatorId())
+                    ? "CREATOR" : (invitedSet.contains(b.getId()) ? "INVITEE" : "CREATOR"));
+            calendarEvents.computeIfAbsent(key, k -> new ArrayList<>()).add(event);
         }
         vo.setCalendar(calendar);
-        List<MeetingBooking> agenda = bookingMapper.selectList(relatedQuery(account, invitedIds)
+        vo.setCalendarEvents(calendarEvents);
+        List<MeetingBooking> agenda = bookingMapper.selectList(relatedQuery(account, invitedIds, city)
                 .ge(MeetingBooking::getStartTime, day.atStartOfDay())
                 .lt(MeetingBooking::getStartTime, day.plusDays(1).atStartOfDay())
                 .orderByAsc(MeetingBooking::getStartTime));
@@ -460,15 +473,16 @@ public class BookingService {
                 .filter(java.util.Objects::nonNull).toList();
     }
 
-    /** 所选自然日的预约范围（按 start_time 归属日期） */
-    private LambdaQueryWrapper<MeetingBooking> dayQuery(LocalDate day) {
+    /** 所选自然日的预约范围（按 start_time 归属日期，可叠加地区） */
+    private LambdaQueryWrapper<MeetingBooking> dayQuery(LocalDate day, String city) {
         return new LambdaQueryWrapper<MeetingBooking>()
                 .ge(MeetingBooking::getStartTime, day.atStartOfDay())
-                .lt(MeetingBooking::getStartTime, day.plusDays(1).atStartOfDay());
+                .lt(MeetingBooking::getStartTime, day.plusDays(1).atStartOfDay())
+                .eq(city != null && !city.isBlank(), MeetingBooking::getCity, city == null ? null : city.trim());
     }
 
-    /** 创建人或被邀请人可见的预约范围 */
-    private LambdaQueryWrapper<MeetingBooking> relatedQuery(Long account, List<Long> invitedIds) {
+    /** 创建人或被邀请人可见的预约范围（可叠加地区） */
+    private LambdaQueryWrapper<MeetingBooking> relatedQuery(Long account, List<Long> invitedIds, String city) {
         LambdaQueryWrapper<MeetingBooking> qw = new LambdaQueryWrapper<>();
         qw.and(w -> {
             w.eq(MeetingBooking::getCreatorId, account);
@@ -476,12 +490,8 @@ public class BookingService {
                 w.or().in(MeetingBooking::getId, invitedIds);
             }
         });
+        qw.eq(city != null && !city.isBlank(), MeetingBooking::getCity, city == null ? null : city.trim());
         return qw;
-    }
-
-    private long roomMapperAvailableCount() {
-        return roomMapper.selectCount(new LambdaQueryWrapper<com.laimengchao.sso.meeting.module.meeting.entity.MeetingRoom>()
-                .eq(com.laimengchao.sso.meeting.module.meeting.entity.MeetingRoom::getStatus, RoomService.AVAILABLE));
     }
 
     private void decorate(MeetingBooking booking) {

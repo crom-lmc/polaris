@@ -546,4 +546,9 @@ public final class PermissionCodes {
     public static final String MEETING_BOOKING_EXTEND = "meeting:booking:extend";
     public static final String MEETING_BOOKING_CANCEL = "meeting:booking:cancel";
     public static final String MEETING_BOOKING_RELEASE = "meeting:booking:release";
+
+    /* 统计与审计菜单（爽约记录全员可见，全部爽约/使用率仅会议室管理员） */
+    public static final String MEETING_NOSHOW_VIEW = "meeting:noshow:view";
+    public static final String MEETING_NOSHOW_ALL = "meeting:noshow:all";
+    public static final String MEETING_USAGE_VIEW = "meeting:usage:view";
 }
