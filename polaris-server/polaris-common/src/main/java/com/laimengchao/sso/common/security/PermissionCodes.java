@@ -568,7 +568,11 @@ public final class PermissionCodes {
     public static final String FINANCE_AR_AP_WRITE = "finance:ar-ap:write";
     public static final String FINANCE_REPORT_VIEW = "finance:report:view";
     public static final String FINANCE_MASTER_LIST = "finance:master:list";
-    public static final String FINANCE_MASTER_EDIT = "finance:master:edit";
+    public static final String FINANCE_ACCOUNT_SUBJECT_LIST = "finance:account-subject:list";
+    public static final String FINANCE_ACCOUNT_SUBJECT_EDIT = "finance:account-subject:edit";
+    public static final String FINANCE_BUDGET_SUBJECT_LIST = "finance:budget-subject:list";
+    public static final String FINANCE_BUDGET_SUBJECT_EDIT = "finance:budget-subject:edit";
+    public static final String FINANCE_LINEAGE_VIEW = "finance:lineage:view";
     public static final String FINANCE_SALARY_VIEW = "finance:salary:view";
     public static final String FINANCE_BANK_VIEW = "finance:bank:view";
 

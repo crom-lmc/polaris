@@ -377,7 +377,11 @@ public final class PermissionConstants {
     public static final String FINANCE_AR_AP_WRITE = "finance:ar-ap:write";
     public static final String FINANCE_REPORT_VIEW = "finance:report:view";
     public static final String FINANCE_MASTER_LIST = "finance:master:list";
-    public static final String FINANCE_MASTER_EDIT = "finance:master:edit";
+    public static final String FINANCE_ACCOUNT_SUBJECT_LIST = "finance:account-subject:list";
+    public static final String FINANCE_ACCOUNT_SUBJECT_EDIT = "finance:account-subject:edit";
+    public static final String FINANCE_BUDGET_SUBJECT_LIST = "finance:budget-subject:list";
+    public static final String FINANCE_BUDGET_SUBJECT_EDIT = "finance:budget-subject:edit";
+    public static final String FINANCE_LINEAGE_VIEW = "finance:lineage:view";
     public static final String FINANCE_SALARY_VIEW = "finance:salary:view";
     public static final String FINANCE_BANK_VIEW = "finance:bank:view";
 
@@ -389,12 +393,16 @@ public final class PermissionConstants {
             new PermDef("应收应付", FINANCE_AR_AP_LIST, PermissionType.MENU, null, 5),
             new PermDef("财务报表", FINANCE_REPORT_VIEW, PermissionType.MENU, null, 6),
             new PermDef("主数据维护", FINANCE_MASTER_LIST, PermissionType.MENU, null, 7),
+            new PermDef("数据口径", FINANCE_LINEAGE_VIEW, PermissionType.MENU, null, 8),
+            new PermDef("会计科目", FINANCE_ACCOUNT_SUBJECT_LIST, PermissionType.MENU, FINANCE_MASTER_LIST, 1),
+            new PermDef("预算科目", FINANCE_BUDGET_SUBJECT_LIST, PermissionType.MENU, FINANCE_MASTER_LIST, 2),
             new PermDef("新增/编辑凭证", FINANCE_VOUCHER_EDIT, PermissionType.BUTTON, FINANCE_VOUCHER_LIST, 1),
             new PermDef("发起报销", FINANCE_EXPENSE_CREATE, PermissionType.BUTTON, FINANCE_EXPENSE_LIST, 1),
             new PermDef("报销审批", FINANCE_EXPENSE_AUDIT, PermissionType.BUTTON, FINANCE_EXPENSE_LIST, 2),
             new PermDef("维护预算", FINANCE_BUDGET_EDIT, PermissionType.BUTTON, FINANCE_BUDGET_VIEW, 1),
             new PermDef("应收应付核销", FINANCE_AR_AP_WRITE, PermissionType.BUTTON, FINANCE_AR_AP_LIST, 1),
-            new PermDef("维护科目", FINANCE_MASTER_EDIT, PermissionType.BUTTON, FINANCE_MASTER_LIST, 1),
+            new PermDef("维护会计科目", FINANCE_ACCOUNT_SUBJECT_EDIT, PermissionType.BUTTON, FINANCE_ACCOUNT_SUBJECT_LIST, 1),
+            new PermDef("维护预算科目", FINANCE_BUDGET_SUBJECT_EDIT, PermissionType.BUTTON, FINANCE_BUDGET_SUBJECT_LIST, 1),
             new PermDef("查看薪资明文", FINANCE_SALARY_VIEW, PermissionType.BUTTON, FINANCE_OVERVIEW_VIEW, 1),
             new PermDef("查看银行账号", FINANCE_BANK_VIEW, PermissionType.BUTTON, FINANCE_AR_AP_LIST, 2)
     );

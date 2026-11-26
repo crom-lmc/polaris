@@ -28,7 +28,7 @@ public class BudgetSubjectController {
     private final BudgetSubjectService budgetSubjectService;
 
     @GetMapping
-    @Permit(PermissionCodes.FINANCE_MASTER_LIST)
+    @Permit(PermissionCodes.FINANCE_BUDGET_SUBJECT_LIST)
     public R<R.Page<FinanceVOs.BudgetSubjectVO>> list(
             @RequestParam(value = "keyword", required = false) String keyword,
             @RequestParam(value = "year", required = false) Integer year,
@@ -39,33 +39,33 @@ public class BudgetSubjectController {
     }
 
     @GetMapping("/options")
-    @Permit(PermissionCodes.FINANCE_MASTER_LIST)
+    @Permit(PermissionCodes.FINANCE_BUDGET_SUBJECT_LIST)
     public R<List<FinanceVOs.BudgetSubjectVO>> options(
             @RequestParam(value = "year", required = false) Integer year) {
         return R.ok(budgetSubjectService.enabledOptions(year));
     }
 
     @GetMapping("/{id}")
-    @Permit(PermissionCodes.FINANCE_MASTER_LIST)
+    @Permit(PermissionCodes.FINANCE_BUDGET_SUBJECT_LIST)
     public R<FinanceVOs.BudgetSubjectVO> detail(@PathVariable("id") Long id) {
         return R.ok(budgetSubjectService.detail(id));
     }
 
     @PostMapping
-    @Permit(PermissionCodes.FINANCE_MASTER_EDIT)
+    @Permit(PermissionCodes.FINANCE_BUDGET_SUBJECT_EDIT)
     public R<FinanceVOs.BudgetSubjectVO> create(@RequestBody FinanceRequests.BudgetSubjectSave req) {
         return R.ok(budgetSubjectService.create(req));
     }
 
     @PutMapping("/{id}")
-    @Permit(PermissionCodes.FINANCE_MASTER_EDIT)
+    @Permit(PermissionCodes.FINANCE_BUDGET_SUBJECT_EDIT)
     public R<FinanceVOs.BudgetSubjectVO> update(@PathVariable("id") Long id,
                                                 @RequestBody FinanceRequests.BudgetSubjectSave req) {
         return R.ok(budgetSubjectService.update(id, req));
     }
 
     @PostMapping("/{id}/toggle")
-    @Permit(PermissionCodes.FINANCE_MASTER_EDIT)
+    @Permit(PermissionCodes.FINANCE_BUDGET_SUBJECT_EDIT)
     public R<Void> toggle(@PathVariable("id") Long id,
                           @RequestParam(value = "status", required = false) String status) {
         budgetSubjectService.toggle(id, status);
@@ -73,7 +73,7 @@ public class BudgetSubjectController {
     }
 
     @DeleteMapping("/{id}")
-    @Permit(PermissionCodes.FINANCE_MASTER_EDIT)
+    @Permit(PermissionCodes.FINANCE_BUDGET_SUBJECT_EDIT)
     public R<Void> delete(@PathVariable("id") Long id) {
         budgetSubjectService.delete(id);
         return R.ok();

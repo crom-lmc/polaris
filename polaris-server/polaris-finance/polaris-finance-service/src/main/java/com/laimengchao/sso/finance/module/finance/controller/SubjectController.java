@@ -28,7 +28,7 @@ public class SubjectController {
     private final SubjectService subjectService;
 
     @GetMapping
-    @Permit(PermissionCodes.FINANCE_MASTER_LIST)
+    @Permit(PermissionCodes.FINANCE_ACCOUNT_SUBJECT_LIST)
     public R<R.Page<FinanceVOs.SubjectVO>> list(
             @RequestParam(value = "keyword", required = false) String keyword,
             @RequestParam(value = "status", required = false) String status,
@@ -40,25 +40,25 @@ public class SubjectController {
     }
 
     @GetMapping("/options")
-    @Permit(PermissionCodes.FINANCE_MASTER_LIST)
+    @Permit(PermissionCodes.FINANCE_ACCOUNT_SUBJECT_LIST)
     public R<List<FinanceVOs.SubjectVO>> options() {
         return R.ok(subjectService.enabledOptions());
     }
 
     @GetMapping("/{id}")
-    @Permit(PermissionCodes.FINANCE_MASTER_LIST)
+    @Permit(PermissionCodes.FINANCE_ACCOUNT_SUBJECT_LIST)
     public R<FinanceVOs.SubjectVO> detail(@PathVariable("id") Long id) {
         return R.ok(subjectService.detail(id));
     }
 
     @PostMapping
-    @Permit(PermissionCodes.FINANCE_MASTER_EDIT)
+    @Permit(PermissionCodes.FINANCE_ACCOUNT_SUBJECT_EDIT)
     public R<FinanceVOs.SubjectVO> create(@RequestBody FinanceRequests.SubjectSave req) {
         return R.ok(subjectService.create(req));
     }
 
     @PutMapping("/{id}")
-    @Permit(PermissionCodes.FINANCE_MASTER_EDIT)
+    @Permit(PermissionCodes.FINANCE_ACCOUNT_SUBJECT_EDIT)
     public R<FinanceVOs.SubjectVO> update(@PathVariable("id") Long id,
                                           @RequestBody FinanceRequests.SubjectSave req) {
         return R.ok(subjectService.update(id, req));
@@ -66,7 +66,7 @@ public class SubjectController {
 
     /** 启停：不传 status 时按当前状态翻转 */
     @PostMapping("/{id}/toggle")
-    @Permit(PermissionCodes.FINANCE_MASTER_EDIT)
+    @Permit(PermissionCodes.FINANCE_ACCOUNT_SUBJECT_EDIT)
     public R<Void> toggle(@PathVariable("id") Long id,
                           @RequestParam(value = "status", required = false) String status) {
         subjectService.toggle(id, status);
@@ -74,7 +74,7 @@ public class SubjectController {
     }
 
     @DeleteMapping("/{id}")
-    @Permit(PermissionCodes.FINANCE_MASTER_EDIT)
+    @Permit(PermissionCodes.FINANCE_ACCOUNT_SUBJECT_EDIT)
     public R<Void> delete(@PathVariable("id") Long id) {
         subjectService.delete(id);
         return R.ok();

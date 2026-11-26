@@ -156,12 +156,16 @@ INSERT IGNORE INTO `sso_ms`.`sso_permission` (`id`,`code`,`name`,`type`,`parent_
   (2026112600000000705,'finance:ar-ap:list','应收应付',1,0,5,'',NOW(),NOW(),0,'finance'),
   (2026112600000000706,'finance:report:view','财务报表',1,0,6,'',NOW(),NOW(),0,'finance'),
   (2026112600000000707,'finance:master:list','主数据维护',1,0,7,'',NOW(),NOW(),0,'finance'),
+  (2026112600000000716,'finance:lineage:view','数据口径',1,0,8,'',NOW(),NOW(),0,'finance'),
+  (2026112600000000717,'finance:account-subject:list','会计科目',1,0,1,'',NOW(),NOW(),0,'finance'),
+  (2026112600000000718,'finance:budget-subject:list','预算科目',1,0,2,'',NOW(),NOW(),0,'finance'),
   (2026112600000000708,'finance:voucher:edit','新增/编辑凭证',2,0,1,'',NOW(),NOW(),0,'finance'),
   (2026112600000000709,'finance:expense:create','发起报销',2,0,1,'',NOW(),NOW(),0,'finance'),
   (2026112600000000710,'finance:expense:audit','报销审批',2,0,2,'',NOW(),NOW(),0,'finance'),
   (2026112600000000711,'finance:budget:edit','维护预算',2,0,1,'',NOW(),NOW(),0,'finance'),
   (2026112600000000712,'finance:ar-ap:write','应收应付核销',2,0,1,'',NOW(),NOW(),0,'finance'),
-  (2026112600000000713,'finance:master:edit','维护科目',2,0,1,'',NOW(),NOW(),0,'finance'),
+  (2026112600000000719,'finance:account-subject:edit','维护会计科目',2,0,1,'',NOW(),NOW(),0,'finance'),
+  (2026112600000000720,'finance:budget-subject:edit','维护预算科目',2,0,1,'',NOW(),NOW(),0,'finance'),
   (2026112600000000714,'finance:salary:view','查看薪资明文',2,0,1,'',NOW(),NOW(),0,'finance'),
   (2026112600000000715,'finance:bank:view','查看银行账号',2,0,2,'',NOW(),NOW(),0,'finance');
 
@@ -170,8 +174,12 @@ UPDATE `sso_ms`.`sso_permission` p JOIN `sso_ms`.`sso_permission` m ON m.`code`=
 UPDATE `sso_ms`.`sso_permission` p JOIN `sso_ms`.`sso_permission` m ON m.`code`='finance:expense:list' AND m.`app_code`='finance' AND m.`deleted`=0 SET p.`parent_id`=m.`id` WHERE p.`app_code`='finance' AND p.`code` IN ('finance:expense:create','finance:expense:audit') AND (p.`parent_id`=0 OR p.`parent_id` IS NULL);
 UPDATE `sso_ms`.`sso_permission` p JOIN `sso_ms`.`sso_permission` m ON m.`code`='finance:budget:view' AND m.`app_code`='finance' AND m.`deleted`=0 SET p.`parent_id`=m.`id` WHERE p.`app_code`='finance' AND p.`code`='finance:budget:edit' AND (p.`parent_id`=0 OR p.`parent_id` IS NULL);
 UPDATE `sso_ms`.`sso_permission` p JOIN `sso_ms`.`sso_permission` m ON m.`code`='finance:ar-ap:list' AND m.`app_code`='finance' AND m.`deleted`=0 SET p.`parent_id`=m.`id` WHERE p.`app_code`='finance' AND p.`code` IN ('finance:ar-ap:write','finance:bank:view') AND (p.`parent_id`=0 OR p.`parent_id` IS NULL);
-UPDATE `sso_ms`.`sso_permission` p JOIN `sso_ms`.`sso_permission` m ON m.`code`='finance:master:list' AND m.`app_code`='finance' AND m.`deleted`=0 SET p.`parent_id`=m.`id` WHERE p.`app_code`='finance' AND p.`code`='finance:master:edit' AND (p.`parent_id`=0 OR p.`parent_id` IS NULL);
 UPDATE `sso_ms`.`sso_permission` p JOIN `sso_ms`.`sso_permission` m ON m.`code`='finance:overview:view' AND m.`app_code`='finance' AND m.`deleted`=0 SET p.`parent_id`=m.`id` WHERE p.`app_code`='finance' AND p.`code`='finance:salary:view' AND (p.`parent_id`=0 OR p.`parent_id` IS NULL);
+-- 主数据维护下的两个二级菜单
+UPDATE `sso_ms`.`sso_permission` p JOIN `sso_ms`.`sso_permission` m ON m.`code`='finance:master:list' AND m.`app_code`='finance' AND m.`deleted`=0 SET p.`parent_id`=m.`id` WHERE p.`app_code`='finance' AND p.`code` IN ('finance:account-subject:list','finance:budget-subject:list') AND (p.`parent_id`=0 OR p.`parent_id` IS NULL);
+-- 各菜单下的维护按钮
+UPDATE `sso_ms`.`sso_permission` p JOIN `sso_ms`.`sso_permission` m ON m.`code`='finance:account-subject:list' AND m.`app_code`='finance' AND m.`deleted`=0 SET p.`parent_id`=m.`id` WHERE p.`app_code`='finance' AND p.`code`='finance:account-subject:edit' AND (p.`parent_id`=0 OR p.`parent_id` IS NULL);
+UPDATE `sso_ms`.`sso_permission` p JOIN `sso_ms`.`sso_permission` m ON m.`code`='finance:budget-subject:list' AND m.`app_code`='finance' AND m.`deleted`=0 SET p.`parent_id`=m.`id` WHERE p.`app_code`='finance' AND p.`code`='finance:budget-subject:edit' AND (p.`parent_id`=0 OR p.`parent_id` IS NULL);
 
 
 INSERT IGNORE INTO `sso_ms`.`sso_role` (`id`,`code`,`app_code`,`name`,`remark`,`created_at`,`updated_at`,`deleted`) VALUES

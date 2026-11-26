@@ -30,11 +30,6 @@ JOIN `sso_ms`.`sso_permission` m ON m.`code`='finance:ar-ap:list' AND m.`app_cod
 SET p.`parent_id`=m.`id`
 WHERE p.`app_code`='finance' AND p.`code` IN ('finance:ar-ap:write','finance:bank:view') AND (p.`parent_id`=0 OR p.`parent_id` IS NULL);
 
--- 维护科目 → 主数据维护
-UPDATE `sso_ms`.`sso_permission` p
-JOIN `sso_ms`.`sso_permission` m ON m.`code`='finance:master:list' AND m.`app_code`='finance' AND m.`deleted`=0
-SET p.`parent_id`=m.`id`
-WHERE p.`app_code`='finance' AND p.`code`='finance:master:edit' AND (p.`parent_id`=0 OR p.`parent_id` IS NULL);
 
 -- 查看薪资明文 → 财务概览
 UPDATE `sso_ms`.`sso_permission` p
