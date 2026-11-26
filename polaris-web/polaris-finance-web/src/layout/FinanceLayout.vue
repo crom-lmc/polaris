@@ -116,11 +116,11 @@ const menus: AppMenuItem[] = [
   {
     path: '/master-data', title: '主数据维护', short: '主数据', icon: BookOutlined, perm: 'finance:master:list',
     children: [
-      { path: '/account-subject', title: '会计科目', short: '会计科目', icon: BookOutlined, perm: 'finance:master:list' },
-      { path: '/budget-subject', title: '预算科目', short: '预算科目', icon: AimOutlined, perm: 'finance:master:list' }
+      { path: '/account-subject', title: '会计科目', short: '会计科目', icon: BookOutlined, perm: 'finance:account-subject:list' },
+      { path: '/budget-subject', title: '预算科目', short: '预算科目', icon: AimOutlined, perm: 'finance:budget-subject:list' }
     ]
   },
-  { path: '/lineage', title: '数据口径', short: '口径', icon: ApartmentOutlined, perm: '' }
+  { path: '/lineage', title: '数据口径', short: '口径', icon: ApartmentOutlined, perm: 'finance:lineage:view' }
 ]
 
 const mobile = ref(false)

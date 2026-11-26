@@ -18,9 +18,9 @@ const router = createRouter({
         { path: 'budget', component: () => import('@/views/BudgetView.vue'), meta: { title: '预算管理', perm: 'finance:budget:view' } },
         { path: 'ar-ap', component: () => import('@/views/ArApView.vue'), meta: { title: '应收应付', perm: 'finance:ar-ap:list' } },
         { path: 'report', component: () => import('@/views/ReportView.vue'), meta: { title: '财务报表', perm: 'finance:report:view' } },
-        { path: 'account-subject', component: () => import('@/views/MasterDataView.vue'), meta: { title: '会计科目', perm: 'finance:master:list' } },
-        { path: 'budget-subject', component: () => import('@/views/MasterDataView.vue'), meta: { title: '预算科目', perm: 'finance:master:list' } },
-        { path: 'lineage', component: () => import('@/views/LineageView.vue'), meta: { title: '数据口径' } },
+        { path: 'account-subject', component: () => import('@/views/MasterDataView.vue'), meta: { title: '会计科目', perm: 'finance:account-subject:list' } },
+        { path: 'budget-subject', component: () => import('@/views/MasterDataView.vue'), meta: { title: '预算科目', perm: 'finance:budget-subject:list' } },
+        { path: 'lineage', component: () => import('@/views/LineageView.vue'), meta: { title: '数据口径', perm: 'finance:lineage:view' } },
         { path: 'no-access', component: () => import('@/views/NoAccessView.vue'), meta: { title: '无权限', public: true } }
       ]
     },

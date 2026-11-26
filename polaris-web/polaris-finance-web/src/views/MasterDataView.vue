@@ -13,7 +13,7 @@ import { categoryLabel, directionLabel, fmtDateTime, statusColor, statusLabel, y
 
 const route = useRoute()
 const store = useUserStore()
-const canEdit = () => store.can('finance:master:edit')
+const canEdit = () => store.can(kind.value === 'subject' ? 'finance:account-subject:edit' : 'finance:budget-subject:edit')
 
 type Kind = 'subject' | 'budget'
 const kind = ref<Kind>(route.path === '/budget-subject' ? 'budget' : 'subject')
