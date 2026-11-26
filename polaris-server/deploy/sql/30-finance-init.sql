@@ -165,6 +165,14 @@ INSERT IGNORE INTO `sso_ms`.`sso_permission` (`id`,`code`,`name`,`type`,`parent_
   (2026112600000000714,'finance:salary:view','查看薪资明文',2,0,1,'',NOW(),NOW(),0,'finance'),
   (2026112600000000715,'finance:bank:view','查看银行账号',2,0,2,'',NOW(),NOW(),0,'finance');
 
+-- 按钮挂到对应菜单下（幂等：仅修复 parent_id 仍为 0 的记录）
+UPDATE `sso_ms`.`sso_permission` p JOIN `sso_ms`.`sso_permission` m ON m.`code`='finance:voucher:list' AND m.`app_code`='finance' AND m.`deleted`=0 SET p.`parent_id`=m.`id` WHERE p.`app_code`='finance' AND p.`code`='finance:voucher:edit' AND (p.`parent_id`=0 OR p.`parent_id` IS NULL);
+UPDATE `sso_ms`.`sso_permission` p JOIN `sso_ms`.`sso_permission` m ON m.`code`='finance:expense:list' AND m.`app_code`='finance' AND m.`deleted`=0 SET p.`parent_id`=m.`id` WHERE p.`app_code`='finance' AND p.`code` IN ('finance:expense:create','finance:expense:audit') AND (p.`parent_id`=0 OR p.`parent_id` IS NULL);
+UPDATE `sso_ms`.`sso_permission` p JOIN `sso_ms`.`sso_permission` m ON m.`code`='finance:budget:view' AND m.`app_code`='finance' AND m.`deleted`=0 SET p.`parent_id`=m.`id` WHERE p.`app_code`='finance' AND p.`code`='finance:budget:edit' AND (p.`parent_id`=0 OR p.`parent_id` IS NULL);
+UPDATE `sso_ms`.`sso_permission` p JOIN `sso_ms`.`sso_permission` m ON m.`code`='finance:ar-ap:list' AND m.`app_code`='finance' AND m.`deleted`=0 SET p.`parent_id`=m.`id` WHERE p.`app_code`='finance' AND p.`code` IN ('finance:ar-ap:write','finance:bank:view') AND (p.`parent_id`=0 OR p.`parent_id` IS NULL);
+UPDATE `sso_ms`.`sso_permission` p JOIN `sso_ms`.`sso_permission` m ON m.`code`='finance:master:list' AND m.`app_code`='finance' AND m.`deleted`=0 SET p.`parent_id`=m.`id` WHERE p.`app_code`='finance' AND p.`code`='finance:master:edit' AND (p.`parent_id`=0 OR p.`parent_id` IS NULL);
+UPDATE `sso_ms`.`sso_permission` p JOIN `sso_ms`.`sso_permission` m ON m.`code`='finance:overview:view' AND m.`app_code`='finance' AND m.`deleted`=0 SET p.`parent_id`=m.`id` WHERE p.`app_code`='finance' AND p.`code`='finance:salary:view' AND (p.`parent_id`=0 OR p.`parent_id` IS NULL);
+
 
 INSERT IGNORE INTO `sso_ms`.`sso_role` (`id`,`code`,`app_code`,`name`,`remark`,`created_at`,`updated_at`,`deleted`) VALUES
   (2026112600000000601,'FINANCE_ADMIN','finance','财务管理员','财务域全量权限',NOW(),NOW(),0),
