@@ -407,6 +407,7 @@ public final class PermissionConstants {
     public static final String CONTRACT_PARTNER_LIST = "contract:partner:list";
     public static final String CONTRACT_PARTNER_EDIT = "contract:partner:edit";
     public static final String CONTRACT_MATERIAL_LIST = "contract:material:list";
+    public static final String CONTRACT_MATERIAL_MAINTAIN_LIST = "contract:material-maintain:list";
     public static final String CONTRACT_MATERIAL_EDIT = "contract:material:edit";
     public static final String CONTRACT_PROJECT_LIST = "contract:project:list";
     public static final String CONTRACT_PROJECT_EDIT = "contract:project:edit";
@@ -421,12 +422,13 @@ public final class PermissionConstants {
             new PermDef("采购计划", CONTRACT_PLAN_LIST, PermissionType.MENU, null, 1),
             new PermDef("往来单位维护", CONTRACT_PARTNER_LIST, PermissionType.MENU, null, 2),
             new PermDef("物料库", CONTRACT_MATERIAL_LIST, PermissionType.MENU, null, 3),
-            new PermDef("项目维护", CONTRACT_PROJECT_LIST, PermissionType.MENU, null, 4),
-            new PermDef("合同台账", CONTRACT_LEDGER_LIST, PermissionType.MENU, null, 5),
-            new PermDef("合同付款计划", CONTRACT_PAYMENT_LIST, PermissionType.MENU, null, 6),
+            new PermDef("物料维护", CONTRACT_MATERIAL_MAINTAIN_LIST, PermissionType.MENU, null, 4),
+            new PermDef("项目维护", CONTRACT_PROJECT_LIST, PermissionType.MENU, null, 5),
+            new PermDef("合同台账", CONTRACT_LEDGER_LIST, PermissionType.MENU, null, 6),
+            new PermDef("合同付款计划", CONTRACT_PAYMENT_LIST, PermissionType.MENU, null, 7),
             new PermDef("新增/审批采购计划", CONTRACT_PLAN_EDIT, PermissionType.BUTTON, CONTRACT_PLAN_LIST, 1),
             new PermDef("维护往来单位", CONTRACT_PARTNER_EDIT, PermissionType.BUTTON, CONTRACT_PARTNER_LIST, 1),
-            new PermDef("维护物料", CONTRACT_MATERIAL_EDIT, PermissionType.BUTTON, CONTRACT_MATERIAL_LIST, 1),
+            new PermDef("维护物料", CONTRACT_MATERIAL_EDIT, PermissionType.BUTTON, CONTRACT_MATERIAL_MAINTAIN_LIST, 1),
             new PermDef("维护项目", CONTRACT_PROJECT_EDIT, PermissionType.BUTTON, CONTRACT_PROJECT_LIST, 1),
             new PermDef("新增/编辑合同", CONTRACT_LEDGER_EDIT, PermissionType.BUTTON, CONTRACT_LEDGER_LIST, 1),
             new PermDef("维护合同清单", CONTRACT_ITEM_EDIT, PermissionType.BUTTON, CONTRACT_LEDGER_LIST, 2),

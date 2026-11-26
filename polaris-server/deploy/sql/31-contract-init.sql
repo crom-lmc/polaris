@@ -234,14 +234,15 @@ SET @col_credit_used = (SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TA
 SET @sql_add_credit_used = IF(@col_credit_used=0, 'ALTER TABLE `polaris_contract`.`contract_partner` ADD COLUMN `credit_used` decimal(18,2) NOT NULL DEFAULT 0.00 COMMENT ''已占用额度（手工维护）'' AFTER `credit_limit`', 'SELECT 1');
 PREPARE stmt_credit_used FROM @sql_add_credit_used; EXECUTE stmt_credit_used; DEALLOCATE PREPARE stmt_credit_used;
 
--- ============ 权限码：6 个菜单 + 8 个按钮 ============
+-- ============ 权限码：7 个菜单 + 8 个按钮 ============
 INSERT IGNORE INTO `sso_ms`.`sso_permission` (`id`,`code`,`name`,`type`,`parent_id`,`sort`,`remark`,`created_at`,`updated_at`,`deleted`,`app_code`) VALUES
   (2026112600000000801,'contract:plan:list','采购计划',1,0,1,'',NOW(),NOW(),0,'contract'),
   (2026112600000000802,'contract:partner:list','往来单位维护',1,0,2,'',NOW(),NOW(),0,'contract'),
   (2026112600000000803,'contract:material:list','物料库',1,0,3,'',NOW(),NOW(),0,'contract'),
-  (2026112600000000804,'contract:project:list','项目维护',1,0,4,'',NOW(),NOW(),0,'contract'),
-  (2026112600000000805,'contract:ledger:list','合同台账',1,0,5,'',NOW(),NOW(),0,'contract'),
-  (2026112600000000806,'contract:payment:list','合同付款计划',1,0,6,'',NOW(),NOW(),0,'contract'),
+  (2026112600000000815,'contract:material-maintain:list','物料维护',1,0,4,'',NOW(),NOW(),0,'contract'),
+  (2026112600000000804,'contract:project:list','项目维护',1,0,5,'',NOW(),NOW(),0,'contract'),
+  (2026112600000000805,'contract:ledger:list','合同台账',1,0,6,'',NOW(),NOW(),0,'contract'),
+  (2026112600000000806,'contract:payment:list','合同付款计划',1,0,7,'',NOW(),NOW(),0,'contract'),
   (2026112600000000807,'contract:plan:edit','新增/审批采购计划',2,0,1,'',NOW(),NOW(),0,'contract'),
   (2026112600000000808,'contract:partner:edit','维护往来单位',2,0,1,'',NOW(),NOW(),0,'contract'),
   (2026112600000000809,'contract:material:edit','维护物料',2,0,1,'',NOW(),NOW(),0,'contract'),
@@ -255,7 +256,7 @@ UPDATE `sso_ms`.`sso_permission` p JOIN `sso_ms`.`sso_permission` m ON m.`code`=
 
 UPDATE `sso_ms`.`sso_permission` p JOIN `sso_ms`.`sso_permission` m ON m.`code`='contract:partner:list' AND m.`app_code`='contract' AND m.`deleted`=0 SET p.`parent_id`=m.`id` WHERE p.`app_code`='contract' AND p.`code`='contract:partner:edit' AND (p.`parent_id`=0 OR p.`parent_id` IS NULL);
 
-UPDATE `sso_ms`.`sso_permission` p JOIN `sso_ms`.`sso_permission` m ON m.`code`='contract:material:list' AND m.`app_code`='contract' AND m.`deleted`=0 SET p.`parent_id`=m.`id` WHERE p.`app_code`='contract' AND p.`code`='contract:material:edit' AND (p.`parent_id`=0 OR p.`parent_id` IS NULL);
+UPDATE `sso_ms`.`sso_permission` p JOIN `sso_ms`.`sso_permission` m ON m.`code`='contract:material-maintain:list' AND m.`app_code`='contract' AND m.`deleted`=0 SET p.`parent_id`=m.`id` WHERE p.`app_code`='contract' AND p.`code`='contract:material:edit' AND (p.`parent_id`=0 OR p.`parent_id` IS NULL);
 
 UPDATE `sso_ms`.`sso_permission` p JOIN `sso_ms`.`sso_permission` m ON m.`code`='contract:project:list' AND m.`app_code`='contract' AND m.`deleted`=0 SET p.`parent_id`=m.`id` WHERE p.`app_code`='contract' AND p.`code`='contract:project:edit' AND (p.`parent_id`=0 OR p.`parent_id` IS NULL);
 

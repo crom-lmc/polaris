@@ -581,6 +581,7 @@ public final class PermissionCodes {
     public static final String CONTRACT_PARTNER_LIST = "contract:partner:list";
     public static final String CONTRACT_PARTNER_EDIT = "contract:partner:edit";
     public static final String CONTRACT_MATERIAL_LIST = "contract:material:list";
+    public static final String CONTRACT_MATERIAL_MAINTAIN_LIST = "contract:material-maintain:list";
     public static final String CONTRACT_MATERIAL_EDIT = "contract:material:edit";
     public static final String CONTRACT_PROJECT_LIST = "contract:project:list";
     public static final String CONTRACT_PROJECT_EDIT = "contract:project:edit";
