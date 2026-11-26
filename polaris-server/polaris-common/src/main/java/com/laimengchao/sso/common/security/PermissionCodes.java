@@ -551,4 +551,43 @@ public final class PermissionCodes {
     public static final String MEETING_NOSHOW_VIEW = "meeting:noshow:view";
     public static final String MEETING_NOSHOW_ALL = "meeting:noshow:all";
     public static final String MEETING_USAGE_VIEW = "meeting:usage:view";
+
+    /* ============================================================
+     * 财务域（app_code = finance，北极星账）
+     * ============================================================ */
+    public static final String APP_FINANCE = "finance";
+    public static final String FINANCE_OVERVIEW_VIEW = "finance:overview:view";
+    public static final String FINANCE_VOUCHER_LIST = "finance:voucher:list";
+    public static final String FINANCE_VOUCHER_EDIT = "finance:voucher:edit";
+    public static final String FINANCE_EXPENSE_LIST = "finance:expense:list";
+    public static final String FINANCE_EXPENSE_CREATE = "finance:expense:create";
+    public static final String FINANCE_EXPENSE_AUDIT = "finance:expense:audit";
+    public static final String FINANCE_BUDGET_VIEW = "finance:budget:view";
+    public static final String FINANCE_BUDGET_EDIT = "finance:budget:edit";
+    public static final String FINANCE_AR_AP_LIST = "finance:ar-ap:list";
+    public static final String FINANCE_AR_AP_WRITE = "finance:ar-ap:write";
+    public static final String FINANCE_REPORT_VIEW = "finance:report:view";
+    public static final String FINANCE_MASTER_LIST = "finance:master:list";
+    public static final String FINANCE_MASTER_EDIT = "finance:master:edit";
+    public static final String FINANCE_SALARY_VIEW = "finance:salary:view";
+    public static final String FINANCE_BANK_VIEW = "finance:bank:view";
+
+    /* ============================================================
+     * 合同域（app_code = contract，北极星契）
+     * ============================================================ */
+    public static final String APP_CONTRACT = "contract";
+    public static final String CONTRACT_PLAN_LIST = "contract:plan:list";
+    public static final String CONTRACT_PLAN_EDIT = "contract:plan:edit";
+    public static final String CONTRACT_PARTNER_LIST = "contract:partner:list";
+    public static final String CONTRACT_PARTNER_EDIT = "contract:partner:edit";
+    public static final String CONTRACT_MATERIAL_LIST = "contract:material:list";
+    public static final String CONTRACT_MATERIAL_EDIT = "contract:material:edit";
+    public static final String CONTRACT_PROJECT_LIST = "contract:project:list";
+    public static final String CONTRACT_PROJECT_EDIT = "contract:project:edit";
+    public static final String CONTRACT_LEDGER_LIST = "contract:ledger:list";
+    public static final String CONTRACT_LEDGER_EDIT = "contract:ledger:edit";
+    public static final String CONTRACT_ITEM_EDIT = "contract:item:edit";
+    public static final String CONTRACT_PAYMENT_LIST = "contract:payment:list";
+    public static final String CONTRACT_PAYMENT_EDIT = "contract:payment:edit";
+    public static final String CONTRACT_PARTNER_BANK_VIEW = "contract:partner:bank:view";
 }

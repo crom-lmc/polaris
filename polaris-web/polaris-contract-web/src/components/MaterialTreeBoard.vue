@@ -1,0 +1,248 @@
+<script setup lang="ts">
+import { computed, onMounted, reactive, ref } from 'vue'
+import { message, Modal } from 'ant-design-vue'
+import { useUserStore } from '@/stores/user'
+import { useIsMobile } from '@/composables/useIsMobile'
+import {
+  getMaterialTree, saveMaterial, updateMaterial, deleteMaterial, type MaterialVO, type MaterialSave
+} from '@/api/contract'
+import { yuan } from '@/utils/format'
+
+const props = defineProps<{ manage?: boolean }>()
+const manage = computed(() => !!props.manage)
+const store = useUserStore()
+const isMobile = useIsMobile()
+const drawerWidth = computed(() => (isMobile.value ? '100%' : 560))
+
+const loading = ref(false)
+const flat = ref<MaterialVO[]>([])
+const treeData = computed(() => toTreeData(flat.value))
+const keyword = ref('')
+const selectedKeys = ref<string[]>([])
+const expandedKeys = ref<string[]>([])
+
+function toTreeData(nodes: MaterialVO[]): any[] {
+  return nodes.map((n) => ({
+    key: n.id,
+    title: `${n.name}（${n.code}）`,
+    children: n.children?.length ? toTreeData(n.children) : undefined
+  }))
+}
+function flatten(nodes: MaterialVO[], out: MaterialVO[] = []): MaterialVO[] {
+  nodes.forEach((n) => { out.push(n); if (n.children?.length) flatten(n.children, out) })
+  return out
+}
+async function load() {
+  loading.value = true
+  try {
+    const tree = await getMaterialTree()
+    flat.value = flatten(tree || [])
+    if (!selectedKeys.value.length && flat.value.length) selectedKeys.value = [flat.value[0].id]
+    expandedKeys.value = flat.value.filter((n) => n.kind === 'CATEGORY').map((n) => n.id)
+  } catch (e: any) { message.error(e?.message || '加载物料树失败') }
+  finally { loading.value = false }
+}
+
+const currentNode = computed(() => flat.value.find((n) => n.id === selectedKeys.value[0]) || null)
+const selectedParentId = computed(() => {
+  const n = currentNode.value
+  if (!n) return null
+  return n.kind === 'CATEGORY' ? n.id : (n.parentId || null)
+})
+const rows = computed(() => {
+  const kw = keyword.value.trim().toLowerCase()
+  const node = currentNode.value
+  const list = node ? (node.kind === 'MATERIAL' ? [node] : (node.children || [])) : flat.value.filter((n) => !n.parentId)
+  return list.filter((n) => !kw || n.code.toLowerCase().includes(kw) || n.name.toLowerCase().includes(kw)
+    || (n.spec || '').toLowerCase().includes(kw))
+})
+
+const baseColumns = [
+  { title: '编码', dataIndex: 'code', key: 'code', width: 170 },
+  { title: '名称', key: 'name', width: 190 },
+  { title: '节点类型', key: 'kind', align: 'center' as const, width: 100 },
+  { title: '规格型号', dataIndex: 'spec', key: 'spec', width: 170 },
+  { title: '单位', dataIndex: 'unit', key: 'unit', align: 'center' as const, width: 80 },
+  { title: '参考单价', key: 'referencePrice', align: 'right' as const, width: 130 },
+  { title: '操作', key: 'action', width: 110 }
+]
+const columns = computed(() => (manage.value ? baseColumns : baseColumns.filter((c) => c.key !== 'action')))
+
+const parentOptions = computed(() => flat.value
+  .filter((n) => n.kind === 'CATEGORY' && n.id !== form.id
+    && (form.kind === 'MATERIAL' ? n.code.length === 6 : n.code.length < 6))
+  .map((n) => ({ label: `${n.name}（${n.code}）`, value: n.id })))
+
+const editOpen = ref(false)
+const saving = ref(false)
+const form = reactive<MaterialSave & { id?: string }>({
+  id: undefined, parentId: null, code: '', name: '', kind: 'CATEGORY', spec: '', unit: '', referencePrice: undefined
+})
+function resetForm() {
+  form.id = undefined
+  form.parentId = null
+  form.code = ''
+  form.name = ''
+  form.kind = 'CATEGORY'
+  form.spec = ''
+  form.unit = ''
+  form.referencePrice = undefined
+}
+function nearestParent(pid: string | null, kind: string): string | null {
+  let id = pid
+  while (id) {
+    const node = flat.value.find((n) => n.id === id)
+    if (!node) return null
+    if (node.kind === 'CATEGORY' && (kind === 'MATERIAL' ? node.code.length === 6 : node.code.length < 6)) return node.id
+    id = node.parentId
+  }
+  return null
+}
+function openCreate(kind: string) {
+  resetForm()
+  form.kind = kind
+  const raw = kind === 'MATERIAL' ? selectedParentId.value : (currentNode.value?.kind === 'CATEGORY' ? currentNode.value.id : null)
+  form.parentId = nearestParent(raw, kind)
+  editOpen.value = true
+}
+function openEdit(row: MaterialVO) {
+  resetForm()
+  form.id = row.id
+  form.parentId = row.parentId || null
+  form.code = row.code
+  form.name = row.name
+  form.kind = row.kind
+  form.spec = row.spec || ''
+  form.unit = row.unit || ''
+  form.referencePrice = row.referencePrice ?? undefined
+  editOpen.value = true
+}
+async function submit() {
+  if (!form.name?.trim()) { message.warning('请填写节点名称'); return }
+  saving.value = true
+  try {
+    const payload: MaterialSave = {
+      parentId: form.parentId || null, name: form.name.trim(), kind: form.kind,
+      spec: form.spec || '', unit: form.unit || '', referencePrice: form.referencePrice ?? null
+    }
+    if (form.id) await updateMaterial(form.id, payload)
+    else await saveMaterial(payload)
+    editOpen.value = false
+    message.success('节点已保存，编码由服务端按层级自动生成')
+    await load()
+  } catch (e: any) { message.error(e?.message || '保存失败') }
+  finally { saving.value = false }
+}
+function remove(row: MaterialVO) {
+  Modal.confirm({
+    centered: true, title: '删除节点',
+    content: `确定删除「${row.name}」吗？有子节点或已被合同清单 / 采购计划引用的节点不可删除。`,
+    okButtonProps: { danger: true },
+    onOk: async () => {
+      try { await deleteMaterial(row.id); message.success('已删除'); await load() }
+      catch (e: any) { message.error(e?.message || '删除失败') }
+    }
+  })
+}
+function onSelect(keys: any[]) { if (keys.length) selectedKeys.value = [String(keys[0])] }
+function onExpand(keys: any[]) { expandedKeys.value = keys.map(String) }
+onMounted(load)
+</script>
+
+<template>
+  <section class="ft-page">
+    <section class="ft-head toolbar">
+      <h2>{{ manage ? '物料维护' : '物料库' }}</h2>
+      <span class="divider" />
+      <a-input-search v-model:value="keyword" placeholder="编码 / 名称 / 规格" style="width: 240px" allow-clear />
+      <span class="grow" />
+      <span class="hint">{{ manage ? '三级分类 + 叶子物料 · 编码由服务端自动生成' : '三级分类 + 叶子物料 · 采购计划与合同清单统一从这里选料' }}</span>
+      <template v-if="manage && store.can('contract:material:edit')">
+        <a-button @click="openCreate('CATEGORY')">＋ 新增分类</a-button>
+        <a-button type="primary" @click="openCreate('MATERIAL')">＋ 新增物料</a-button>
+      </template>
+    </section>
+    <section class="ft-scroll">
+      <div class="panel-tree-layout">
+        <div class="panel-tree-side">
+          <div class="panel-hint" style="margin: 0 0 8px 4px">物料分类树（共 {{ flat.length }} 个节点）</div>
+          <a-spin :spinning="loading">
+            <a-tree v-model:selected-keys="selectedKeys" :tree-data="treeData" :expanded-keys="expandedKeys"
+                    block-node @select="onSelect" @expand="onExpand">
+              <template #title="node"><span class="panel-tree-node">{{ node.title }}</span></template>
+            </a-tree>
+          </a-spin>
+        </div>
+        <div class="panel-tree-main">
+          <a-card size="small" class="panel-card"
+                  :title="`当前节点：${currentNode?.name || '根节点'}（${currentNode?.kind === 'MATERIAL' ? '物料' : '分类'}）`">
+            <a-table class="ft-table" row-key="id" :columns="columns" :data-source="rows" :pagination="false"
+                     :class="{ 'panel-empty-mode': !rows.length }" :scroll="rows.length ? { x: 900 } : undefined">
+              <template #bodyCell="{ column, record }">
+                <template v-if="column.key === 'name'">
+                  <a-tooltip :title="`${record.name} ${record.spec || ''}`"><span class="cell-ellipsis">{{ record.name }}</span></a-tooltip>
+                </template>
+                <template v-else-if="column.key === 'kind'">
+                  <a-tag :color="record.kind === 'CATEGORY' ? 'blue' : 'green'">{{ record.kind === 'CATEGORY' ? '分类' : '物料' }}</a-tag>
+                </template>
+                <template v-else-if="column.key === 'referencePrice'">
+                  {{ record.referencePrice != null ? yuan(record.referencePrice) : '-' }}
+                </template>
+                <template v-else-if="column.key === 'action'">
+                  <a-space :size="4">
+                    <a @click="openEdit(record)">编辑</a>
+                    <a @click="remove(record)">删除</a>
+                  </a-space>
+                </template>
+              </template>
+              <template #emptyText><div class="panel-empty"><a-empty description="该节点下暂无内容" /></div></template>
+            </a-table>
+          </a-card>
+          <a-alert v-if="manage" type="info" show-icon message="维护口径"
+                   description="编码按上级节点由服务端自动生成、不可手工修改；分类最多三级，物料挂在三级分类下。已被合同清单或采购计划引用的物料不可删除。" />
+          <a-alert v-else type="info" show-icon message="查看口径"
+                   description="这里只展示分类与物料；新增、编辑与删除请到「物料维护」页。" />
+        </div>
+      </div>
+    </section>
+
+    <a-drawer v-if="manage" v-model:open="editOpen"
+              :title="form.id ? '编辑节点' : (form.kind === 'CATEGORY' ? '新增分类' : '新增物料')"
+              :width="drawerWidth" placement="right">
+      <a-form layout="vertical">
+        <a-form-item label="节点类型">
+          <a-radio-group v-model:value="form.kind" :disabled="!!form.id" button-style="solid">
+            <a-radio-button value="CATEGORY">分类</a-radio-button>
+            <a-radio-button value="MATERIAL">物料</a-radio-button>
+          </a-radio-group>
+        </a-form-item>
+        <a-form-item label="上级节点">
+          <a-select v-model:value="form.parentId" :options="parentOptions" placeholder="顶层节点可不选"
+                    allow-clear :disabled="!!form.id" />
+        </a-form-item>
+        <a-form-item label="编码">
+          <a-input :value="form.id ? form.code : ''" readonly :placeholder="form.id ? '' : '保存时由服务端自动生成'" />
+          <div class="hint" style="margin-top: 4px">{{ form.id ? '编辑时编码保持不变，避免引用断裂' : '按层级自动续位，无需手工填写' }}</div>
+        </a-form-item>
+        <a-form-item label="名称" required><a-input v-model:value="form.name" /></a-form-item>
+        <template v-if="form.kind === 'MATERIAL'">
+          <a-form-item label="规格型号"><a-input v-model:value="form.spec" /></a-form-item>
+          <a-row :gutter="12">
+            <a-col :span="12"><a-form-item label="计量单位"><a-input v-model:value="form.unit" placeholder="台 / 套 / 项" /></a-form-item></a-col>
+            <a-col :span="12">
+              <a-form-item label="参考单价">
+                <a-input-number v-model:value="form.referencePrice" :min="0" :precision="2" style="width: 100%" />
+              </a-form-item>
+            </a-col>
+          </a-row>
+        </template>
+      </a-form>
+      <template #footer>
+        <div class="drawer-footer">
+          <a-button @click="editOpen = false">取消</a-button>
+          <a-button type="primary" :loading="saving" @click="submit">保存节点</a-button>
+        </div>
+      </template>
+    </a-drawer>
+  </section>
+</template>

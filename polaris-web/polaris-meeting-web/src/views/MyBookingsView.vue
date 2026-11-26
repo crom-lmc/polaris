@@ -145,8 +145,7 @@
           </div>
           <div class="slot-scroll">
             <SlotGrid :slots="editSlots" selectable allow-mine hour-scale :split="mobile"
-                      :allow-boundary="editPickStage === 1" :mine-booking-id="editing?.id"
-                      :value="editRange" @pick="pickEditSlot" />
+                      :mine-booking-id="editing?.id" :value="editRange" @pick="pickEditSlot" />
           </div>
         </a-form-item>
         <a-form-item label="邀请参会人">
@@ -266,8 +265,8 @@ const editRange = ref<{ start: string; end: string }>()
 /** 两点选时：0=未开始点选，1=已点第一格（开始），等待第二格（结束） */
 const editPickStage = ref(0)
 const slotHint = computed(() => editPickStage.value === 1
-  ? `已选开始 ${editRange.value?.start || ''}，请点第二格，其起点即结束时间`
-  : '第一次点击选开始时间，第二次点击的位置为结束时间（24:00 请用结束时间下拉）')
+  ? `已选开始 ${editRange.value?.start || ''}，请点第二格，该格结束时间即最终结束`
+  : '第一次点击选开始时间，第二次点击的格子计入会议（格子的结束时间即最终结束）')
 const editSchedule = ref<{ rooms: Array<{ roomId: string; name: string; slots: Slot[] }> }>({ rooms: [] })
 const employeeOptions = ref<Array<{ label: string; value: string }>>([])
 const attendeeNames = ref<Record<string, string>>({})
@@ -493,27 +492,27 @@ function editableSlot(s: Slot) {
 function pickEditSlot(cell: Slot) {
   const slots = editSlots.value
   const cur = editRange.value
-  // 第一格：无论原来是什么时段，都直接以它作为新起点，进入等第二格状态
+  // 第一格：无论原来是什么时段，都直接以它作为新起点（格子的起点即开始时间）
   if (!cur || editPickStage.value !== 1) {
     editRange.value = { start: cell.start, end: cell.end }
     editPickStage.value = 1
     return
   }
-  // 第二格比起点还早：把它当作新的第一格
-  if (cell.start <= cur.start) {
+  // 点到了更早的格子：以它作为新的第一格，重新等第二格
+  if (timeToMinutes(cell.start) < timeToMinutes(cur.start)) {
     editRange.value = { start: cell.start, end: cell.end }
     return
   }
-  // 第二格：以该格的起点作为结束时间（例如点 18:00 格 → 结束 18:00）
-  const endBoundary = cell.start
+  // 第二格本身计入会议，取它的结束时间作为最终结束（点 17:00–17:30 → 17:30）
+  const endBoundary = cell.end
   const from = slots.findIndex(s => s.start === cur.start)
-  const to = slots.findIndex(s => s.start === endBoundary)
-  if (from < 0 || to <= from) {
+  const to = slots.findIndex(s => s.start === cell.start)
+  if (from < 0 || to < from || timeToMinutes(endBoundary) <= timeToMinutes(cur.start)) {
     message.warning('结束时间必须晚于开始时间')
     editRange.value = { start: cell.start, end: cell.end }
     return
   }
-  if (slots.slice(from, to).some(s => !editableSlot(s))) {
+  if (slots.slice(from, to + 1).some(s => !editableSlot(s))) {
     message.warning('所选区间包含已占用时段，请重新选择起点')
     editRange.value = { start: cell.start, end: cell.end }
     return

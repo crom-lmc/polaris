@@ -92,6 +92,9 @@ public class GatewayProperties {
             "/api/audit/sso/**",
             // 会议室管理换票端：/callback 拿 OAuth code 换令牌时还没有用户令牌
             "/api/meetingroom/sso/**",
+            // 财务域（北极星账）与合同域（北极星契）换票端：同会议口径，匿名拿 code 换令牌
+            "/api/finance/sso/**",
+            "/api/contract/sso/**",
             // 论坛正文插图：走 file-service legacy 端点按别名读取（公开图片，非用户令牌鉴权）
             "/api/forum/media/file/**",
             // 调度中心派发入口：中心直连网关 9080 调 /internal/jobs/run，

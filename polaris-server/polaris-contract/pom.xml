@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>com.laimengchao.sso</groupId>
+        <artifactId>polaris-server</artifactId>
+        <version>1.0.0</version>
+        <relativePath>../pom.xml</relativePath>
+    </parent>
+
+    <artifactId>polaris-contract</artifactId>
+    <packaging>pom</packaging>
+    <name>polaris-contract</name>
+    <description>合同管理：位置台账、合同台账、预定时间轴与我的预定（端口 9015，独立库 polaris_contract）</description>
+
+    <modules>
+        <module>polaris-contract-service</module>
+        <module>polaris-contract-client</module>
+    </modules>
+</project>

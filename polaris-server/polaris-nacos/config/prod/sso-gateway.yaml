@@ -55,6 +55,14 @@ spring:
           uri: lb://meeting
           predicates:
             - Path=/api/meetingroom/**
+        - id: finance
+          uri: lb://finance
+          predicates:
+            - Path=/api/finance/**
+        - id: contract
+          uri: lb://contract
+          predicates:
+            - Path=/api/contract/**
 
 sso:
   gateway:

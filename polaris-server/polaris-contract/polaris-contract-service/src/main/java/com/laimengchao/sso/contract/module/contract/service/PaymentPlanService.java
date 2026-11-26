@@ -1,0 +1,187 @@
+package com.laimengchao.sso.contract.module.contract.service;
+
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.laimengchao.sso.common.BizException;
+import com.laimengchao.sso.common.ErrorCode;
+import com.laimengchao.sso.contract.common.ContractErrorCode;
+import com.laimengchao.sso.contract.common.EmbedPointService;
+import com.laimengchao.sso.contract.module.contract.dto.ContractRequests;
+import com.laimengchao.sso.contract.module.contract.entity.ContractAcceptance;
+import com.laimengchao.sso.contract.module.contract.entity.ContractHeader;
+import com.laimengchao.sso.contract.module.contract.entity.ContractPaymentPlan;
+import com.laimengchao.sso.contract.module.contract.mapper.ContractAcceptanceMapper;
+import com.laimengchao.sso.contract.module.contract.mapper.ContractPaymentPlanMapper;
+import com.laimengchao.sso.contract.module.contract.vo.ContractVOs;
+import com.laimengchao.sso.contract.security.DataScopeService;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.time.LocalDateTime;
+import java.util.List;
+
+/** 合同付款计划：发起付款申请置为待审批；来源单据号由财务域生成后回写。 */
+@Slf4j
+@Service
+@RequiredArgsConstructor
+public class PaymentPlanService {
+
+    private final ContractPaymentPlanMapper mapper;
+    private final ContractAcceptanceMapper acceptanceMapper;
+    private final ContractService contractService;
+    private final EmbedPointService embedPointService;
+    private final DataScopeService dataScopeService;
+
+    public List<ContractVOs.PaymentPlanVO> list(String contractNo) {
+        ContractHeader header = contractService.requireByNo(contractNo);
+        LambdaQueryWrapper<ContractPaymentPlan> qw = new LambdaQueryWrapper<ContractPaymentPlan>()
+                .eq(ContractPaymentPlan::getContractNo, header.getNo())
+                .orderByAsc(ContractPaymentPlan::getDueDate);
+        dataScopeService.applyOrgScope(qw, ContractPaymentPlan::getOrgCode);
+        return mapper.selectList(qw).stream().map(this::toVO).toList();
+    }
+
+    public ContractVOs.PaymentPlanVO detail(Long id) {
+        return toVO(require(id));
+    }
+
+    public ContractPaymentPlan require(Long id) {
+        ContractPaymentPlan entity = id == null ? null : mapper.selectById(id);
+        if (entity == null) {
+            throw new BizException(ContractErrorCode.PAYMENT_PLAN_NOT_FOUND);
+        }
+        dataScopeService.assertCanAccessOrg(entity.getOrgCode());
+        return entity;
+    }
+
+    @Transactional(rollbackFor = Exception.class)
+    public ContractVOs.PaymentPlanVO save(String contractNo, ContractRequests.PaymentPlanSave req) {
+        ContractHeader header = contractService.requireByNo(contractNo);
+        dataScopeService.assertCanAccessOrg(header.getOrgCode());
+        if (req == null || req.getAmount() == null || req.getAmount().signum() <= 0) {
+            throw new BizException(ErrorCode.PARAM_ERROR, "付款金额必须大于 0");
+        }
+        ContractPaymentPlan entity = new ContractPaymentPlan();
+        entity.setContractNo(header.getNo());
+        entity.setStage(nvl(req.getStage(), "其他付款"));
+        entity.setDueDate(req.getDueDate());
+        entity.setAmount(req.getAmount());
+        entity.setStatus(nvl(req.getStatus(), "WAITING"));
+        entity.setOrgCode(header.getOrgCode());
+        entity.setCreatedAt(LocalDateTime.now());
+        mapper.insert(entity);
+        return toVO(entity);
+    }
+
+    @Transactional(rollbackFor = Exception.class)
+    public void update(Long id, ContractRequests.PaymentPlanSave req) {
+        ContractPaymentPlan entity = require(id);
+        if ("PAID".equals(entity.getStatus()) || "POSTED".equals(entity.getStatus())) {
+            throw new BizException(ContractErrorCode.PAYMENT_PLAN_NOT_FOUND, "已完成付款的计划禁止修改");
+        }
+        if (req == null) {
+            throw new BizException(ErrorCode.PARAM_ERROR, "请求体不能为空");
+        }
+        entity.setStage(nvl(req.getStage(), entity.getStage()));
+        entity.setDueDate(req.getDueDate() == null ? entity.getDueDate() : req.getDueDate());
+        if (req.getAmount() != null) {
+            entity.setAmount(req.getAmount());
+        }
+        entity.setStatus(nvl(req.getStatus(), entity.getStatus()));
+        entity.setUpdatedAt(LocalDateTime.now());
+        mapper.updateById(entity);
+    }
+
+    @Transactional(rollbackFor = Exception.class)
+    public void delete(Long id) {
+        ContractPaymentPlan entity = require(id);
+        if (!"WAITING".equals(entity.getStatus())) {
+            throw new BizException(ContractErrorCode.PAYMENT_PLAN_NOT_FOUND, "仅待申请计划可删除");
+        }
+        mapper.deleteById(id);
+    }
+
+    /**
+     * 发起付款申请：仅推进状态；sourceDocNo 由财务域建应付/付款单后回写，
+     * 合同域不自造 YS/FK 单号。
+     */
+    @Transactional(rollbackFor = Exception.class)
+    public ContractVOs.PaymentPlanVO apply(Long id, ContractRequests.PaymentApplyRequest req) {
+        ContractPaymentPlan entity = require(id);
+        if (!"WAITING".equals(entity.getStatus()) && !"REJECTED".equals(entity.getStatus())) {
+            throw new BizException(ContractErrorCode.PAYMENT_PLAN_NOT_FOUND, "当前付款计划状态不支持发起申请");
+        }
+        // 埋点 contract.acceptance.required-before-pay 默认 true：付款申请前必须有合格且已过账的验收单。
+        // 埋点读取失败时按 true 兜底（fail-closed），与财务 internal token 口径一致。
+        if (embedPointService.acceptanceRequiredBeforePay()) {
+            Long accepted = acceptanceMapper.selectCount(new LambdaQueryWrapper<ContractAcceptance>()
+                    .eq(ContractAcceptance::getContractNo, entity.getContractNo())
+                    .eq(ContractAcceptance::getResult, "合格")
+                    .eq(ContractAcceptance::getStatus, "POSTED")
+                    .last("limit 1"));
+            if (accepted == null || accepted == 0) {
+                throw new BizException(ContractErrorCode.ACCEPTANCE_REQUIRED,
+                        "埋点要求付款前完成验收：合同 " + entity.getContractNo() + " 尚无合格且已过账的验收单");
+            }
+        }
+        if (req != null && req.getSourceDocNo() != null && !req.getSourceDocNo().isBlank()) {
+            entity.setSourceDocNo(req.getSourceDocNo().trim());
+        }
+        entity.setStatus("PENDING");
+        entity.setUpdatedAt(LocalDateTime.now());
+        mapper.updateById(entity);
+        return toVO(entity);
+    }
+
+    /** 财务域回写来源单据与状态（YS/FK 由财务域规则生成） */
+    @Transactional(rollbackFor = Exception.class)
+    public void syncSourceDoc(String sourceDocNo, String status) {
+        if (sourceDocNo == null || sourceDocNo.isBlank()) {
+            return;
+        }
+        LambdaQueryWrapper<ContractPaymentPlan> qw = new LambdaQueryWrapper<ContractPaymentPlan>()
+                .eq(ContractPaymentPlan::getSourceDocNo, sourceDocNo.trim());
+        dataScopeService.applyOrgScope(qw, ContractPaymentPlan::getOrgCode);
+        List<ContractPaymentPlan> plans = mapper.selectList(qw);
+        for (ContractPaymentPlan plan : plans) {
+            if (status != null && !status.isBlank()) {
+                plan.setStatus(status.trim());
+            }
+            plan.setUpdatedAt(LocalDateTime.now());
+            mapper.updateById(plan);
+        }
+    }
+
+    private ContractVOs.PaymentPlanVO toVO(ContractPaymentPlan e) {
+        ContractVOs.PaymentPlanVO vo = new ContractVOs.PaymentPlanVO();
+        vo.setId(e.getId());
+        vo.setContractNo(e.getContractNo());
+        vo.setStage(e.getStage());
+        vo.setDueDate(e.getDueDate() == null ? null : e.getDueDate().toString());
+        vo.setAmount(e.getAmount());
+        vo.setSourceDocNo(e.getSourceDocNo());
+        vo.setStatus(e.getStatus());
+        vo.setOrgCode(e.getOrgCode());
+        // 付款到期提醒：天数来自埋点；仅未完成（非 PAID/POSTED）的计划参与判定
+        int remind = embedPointService.paymentRemindDays();
+        vo.setRemindDays(remind);
+        boolean finished = "PAID".equals(e.getStatus()) || "POSTED".equals(e.getStatus());
+        if (!finished && e.getDueDate() != null) {
+            java.time.LocalDate due = e.getDueDate();
+            java.time.LocalDate today = java.time.LocalDate.now();
+            vo.setOverdue(due.isBefore(today));
+            vo.setDueSoon(!vo.isOverdue() && !due.isAfter(today.plusDays(remind)));
+        }
+        try {
+            vo.setContractName(contractService.requireByNo(e.getContractNo()).getName());
+        } catch (BizException ignored) {
+            // 合同不在当前数据范围时不泄露名称，仅保留编号
+        }
+        return vo;
+    }
+
+    private String nvl(String value, String fallback) {
+        return value == null || value.isBlank() ? fallback : value.trim();
+    }
+}

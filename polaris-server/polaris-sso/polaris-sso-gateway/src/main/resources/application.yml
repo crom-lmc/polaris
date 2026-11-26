@@ -100,6 +100,16 @@ spring:
           uri: ${MEETING_ROUTE:http://127.0.0.1:9013}
           predicates:
             - Path=/api/meetingroom/**
+        # 财务域（北极星账）：finance-service :9014，管理端接口需登录，仅 sso 换票匿名
+        - id: finance
+          uri: ${FINANCE_ROUTE:http://127.0.0.1:9014}
+          predicates:
+            - Path=/api/finance/**
+        # 合同域（北极星契）：contract-service :9015，管理端接口需登录，仅 sso 换票匿名
+        - id: contract
+          uri: ${CONTRACT_ROUTE:http://127.0.0.1:9015}
+          predicates:
+            - Path=/api/contract/**
 
 sso:
   gateway:

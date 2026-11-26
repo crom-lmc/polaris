@@ -362,6 +362,78 @@ public final class PermissionConstants {
     public static final java.util.List<String> MEETING_USER_ROLE_CODES = java.util.List.of("MEETING_USER");
     public static final String[] MEETING_USER_PERMISSIONS = { MEETING_NOSHOW_VIEW };
 
+    /* ---------- 业务应用 finance（北极星账）的内置权限 ---------- */
+
+    public static final String FINANCE_APP = "finance";
+    public static final String FINANCE_OVERVIEW_VIEW = "finance:overview:view";
+    public static final String FINANCE_VOUCHER_LIST = "finance:voucher:list";
+    public static final String FINANCE_VOUCHER_EDIT = "finance:voucher:edit";
+    public static final String FINANCE_EXPENSE_LIST = "finance:expense:list";
+    public static final String FINANCE_EXPENSE_CREATE = "finance:expense:create";
+    public static final String FINANCE_EXPENSE_AUDIT = "finance:expense:audit";
+    public static final String FINANCE_BUDGET_VIEW = "finance:budget:view";
+    public static final String FINANCE_BUDGET_EDIT = "finance:budget:edit";
+    public static final String FINANCE_AR_AP_LIST = "finance:ar-ap:list";
+    public static final String FINANCE_AR_AP_WRITE = "finance:ar-ap:write";
+    public static final String FINANCE_REPORT_VIEW = "finance:report:view";
+    public static final String FINANCE_MASTER_LIST = "finance:master:list";
+    public static final String FINANCE_MASTER_EDIT = "finance:master:edit";
+    public static final String FINANCE_SALARY_VIEW = "finance:salary:view";
+    public static final String FINANCE_BANK_VIEW = "finance:bank:view";
+
+    public static final java.util.List<PermDef> FINANCE_BUILTIN = java.util.List.of(
+            new PermDef("财务概览", FINANCE_OVERVIEW_VIEW, PermissionType.MENU, null, 1),
+            new PermDef("凭证管理", FINANCE_VOUCHER_LIST, PermissionType.MENU, null, 2),
+            new PermDef("费用报销", FINANCE_EXPENSE_LIST, PermissionType.MENU, null, 3),
+            new PermDef("预算管理", FINANCE_BUDGET_VIEW, PermissionType.MENU, null, 4),
+            new PermDef("应收应付", FINANCE_AR_AP_LIST, PermissionType.MENU, null, 5),
+            new PermDef("财务报表", FINANCE_REPORT_VIEW, PermissionType.MENU, null, 6),
+            new PermDef("主数据维护", FINANCE_MASTER_LIST, PermissionType.MENU, null, 7),
+            new PermDef("新增/编辑凭证", FINANCE_VOUCHER_EDIT, PermissionType.BUTTON, FINANCE_VOUCHER_LIST, 1),
+            new PermDef("发起报销", FINANCE_EXPENSE_CREATE, PermissionType.BUTTON, FINANCE_EXPENSE_LIST, 1),
+            new PermDef("报销审批", FINANCE_EXPENSE_AUDIT, PermissionType.BUTTON, FINANCE_EXPENSE_LIST, 2),
+            new PermDef("维护预算", FINANCE_BUDGET_EDIT, PermissionType.BUTTON, FINANCE_BUDGET_VIEW, 1),
+            new PermDef("应收应付核销", FINANCE_AR_AP_WRITE, PermissionType.BUTTON, FINANCE_AR_AP_LIST, 1),
+            new PermDef("维护科目", FINANCE_MASTER_EDIT, PermissionType.BUTTON, FINANCE_MASTER_LIST, 1),
+            new PermDef("查看薪资明文", FINANCE_SALARY_VIEW, PermissionType.BUTTON, FINANCE_OVERVIEW_VIEW, 1),
+            new PermDef("查看银行账号", FINANCE_BANK_VIEW, PermissionType.BUTTON, FINANCE_AR_AP_LIST, 2)
+    );
+
+    /* ---------- 业务应用 contract（北极星契）的内置权限 ---------- */
+
+    public static final String CONTRACT_APP = "contract";
+    public static final String CONTRACT_PLAN_LIST = "contract:plan:list";
+    public static final String CONTRACT_PLAN_EDIT = "contract:plan:edit";
+    public static final String CONTRACT_PARTNER_LIST = "contract:partner:list";
+    public static final String CONTRACT_PARTNER_EDIT = "contract:partner:edit";
+    public static final String CONTRACT_MATERIAL_LIST = "contract:material:list";
+    public static final String CONTRACT_MATERIAL_EDIT = "contract:material:edit";
+    public static final String CONTRACT_PROJECT_LIST = "contract:project:list";
+    public static final String CONTRACT_PROJECT_EDIT = "contract:project:edit";
+    public static final String CONTRACT_LEDGER_LIST = "contract:ledger:list";
+    public static final String CONTRACT_LEDGER_EDIT = "contract:ledger:edit";
+    public static final String CONTRACT_ITEM_EDIT = "contract:item:edit";
+    public static final String CONTRACT_PAYMENT_LIST = "contract:payment:list";
+    public static final String CONTRACT_PAYMENT_EDIT = "contract:payment:edit";
+    public static final String CONTRACT_PARTNER_BANK_VIEW = "contract:partner:bank:view";
+
+    public static final java.util.List<PermDef> CONTRACT_BUILTIN = java.util.List.of(
+            new PermDef("采购计划", CONTRACT_PLAN_LIST, PermissionType.MENU, null, 1),
+            new PermDef("往来单位维护", CONTRACT_PARTNER_LIST, PermissionType.MENU, null, 2),
+            new PermDef("物料库", CONTRACT_MATERIAL_LIST, PermissionType.MENU, null, 3),
+            new PermDef("项目维护", CONTRACT_PROJECT_LIST, PermissionType.MENU, null, 4),
+            new PermDef("合同台账", CONTRACT_LEDGER_LIST, PermissionType.MENU, null, 5),
+            new PermDef("合同付款计划", CONTRACT_PAYMENT_LIST, PermissionType.MENU, null, 6),
+            new PermDef("新增/审批采购计划", CONTRACT_PLAN_EDIT, PermissionType.BUTTON, CONTRACT_PLAN_LIST, 1),
+            new PermDef("维护往来单位", CONTRACT_PARTNER_EDIT, PermissionType.BUTTON, CONTRACT_PARTNER_LIST, 1),
+            new PermDef("维护物料", CONTRACT_MATERIAL_EDIT, PermissionType.BUTTON, CONTRACT_MATERIAL_LIST, 1),
+            new PermDef("维护项目", CONTRACT_PROJECT_EDIT, PermissionType.BUTTON, CONTRACT_PROJECT_LIST, 1),
+            new PermDef("新增/编辑合同", CONTRACT_LEDGER_EDIT, PermissionType.BUTTON, CONTRACT_LEDGER_LIST, 1),
+            new PermDef("维护合同清单", CONTRACT_ITEM_EDIT, PermissionType.BUTTON, CONTRACT_LEDGER_LIST, 2),
+            new PermDef("发起付款", CONTRACT_PAYMENT_EDIT, PermissionType.BUTTON, CONTRACT_PAYMENT_LIST, 1),
+            new PermDef("查看往来单位银行账号", CONTRACT_PARTNER_BANK_VIEW, PermissionType.BUTTON, CONTRACT_PARTNER_LIST, 2)
+    );
+
     /* ---------- 业务应用 forum（社区论坛）的内置权限 ---------- */
 
     public static final String FORUM_APP = "forum";

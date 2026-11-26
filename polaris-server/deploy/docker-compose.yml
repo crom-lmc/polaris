@@ -11,7 +11,7 @@ x-base: &base
   restart: unless-stopped
   env_file:
     - .env
-  environment:
+  environment: &base-env
     TZ: Asia/Shanghai
     SERVER_ADDRESS: 127.0.0.1
     # 服务间 /internal/** 准入令牌：缺失时直接启动失败，避免内部接口静默裸奔
@@ -205,4 +205,47 @@ services:
       retries: 3
       start_period: 90s
 
+  # 财务域（北极星账）：独立库 polaris_finance，管理端经网关 /api/finance/**
+  finance:
+    <<: *base
+    container_name: polaris-finance
+    command: ["java", "-jar", "/jars/finance-service.jar"]
+    environment:
+      <<: *base-env
+      JAVA_TOOL_OPTIONS: >-
+        -Xms64m -Xmx160m -XX:MaxMetaspaceSize=128m -XX:ReservedCodeCacheSize=24m
+        -XX:+UseSerialGC -XX:+ExitOnOutOfMemoryError
+        -Xss512k -Dfile.encoding=UTF-8 -Duser.timezone=Asia/Shanghai
+    mem_limit: 448m
+    depends_on:
+      sso-account:
+        condition: service_started
+    healthcheck:
+      test: ["CMD-SHELL", "timeout 2 bash -c '</dev/tcp/127.0.0.1/9014' || exit 1"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 90s
+
+  # 合同域（北极星契）：独立库 polaris_contract，管理端经网关 /api/contract/**
+  contract:
+    <<: *base
+    container_name: polaris-contract
+    command: ["java", "-jar", "/jars/contract-service.jar"]
+    environment:
+      <<: *base-env
+      JAVA_TOOL_OPTIONS: >-
+        -Xms64m -Xmx160m -XX:MaxMetaspaceSize=128m -XX:ReservedCodeCacheSize=24m
+        -XX:+UseSerialGC -XX:+ExitOnOutOfMemoryError
+        -Xss512k -Dfile.encoding=UTF-8 -Duser.timezone=Asia/Shanghai
+    mem_limit: 448m
+    depends_on:
+      sso-account:
+        condition: service_started
+    healthcheck:
+      test: ["CMD-SHELL", "timeout 2 bash -c '</dev/tcp/127.0.0.1/9015' || exit 1"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 90s
 

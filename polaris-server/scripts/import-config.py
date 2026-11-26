@@ -43,7 +43,7 @@ SECRET_TOOL = os.environ.get("SSO_SECRET_TOOL", "").strip()
 DATA_IDS = [
     "sso-gateway.yaml", "sso-auth.yaml", "sso-account.yaml",
     "cms.yaml", "ehr.yaml", "forum.yaml", "settings.yaml", "portal.yaml", "job.yaml",
-    "meeting.yaml",
+    "meeting.yaml", "finance.yaml", "contract.yaml",
 ]
 ENVS = {"local": "sso-ms-local", "prod": "sso-ms-prod"}
 SEALED_PREFIX = "ENC("

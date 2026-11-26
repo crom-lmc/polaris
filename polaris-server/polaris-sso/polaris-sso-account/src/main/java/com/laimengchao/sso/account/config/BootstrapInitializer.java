@@ -215,6 +215,9 @@ public class BootstrapInitializer implements ApplicationRunner {
         seedPermissions(PermissionConstants.AUDIT_APP, PermissionConstants.AUDIT_BUILTIN);
         // 会议室管理：4 个菜单 + 6 个按钮（超管全量授权由 initSuperAdmin 覆盖）
         seedPermissions(PermissionConstants.MEETING_APP, PermissionConstants.MEETING_BUILTIN);
+        // 财务域（北极星账）与合同域（北极星契）：两个独立应用的菜单 + 按钮权限
+        seedPermissions(PermissionConstants.FINANCE_APP, PermissionConstants.FINANCE_BUILTIN);
+        seedPermissions(PermissionConstants.CONTRACT_APP, PermissionConstants.CONTRACT_BUILTIN);
     }
 
     /** 按应用补权限码；父级菜单的 id 只在同应用内找，避免业务应用同名码把 parentId 指错 */

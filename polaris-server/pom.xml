@@ -53,6 +53,12 @@
 
         <!-- 会议室管理（北极星会）：meeting(9013，独立库 polaris_meetingroom)，不对外提供接口故无 meeting-client -->
         <module>polaris-meeting</module>
+
+        <!-- 财务域（北极星账）：finance-service(9014，独立库 polaris_finance) + finance-client -->
+        <module>polaris-finance</module>
+
+        <!-- 合同域（北极星契）：contract-service(9015，独立库 polaris_contract) + contract-client -->
+        <module>polaris-contract</module>
     </modules>
 
     <dependencyManagement>
@@ -149,6 +155,18 @@
             <dependency>
                 <groupId>com.laimengchao.sso</groupId>
                 <artifactId>polaris-job-client</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <!-- 财务域跨服客户端：合同域只读引用科目/预算/凭证/应收应付 -->
+            <dependency>
+                <groupId>com.laimengchao.sso</groupId>
+                <artifactId>polaris-finance-client</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <!-- 合同域跨服客户端：财务域只读引用往来单位/物料/合同/项目/验收 -->
+            <dependency>
+                <groupId>com.laimengchao.sso</groupId>
+                <artifactId>polaris-contract-client</artifactId>
                 <version>${project.version}</version>
             </dependency>
         </dependencies>

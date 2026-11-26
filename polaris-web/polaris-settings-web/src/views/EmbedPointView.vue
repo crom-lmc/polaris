@@ -365,6 +365,39 @@
           </div>
         </template>
 
+        <!-- 财务 / 合同域埋点：裸值编辑（业务服务读整个 value，内置兜底；不包一层对象） -->
+        <template v-if="editor === 'plain'">
+          <a-divider orientation="left">业务规则配置</a-divider>
+          <a-alert type="info" show-icon class="unknown-tip"
+                   message="值为业务服务直接读取的规则，保存后由 settings 下发（缓存约 60 秒）"
+                   description="每个埋点都有独立的结构化表单与内置默认值；埋点只控制行为，不承载主数据、不参与单据外键、不定义审批流。" />
+          <a-form layout="vertical">
+            <a-form-item v-if="plainKind === 'bool'" :label="current?.name || '开关'">
+              <a-switch v-model:checked="plainBool" :disabled="isReadonly"
+                        checked-children="开启" un-checked-children="关闭" @change="syncPlainValue" />
+              <span class="muted switch-tip">{{ currentCode === CONTRACT_ALLOW_OVER_KEY ? '关闭=超预算拦截（默认），开启=放行并记录超预算留痕' : '默认关闭，按业务服务内置值兜底' }}</span>
+            </a-form-item>
+            <a-form-item v-else-if="plainKind === 'number'" :label="current?.name || '数值'">
+              <a-input-number v-model:value="plainNumber" :min="PLAIN_NUMBER_RANGE[currentCode]?.min ?? 0"
+                              :max="PLAIN_NUMBER_RANGE[currentCode]?.max ?? 1000000" :disabled="isReadonly"
+                              style="width: 220px" @change="syncPlainValue" />
+              <span class="muted switch-tip">取值范围由埋点定义，超限自动收敛；业务服务另有内置兜底值</span>
+            </a-form-item>
+            <a-form-item v-else-if="plainKind === 'enum'" :label="current?.name || '选项'">
+              <a-select v-model:value="plainEnum" :disabled="isReadonly" style="width: 220px"
+                        @change="syncPlainValue">
+                <a-select-option v-for="opt in PLAIN_ENUM_OPTIONS[currentCode] || []" :key="opt" :value="opt">{{ opt }}</a-select-option>
+              </a-select>
+              <span class="muted switch-tip">枚举值直接作为埋点值保存，业务服务按此判定行为</span>
+            </a-form-item>
+            <a-form-item v-else :label="current?.name || 'JSON 配置'">
+              <a-textarea v-model:value="plainJson" :rows="6" :disabled="isReadonly"
+                          placeholder="请输入合法 JSON（数组或对象）" @blur="syncPlainValue" />
+              <span class="muted switch-tip">该配置有固定字段结构，业务服务读取失败时按内置默认值兜底</span>
+            </a-form-item>
+          </a-form>
+        </template>
+
         <!-- 未登记结构化编辑器的埋点：只读预览，不提供 JSON 编辑入口 -->
         <template v-if="editor === 'unknown'">
           <a-alert
@@ -471,6 +504,56 @@ const MEETING_NO_SHOW_RULE_KEY = 'meeting.booking.no_show_restriction'
 const FORUM_LOTTERY_KEY = 'forum.lottery.enabled'
 /** 论坛礼品兑换开关：布尔，值为 {"enabled": true/false} */
 const FORUM_EXCHANGE_KEY = 'forum.exchange.enabled'
+
+/** 财务域埋点：值为裸 JSON（true/false、数字、"ENUM"、数组/对象），由业务服务内置兜底 */
+const FINANCE_AUTO_POST_KEY = 'finance.voucher.auto-post'
+const FINANCE_AGING_BUCKETS_KEY = 'finance.aging.buckets'
+const FINANCE_ALERT_RATIO_KEY = 'finance.budget.alert-ratio'
+const FINANCE_CONTROL_MODE_KEY = 'finance.budget.control-mode'
+const FINANCE_APPROVAL_AMOUNT_KEY = 'finance.expense.approval-amount'
+const FINANCE_CLOSE_DAY_KEY = 'finance.period.close-day'
+const FINANCE_WRITEOFF_MODE_KEY = 'finance.receivable.writeoff-mode'
+const FINANCE_PERIOD_CHECK_KEY = 'finance.voucher.period-check'
+/** 合同域埋点：超预算开关默认 false（fail-closed 拦截）；其余阈值与财务同口径 */
+const CONTRACT_ALLOW_OVER_KEY = 'contract.budget.allow-over'
+const CONTRACT_PAYMENT_REMIND_KEY = 'contract.payment.remind-days'
+const CONTRACT_ACCEPT_REQUIRED_KEY = 'contract.acceptance.required-before-pay'
+const CONTRACT_PURCHASE_APPROVAL_KEY = 'contract.purchase.approval-amount'
+const CONTRACT_SALES_CREDIT_KEY = 'contract.sales.credit-check'
+const CONTRACT_CHANGE_MAX_KEY = 'contract.change.max-times'
+const CONTRACT_MATERIAL_PATTERN_KEY = 'contract.material.code-pattern'
+
+/** plain 编辑器：按 key 决定控件类型与取值范围，保存裸 JSON 值（不包一层对象） */
+type PlainKind = 'bool' | 'number' | 'enum' | 'json'
+const PLAIN_KEYS: Record<string, PlainKind> = {
+  [FINANCE_AUTO_POST_KEY]: 'bool',
+  [FINANCE_PERIOD_CHECK_KEY]: 'bool',
+  [CONTRACT_ALLOW_OVER_KEY]: 'bool',
+  [CONTRACT_ACCEPT_REQUIRED_KEY]: 'bool',
+  [CONTRACT_SALES_CREDIT_KEY]: 'bool',
+  [FINANCE_ALERT_RATIO_KEY]: 'number',
+  [FINANCE_APPROVAL_AMOUNT_KEY]: 'number',
+  [FINANCE_CLOSE_DAY_KEY]: 'number',
+  [CONTRACT_PAYMENT_REMIND_KEY]: 'number',
+  [CONTRACT_PURCHASE_APPROVAL_KEY]: 'number',
+  [CONTRACT_CHANGE_MAX_KEY]: 'number',
+  [FINANCE_CONTROL_MODE_KEY]: 'enum',
+  [FINANCE_WRITEOFF_MODE_KEY]: 'enum',
+  [FINANCE_AGING_BUCKETS_KEY]: 'json',
+  [CONTRACT_MATERIAL_PATTERN_KEY]: 'json'
+}
+const PLAIN_ENUM_OPTIONS: Record<string, string[]> = {
+  [FINANCE_CONTROL_MODE_KEY]: ['REMIND', 'STRICT'],
+  [FINANCE_WRITEOFF_MODE_KEY]: ['FIFO', 'MANUAL']
+}
+const PLAIN_NUMBER_RANGE: Record<string, { min: number; max: number }> = {
+  [FINANCE_ALERT_RATIO_KEY]: { min: 1, max: 1000 },
+  [FINANCE_APPROVAL_AMOUNT_KEY]: { min: 0, max: 10000000 },
+  [FINANCE_CLOSE_DAY_KEY]: { min: 1, max: 28 },
+  [CONTRACT_PAYMENT_REMIND_KEY]: { min: 0, max: 365 },
+  [CONTRACT_PURCHASE_APPROVAL_KEY]: { min: 0, max: 100000000 },
+  [CONTRACT_CHANGE_MAX_KEY]: { min: 0, max: 100 }
+}
 const COMMON_APP = '__common__'
 
 const store = useUserStore()
@@ -648,6 +731,7 @@ type EmbedEditor =
   | 'orgs'
   | 'number'
   | 'noShowRule'
+  | 'plain'
   | 'unknown'
 const EDITOR_BY_CODE: Record<string, EmbedEditor> = {
   [RECEIVER_KEY]: 'receiver',
@@ -664,7 +748,8 @@ const EDITOR_BY_CODE: Record<string, EmbedEditor> = {
   [MEETING_MAX_DURATION_KEY]: 'number',
   [MEETING_NO_SHOW_RULE_KEY]: 'noShowRule',
   [FORUM_LOTTERY_KEY]: 'switch',
-  [FORUM_EXCHANGE_KEY]: 'switch'
+  [FORUM_EXCHANGE_KEY]: 'switch',
+  ...Object.fromEntries(Object.keys(PLAIN_KEYS).map(k => [k, 'plain']))
 }
 const editor = computed<EmbedEditor>(() => EDITOR_BY_CODE[currentCode.value] || 'unknown')
 
@@ -701,6 +786,12 @@ const mockEnabled = ref(false)
 const offsetTags = ref<string[]>([])
 /** 数值埋点（如等级上限）：通用数字输入 */
 const numberValue = ref<number>(1)
+/** 财务/合同埋点：裸值编辑控件，按 key 决定用 bool / number / enum / json */
+const plainKind = computed<PlainKind>(() => PLAIN_KEYS[currentCode.value] || 'json')
+const plainBool = ref(false)
+const plainNumber = ref<number>(0)
+const plainEnum = ref('')
+const plainJson = ref('')
 /** 会议室爽约限制：统计天数 / 触发次数 / 禁约天数 */
 const noShowWindowDays = ref<number>(90)
 const noShowThreshold = ref<number>(3)
@@ -795,8 +886,23 @@ function parseJson(raw?: string): any {
 
 /** JSON → 结构化控件（编辑回显、手动改 JSON 后失焦同步） */
 function applyStructured(code: string, raw: string) {
-  const obj = parseJson(raw) || {}
-  if (code === RECEIVER_KEY) {
+  const parsed = parseJson(raw)
+  const obj = parsed || {}
+  if (PLAIN_KEYS[code]) {
+    const kind = PLAIN_KEYS[code]
+    plainBool.value = parsed === true
+    plainNumber.value = typeof parsed === 'number' && Number.isFinite(parsed) ? parsed : 0
+    plainEnum.value = typeof parsed === 'string' ? parsed : (PLAIN_ENUM_OPTIONS[code]?.[0] || '')
+    plainJson.value = raw || ''
+    if (kind === 'number' && !plainNumber.value) {
+      plainNumber.value = code === FINANCE_ALERT_RATIO_KEY ? 80
+        : code === FINANCE_APPROVAL_AMOUNT_KEY ? 5000
+        : code === FINANCE_CLOSE_DAY_KEY ? 5
+        : code === CONTRACT_PAYMENT_REMIND_KEY ? 7
+        : code === CONTRACT_PURCHASE_APPROVAL_KEY ? 100000 : 3
+    }
+    if (kind === 'enum' && !plainEnum.value) plainEnum.value = PLAIN_ENUM_OPTIONS[code]?.[0] || ''
+  } else if (code === RECEIVER_KEY) {
     orgIds.value = Array.isArray(obj.orgIds) ? obj.orgIds.map(String) : []
     accountIds.value = Array.isArray(obj.accountIds) ? obj.accountIds.map(String) : []
     directSupervisor.value = obj.directSupervisor !== false
@@ -870,6 +976,28 @@ function syncNumberJson() {
 }
 
 /** 爽约规则：三个字段整体写回，0 表示不启用限制 */
+/** plain 埋点：保存裸 JSON 值（业务服务读的是整个 value，不包一层对象） */
+function syncPlainValue() {
+  const code = currentCode.value
+  const kind = PLAIN_KEYS[code]
+  if (!kind) return
+  if (kind === 'bool') {
+    form.value = JSON.stringify(plainBool.value)
+  } else if (kind === 'number') {
+    const range = PLAIN_NUMBER_RANGE[code] || { min: 0, max: 1000000 }
+    let n = Number(plainNumber.value)
+    if (!Number.isFinite(n)) n = range.min
+    n = Math.min(range.max, Math.max(range.min, n))
+    plainNumber.value = n
+    form.value = JSON.stringify(n)
+  } else if (kind === 'enum') {
+    if (!plainEnum.value) plainEnum.value = PLAIN_ENUM_OPTIONS[code]?.[0] || ''
+    form.value = JSON.stringify(plainEnum.value)
+  } else {
+    form.value = plainJson.value || '{}'
+  }
+}
+
 function syncNoShowRuleJson() {
   const windowDays = Number(noShowWindowDays.value)
   const threshold = Number(noShowThreshold.value)

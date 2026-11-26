@@ -1,0 +1,244 @@
+package com.laimengchao.sso.contract.module.contract.vo;
+
+import com.fasterxml.jackson.databind.annotation.JsonSerialize;
+import com.fasterxml.jackson.databind.ser.std.ToStringSerializer;
+import lombok.Data;
+
+import java.math.BigDecimal;
+import java.util.List;
+
+/** 合同域响应 VO：所有雪花 ID（含外键）统一序列化为字符串。 */
+public final class ContractVOs {
+
+    private ContractVOs() {
+    }
+
+    @Data
+    public static class PartnerVO {
+        @JsonSerialize(using = ToStringSerializer.class)
+        private Long id;
+        private String code;
+        private String name;
+        private String subjectType;
+        private String role;
+        private String type;
+        private String creditCode;
+        /** 与 contract-client 的 PartnerDTO.taxNo 对齐 */
+        private String taxNo;
+        private String legalPerson;
+        private String registeredCapital;
+        private String establishDate;
+        private String taxpayerType;
+        private String address;
+        private String remark;
+        private String contact;
+        private String phone;
+        private String terms;
+        private String rating;
+        private BigDecimal creditLimit;
+        private BigDecimal creditUsed;
+        private String status;
+        private String bank;
+        private String accountName;
+        private String bankAccount;
+        private Boolean bankMasked;
+        private String orgCode;
+    }
+
+    @Data
+    public static class MaterialVO {
+        @JsonSerialize(using = ToStringSerializer.class)
+        private Long id;
+        @JsonSerialize(using = ToStringSerializer.class)
+        private Long parentId;
+        private String code;
+        private String name;
+        private String kind;
+        private String spec;
+        private String unit;
+        private BigDecimal referencePrice;
+        private String orgCode;
+        private List<MaterialVO> children;
+    }
+
+    @Data
+    public static class ProjectVO {
+        @JsonSerialize(using = ToStringSerializer.class)
+        private Long id;
+        private String code;
+        private String name;
+        private String type;
+        private String orgCode;
+        private String teamCode;
+        private String costCenterCode;
+        private String owner;
+        private BigDecimal budgetAmount;
+        private String startDate;
+        private String endDate;
+        private String status;
+        private String remark;
+        private Integer contractCount;
+        private BigDecimal contractAmount;
+        private BigDecimal usedAmount;
+    }
+
+    @Data
+    public static class ContractVO {
+        @JsonSerialize(using = ToStringSerializer.class)
+        private Long id;
+        private String no;
+        private String type;
+        private String name;
+        private String partnerCode;
+        private String partnerName;
+        private String projectNo;
+        private String projectName;
+        private String dept;
+        private String owner;
+        private String signedDate;
+        private String effectiveDate;
+        private String endDate;
+        private String status;
+        private String paymentTerms;
+        private String subject;
+        private String orgCode;
+        private BigDecimal amount;
+        private BigDecimal paidAmount;
+        private BigDecimal inFlightAmount;
+        private BigDecimal pendingAmount;
+        private BigDecimal progress;
+        private Integer itemCount;
+        private Integer planCount;
+        private Integer changeCount;
+    }
+
+    @Data
+    public static class ChangeLogVO {
+        @JsonSerialize(using = ToStringSerializer.class)
+        private Long id;
+        private String no;
+        private String changeType;
+        private String beforeValue;
+        private String afterValue;
+        private String reason;
+        private String operator;
+        private String createdAt;
+    }
+
+    @Data
+    public static class ItemVO {
+        @JsonSerialize(using = ToStringSerializer.class)
+        private Long id;
+        private String contractNo;
+        private Integer lineNo;
+        /** 与 contract-client 的 ContractItemDTO.code 对齐 */
+        private String code;
+        private String materialCode;
+        private String materialName;
+        private String spec;
+        private String unit;
+        private BigDecimal qty;
+        private BigDecimal price;
+        private BigDecimal amount;
+        private BigDecimal deliveredQty;
+        private String remark;
+        private String orgCode;
+    }
+
+    @Data
+    public static class PaymentPlanVO {
+        @JsonSerialize(using = ToStringSerializer.class)
+        private Long id;
+        private String contractNo;
+        private String contractName;
+        private String stage;
+        private String dueDate;
+        private BigDecimal amount;
+        private String sourceDocNo;
+        private String status;
+        private String orgCode;
+        /** 是否临近到期（到期日前 N 天内，N 取埋点 contract.payment.remind-days） */
+        private boolean dueSoon;
+        /** 是否已逾期且未付款 */
+        private boolean overdue;
+        /** 提醒天数，随 VO 下发便于前端展示口径 */
+        private int remindDays;
+    }
+
+    @Data
+    public static class PurchasePlanVO {
+        @JsonSerialize(using = ToStringSerializer.class)
+        private Long id;
+        private String no;
+        private String title;
+        private String dept;
+        private String applicant;
+        private String needDate;
+        private String budgetSubject;
+        private String status;
+        private String contractNo;
+        private String orgCode;
+        private BigDecimal amount;
+        private Integer itemCount;
+        private List<PurchasePlanItemVO> items;
+    }
+
+    @Data
+    public static class PurchasePlanItemVO {
+        @JsonSerialize(using = ToStringSerializer.class)
+        private Long id;
+        private String planNo;
+        private String materialCode;
+        private String materialName;
+        private String spec;
+        private String unit;
+        private BigDecimal qty;
+        private BigDecimal price;
+        private BigDecimal amount;
+    }
+
+    @Data
+    public static class AcceptanceVO {
+        @JsonSerialize(using = ToStringSerializer.class)
+        private Long id;
+        private String no;
+        private String contractNo;
+        @JsonSerialize(using = ToStringSerializer.class)
+        private Long itemId;
+        private String materialCode;
+        private BigDecimal qty;
+        private String date;
+        private String result;
+        private String status;
+        private String orgCode;
+    }
+
+    /** 项目可选清单（供合同侧下拉与可用性校验） */
+    @Data
+    public static class ProjectOptionVO {
+        private String code;
+        private String name;
+        private String type;
+        private String orgCode;
+        private String status;
+        private BigDecimal budgetAmount;
+    }
+
+    /** 项目可用性校验结果 */
+    @Data
+    public static class ProjectUsableVO {
+        private String code;
+        private boolean usable;
+        private String reason;
+    }
+
+    /** 合同执行进度统计 */
+    @Data
+    public static class ContractStatsVO {
+        private long total;
+        private BigDecimal amount;
+        private BigDecimal paidAmount;
+        private BigDecimal inFlightAmount;
+        private BigDecimal pendingAmount;
+    }
+}

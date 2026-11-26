@@ -121,6 +121,8 @@ const ALL_APPS: AppItem[] = [
   { code: 'file', name: '北极星云', desc: '统一文件存储', icon: 'file', mark: '云', bg: '#eaf1ff', fg: '#3f6fd8', url: 'https://polaris-file.laimengchao.site/', callback: 'https://polaris-file.laimengchao.site/callback' },
   { code: 'audit', name: '北极星眼', desc: '统一审计与日志', icon: 'audit', mark: '眼', bg: '#f6efe6', fg: '#b07a3e', url: 'https://polaris-audit.laimengchao.site/', callback: 'https://polaris-audit.laimengchao.site/callback' },
   { code: 'meeting', name: '北极星会', desc: '会议室预定与维护', icon: 'meeting', mark: '会', bg: '#e9f7f3', fg: '#149e7a', url: 'https://poraris-meeting.laimengchao.site/', callback: 'https://poraris-meeting.laimengchao.site/callback' },
+  { code: 'finance', name: '北极星账', desc: '财务核算与报表', icon: 'finance', mark: '账', bg: '#eaf0ff', fg: '#3b6fd4', url: 'https://polaris-finance.laimengchao.site/', callback: 'https://polaris-finance.laimengchao.site/callback' },
+  { code: 'contract', name: '北极星契', desc: '合同与采购供应链', icon: 'contract', mark: '契', bg: '#fbf0e6', fg: '#c2773e', url: 'https://polaris-contract.laimengchao.site/', callback: 'https://polaris-contract.laimengchao.site/callback' },
   { code: 'ehr', name: '北极星宿', desc: '人力中心', icon: 'ehr', mark: '宿', bg: '#e9f2ff', fg: '#2f6fd0', url: 'https://polaris-ehr.laimengchao.site/', callback: 'https://polaris-ehr.laimengchao.site/callback' },
   { code: 'cms', name: '北极星源', desc: '内容中心', icon: 'cms', mark: '源', bg: '#fff3e8', fg: '#e08434', url: 'https://polaris-cms.laimengchao.site/', callback: 'https://polaris-cms.laimengchao.site/callback' },
   { code: 'forum-admin', name: '北极星核', desc: '论坛管理后台', icon: 'forum-admin', mark: '核', bg: '#fceef4', fg: '#d04a86', url: 'https://polaris-forum.laimengchao.site/admin/', callback: 'https://polaris-forum.laimengchao.site/admin/callback' },
@@ -131,7 +133,7 @@ const ALL_APPS: AppItem[] = [
 /** 与「我的应用」app_type 字典同口径：SYSTEM / MANAGEMENT / PORTAL；标题在线跟随字典，离线时用生产口径兜底 */
 const GROUP_DEFS = [
   { type: 'SYSTEM', label: '太空基地', codes: ['sso-center', 'settings', 'job', 'openapi', 'file', 'audit'] },
-  { type: 'MANAGEMENT', label: '指挥调度', codes: ['ehr', 'cms', 'forum-admin', 'meeting'] },
+  { type: 'MANAGEMENT', label: '指挥调度', codes: ['ehr', 'cms', 'forum-admin', 'meeting', 'finance', 'contract'] },
   { type: 'PORTAL', label: '星辰生活区', codes: ['portal', 'forum'] }
 ]
 

@@ -1,0 +1,109 @@
+server:
+  port: ${FINANCE_PORT:9014}
+
+spring:
+  application:
+    name: finance
+  config:
+    import: "optional:nacos:finance.yaml?group=${SSO_NACOS_GROUP:SSO}&refreshEnabled=true"
+  cloud:
+    nacos:
+      server-addr: ${SSO_NACOS_ADDR:${NACOS_SERVER_ADDR:127.0.0.1:8848}}
+      username: ${SSO_NACOS_USER:${NACOS_USERNAME:nacos}}
+      password: ${SSO_NACOS_PASSWORD:${NACOS_PASSWORD:}}
+      config:
+        enabled: ${SSO_NACOS_ENABLED:false}
+        namespace: ${SSO_NACOS_NAMESPACE:sso-ms-local}
+        group: ${SSO_NACOS_GROUP:SSO}
+        file-extension: yaml
+        refresh-enabled: true
+      discovery:
+        enabled: ${SSO_NACOS_DISCOVERY:false}
+        group: ${SSO_NACOS_GROUP:SSO}
+        namespace: ${SSO_NACOS_NAMESPACE:sso-ms-local}
+  datasource:
+    url: ${FINANCE_DB_URL:jdbc:mysql://127.0.0.1:3306/polaris_finance?useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&createDatabaseIfNotExist=true}
+    username: ${FINANCE_DB_USER:root}
+    password: ${FINANCE_DB_PASSWORD:root}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    hikari:
+      minimum-idle: 2
+      maximum-pool-size: 10
+      connection-timeout: 30000
+  sql:
+    init:
+      mode: ${FINANCE_SQL_INIT_MODE:always}
+      encoding: UTF-8
+  jackson:
+    default-property-inclusion: non_null
+    time-zone: Asia/Shanghai
+    date-format: yyyy-MM-dd HH:mm:ss
+
+mybatis-plus:
+  mapper-locations: classpath*:/mapper/**/*.xml
+  type-aliases-package: com.laimengchao.sso.finance.module.**.entity
+  configuration:
+    map-underscore-to-camel-case: true
+    log-impl: org.apache.ibatis.logging.nologging.NoLoggingImpl
+  global-config:
+    banner: false
+
+sso:
+  client:
+    account-base-url: ${SSO_ACCOUNT_URL:http://127.0.0.1:9002}
+    auth-base-url: ${SSO_AUTH_URL:http://127.0.0.1:9001}
+    internal-token: ${SSO_INTERNAL_TOKEN:}
+  finance:
+    app-code: ${SSO_FINANCE_APP_CODE:finance}
+    app-secret: ${SSO_FINANCE_APP_SECRET:}
+
+settings:
+  client:
+    base-url: ${SETTINGS_URL:http://127.0.0.1:9007}
+    internal-token: ${SSO_INTERNAL_TOKEN:}
+
+ehr:
+  client:
+    base-url: ${EHR_URL:http://127.0.0.1:9006}
+    internal-token: ${SSO_INTERNAL_TOKEN:}
+
+file:
+  client:
+    base-url: ${FILE_SERVICE_URL:http://127.0.0.1:9011}
+    internal-token: ${SSO_INTERNAL_TOKEN:}
+
+audit:
+  client:
+    base-url: ${AUDIT_SERVICE_URL:http://127.0.0.1:9012}
+    internal-token: ${SSO_INTERNAL_TOKEN:}
+
+job:
+  client:
+    center-url: ${JOB_CENTER_URL:http://127.0.0.1:9008}
+    internal-token: ${SSO_INTERNAL_TOKEN:}
+  executor:
+    app-code: finance
+    token: ${SSO_INTERNAL_TOKEN:}
+
+# common 的 InternalTokenInterceptor 用此令牌校验 /internal/**（fail-closed）
+polaris:
+  security:
+    internal-token: ${SSO_INTERNAL_TOKEN:}
+
+# 财务域：业务阈值/开关均从 settings 埋点读取；这里只保留链接基址
+finance:
+  detail-base-url: ${FINANCE_WEB_URL:http://localhost:5188}
+  # 审批中心终审回调地址（走 /internal/**，由 X-Internal-Token 准入）
+  internal-base-url: ${FINANCE_INTERNAL_URL:http://127.0.0.1:9014}
+
+# 财务服务通过 polaris-contract-client 调用合同域
+contract:
+  client:
+    base-url: ${CONTRACT_URL:http://127.0.0.1:9015}
+    internal-token: ${SSO_INTERNAL_TOKEN:}
+
+logging:
+  level:
+    root: info
+    com.laimengchao.sso.finance: debug
+    org.springframework.security: warn
