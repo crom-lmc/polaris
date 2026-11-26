@@ -27,7 +27,7 @@
         :data-source="currentState.list"
         :loading="currentState.loading"
         :class="{ 'tbl-empty-mode': !currentState.loading && !currentState.list.length }"
-        :scroll="currentState.list.length ? { x: tab === 'all' ? 780 : 680 } : undefined"
+        :scroll="currentState.list.length ? { x: tab === 'all' ? 970 : 870 } : undefined"
         :pagination="paginationOf(tab)"
         @change="(p: any) => onTableChange(tab, p)"
       >
@@ -37,6 +37,9 @@
           </template>
           <template v-else-if="column.key === 'room'">
             <a-tooltip :title="roomText(record)"><span class="cell-ellipsis">{{ roomText(record) }}</span></a-tooltip>
+          </template>
+          <template v-else-if="column.key === 'bookingNo'">
+            <a-tooltip :title="record.bookingNo"><span class="cell-ellipsis">{{ record.bookingNo || '-' }}</span></a-tooltip>
           </template>
           <template v-else-if="column.key === 'time'">{{ timeRange(record) }}</template>
           <template v-else-if="column.key === 'creator'">
@@ -83,12 +86,14 @@ const currentColumns = computed(() => tab.value === 'all' ? allColumns : mineCol
 
 const mineColumns = [
   { title: '会议主题', dataIndex: 'title', key: 'title', width: 120 },
+  { title: '预定单号', dataIndex: 'bookingNo', key: 'bookingNo', width: 190 },
   { title: '会议室', key: 'room', width: 150 },
   { title: '会议时间', key: 'time', width: 260 },
   { title: '释放时间', dataIndex: 'releasedAt', key: 'releasedAt', width: 150 }
 ]
 const allColumns = [
   { title: '会议主题', dataIndex: 'title', key: 'title', width: 120 },
+  { title: '预定单号', dataIndex: 'bookingNo', key: 'bookingNo', width: 190 },
   { title: '会议室', key: 'room', width: 140 },
   { title: '会议时间', key: 'time', width: 260 },
   { title: '发起人', key: 'creator', width: 110 },

@@ -55,10 +55,13 @@
       <a-table class="ft-table booking-table" row-key="id" :columns="columns" :data-source="rows"
                :class="{ 'tbl-empty-mode': !loading && !rows.length }"
                :loading="loading" :pagination="pagination" @change="onTableChange"
-               :scroll="rows.length ? { x: 1200 } : undefined">
+               :scroll="rows.length ? { x: 1390 } : undefined">
         <template #bodyCell="{ column, record }">
           <template v-if="column.key === 'title'">
             <a-tooltip :title="record.title"><span class="cell-ellipsis">{{ record.title }}</span></a-tooltip>
+          </template>
+          <template v-else-if="column.key === 'bookingNo'">
+            <a-tooltip :title="record.bookingNo"><span class="cell-ellipsis">{{ record.bookingNo || '-' }}</span></a-tooltip>
           </template>
           <template v-else-if="column.key === 'date'">
             {{ record.startTime?.slice(0, 10) }}
@@ -363,6 +366,7 @@ function endDateTime(date: string, end: string) {
 }
 const columns = [
   { title: '主题', key: 'title', width: 200 },
+  { title: '预定单号', key: 'bookingNo', width: 190 },
   { title: '日期', key: 'date', width: 120 },
   { title: '时间', key: 'time', width: 220 },
   { title: '会议室', key: 'room', width: 180 },
