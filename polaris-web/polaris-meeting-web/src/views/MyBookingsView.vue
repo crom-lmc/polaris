@@ -140,7 +140,9 @@
           </a-col>
         </a-row>
         <a-form-item :label="`选择新时段（${editRangeText}）`" required>
-          <div v-if="mobile" class="mobile-slot-tip">上排 00:00–12:00，下排 12:00–24:00；点击当前时段内的格子可直接前移/后移开始时间</div>
+          <div class="slot-hint">
+            <template v-if="mobile">上排 00:00–12:00，下排 12:00–24:00；</template>{{ slotHint }}
+          </div>
           <div class="slot-scroll">
             <SlotGrid :slots="editSlots" selectable allow-mine hour-scale :split="mobile"
                       :mine-booking-id="editing?.id" :value="editRange" @pick="pickEditSlot" />
@@ -202,7 +204,7 @@ import SlotGrid from '@/components/SlotGrid.vue'
 import {
   getDicts, listBookings, getBookingCounts, getBooking, checkinBooking, cancelBooking,
   releaseBooking, extendBooking, updateBooking, getSchedule, searchEmployees, getEmployeeNames,
-  type Booking, type DictItem, type Slot
+  type Booking, type DictItem, type Employee, type Slot
 } from '@/api/meeting'
 import { useUserStore } from '@/stores/user'
 
@@ -260,6 +262,11 @@ const editing = ref<Booking>()
 const extendTime = ref<dayjs.Dayjs>()
 const editOpen = ref(false)
 const editRange = ref<{ start: string; end: string }>()
+/** 两点选时：0=未开始点选，1=已点第一格（开始），等待第二格（结束） */
+const editPickStage = ref(0)
+const slotHint = computed(() => editPickStage.value === 1
+  ? `已选开始 ${editRange.value?.start || ''}，请点第二格，其起点即结束时间`
+  : '第一次点击选开始时间，第二次点击的位置为结束时间（24:00 请用结束时间下拉）')
 const editSchedule = ref<{ rooms: Array<{ roomId: string; name: string; slots: Slot[] }> }>({ rooms: [] })
 const employeeOptions = ref<Array<{ label: string; value: string }>>([])
 const attendeeNames = ref<Record<string, string>>({})
@@ -335,6 +342,7 @@ function setEditBoundary(which: 'start' | 'end', value?: string) {
     return
   }
   editRange.value = { start, end }
+  editPickStage.value = 0
 }
 const editRoomOptions = computed(() => editSchedule.value.rooms.map(r => ({ label: r.name, value: r.roomId })))
 const editSlots = computed<Slot[]>(() => {
@@ -468,8 +476,10 @@ async function openEdit(record: Booking) {
   editForm.remark = record.remark || ''
   editForm.date = record.startTime.slice(0, 10)
   editRange.value = { start: record.startTime.slice(11, 16), end: endSlotOf(record) }
+  editPickStage.value = 0
   await loadAttendeeNames(editForm.attendeeIds)
-  employeeOptions.value = editForm.attendeeIds.map(id => ({ label: attendeeNames.value[id] || id, value: id }))
+  // 空关键词也拉默认员工列表，避免「邀请参会人」一打开就显示暂无数据
+  await onEmployeeSearch('')
   try {
     editSchedule.value = await getSchedule({ date: editForm.date, city: record.city })
   } catch { editSchedule.value = { rooms: [] } }
@@ -481,44 +491,54 @@ function editableSlot(s: Slot) {
 }
 function pickEditSlot(cell: Slot) {
   const slots = editSlots.value
-  const idx = slots.findIndex(s => s.start === cell.start)
   const cur = editRange.value
-  if (!cur) {
+  // 第一格：无论原来是什么时段，都直接以它作为新起点，进入等第二格状态
+  if (!cur || editPickStage.value !== 1) {
+    editRange.value = { start: cell.start, end: cell.end }
+    editPickStage.value = 1
+    return
+  }
+  // 第二格比起点还早：把它当作新的第一格
+  if (cell.start <= cur.start) {
     editRange.value = { start: cell.start, end: cell.end }
     return
   }
-  const endIdx = slots.findIndex(s => s.end === cur.end)
-  // 点击当前区间内（或更早）的格子：以该格为新起点、结束时间不变，支持从 17:00 直接改成 17:30
-  if (cell.start < cur.end) {
-    if (endIdx >= idx && !slots.slice(idx, endIdx + 1).some(s => !editableSlot(s))) {
-      editRange.value = { start: cell.start, end: cur.end }
-    } else {
-      editRange.value = { start: cell.start, end: cell.end }
-    }
+  // 第二格：以该格的起点作为结束时间（例如点 18:00 格 → 结束 18:00）
+  const endBoundary = cell.start
+  const from = slots.findIndex(s => s.start === cur.start)
+  const to = slots.findIndex(s => s.start === endBoundary)
+  if (from < 0 || to <= from) {
+    message.warning('结束时间必须晚于开始时间')
+    editRange.value = { start: cell.start, end: cell.end }
     return
   }
-  // 点击结束之后的格子：向后延长结束时间
-  const startIdx = slots.findIndex(s => s.start === cur.start)
-  if (slots.slice(startIdx < 0 ? 0 : startIdx, idx + 1).some(s => !editableSlot(s))) {
+  if (slots.slice(from, to).some(s => !editableSlot(s))) {
     message.warning('所选区间包含已占用时段，请重新选择起点')
     editRange.value = { start: cell.start, end: cell.end }
     return
   }
-  editRange.value = { start: cur.start, end: cell.end }
+  editRange.value = { start: cur.start, end: endBoundary }
+  editPickStage.value = 0
 }
 async function onEditDateChange() {
   editRange.value = undefined
+  editPickStage.value = 0
   if (!editForm.date) { editSchedule.value = { rooms: [] }; return }
   try {
     editSchedule.value = await getSchedule({ date: editForm.date, city: editing.value?.city })
   } catch { editSchedule.value = { rooms: [] } }
 }
 async function onEmployeeSearch(kw: string) {
-  if (!kw.trim()) { employeeOptions.value = []; return }
+  // 与新建预定一致：空关键词也拉默认名单；已选参会人始终置顶，避免搜索时被过滤掉
+  const selected = editForm.attendeeIds.map(id => ({ label: attendeeNames.value[id] || id, value: id }))
   try {
-    const list = await searchEmployees(kw)
-    employeeOptions.value = list.map(e => ({ label: `${e.name}（${e.empNo}）`, value: e.accountId }))
-  } catch { employeeOptions.value = [] }
+    const list: Employee[] = await searchEmployees(kw?.trim() || '')
+    const found = list.map(e => ({ label: `${e.name}（${e.empNo}）`, value: e.accountId }))
+    employeeOptions.value = [
+      ...selected,
+      ...found.filter(o => !selected.some(s => s.value === o.value))
+    ]
+  } catch { employeeOptions.value = selected }
 }
 async function submitEdit() {
   if (!editing.value || !editRange.value) { message.warning('请重新选择时段'); return }
@@ -564,7 +584,7 @@ onMounted(async () => {
 .booking-table.tbl-empty-mode { min-width: 0; }
 /* 与新建预定一致：宽屏弹窗内 48 格无需滚动，避免 overflow-x:auto 裁掉格子的时间提示 */
 .slot-scroll { overflow: visible; }
-.mobile-slot-tip {
+.slot-hint {
   font-size: 11px; line-height: 16px; color: var(--text-secondary, #8c8c8c);
   margin-bottom: 6px;
 }
