@@ -18,6 +18,7 @@ import com.laimengchao.sso.meeting.module.meeting.entity.MeetingRoomDevice;
 import com.laimengchao.sso.meeting.module.meeting.mapper.MeetingBookingAttendeeMapper;
 import com.laimengchao.sso.meeting.module.meeting.mapper.MeetingBookingMapper;
 import com.laimengchao.sso.meeting.module.meeting.mapper.MeetingRoomDeviceMapper;
+import com.laimengchao.sso.settings.client.api.CodeRuleApi;
 import com.laimengchao.sso.settings.client.api.NoticeApi;
 import com.laimengchao.sso.settings.client.dto.NoticeBizHandledDTO;
 import com.laimengchao.sso.settings.client.dto.NoticeSendDTO;
@@ -42,7 +43,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.ThreadLocalRandom;
 
 /** 预定核心：冲突检测、时间规则、我的预定数据范围、邀请通知与调度释放。 */
 @Slf4j
@@ -66,6 +66,7 @@ public class BookingService {
     private final RoomService roomService;
     private final MeetingSupportService support;
     private final NoticeApi noticeApi;
+    private final CodeRuleApi codeRuleApi;
     private final AuditApi auditApi;
 
     @Value("${meeting.detail-base-url:http://localhost:5187}")
@@ -618,9 +619,18 @@ public class BookingService {
         }
     }
 
+    /**
+     * 预定单号统一走配置中心「单号规则」（settings.cfg_code_rule，table_name=meeting_booking），
+     * 规则维护在北极星典，业务侧不再自行拼接编号；取号失败直接报错，避免出现无单号数据。
+     */
     private String nextBookingNo() {
-        return "MT" + LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMddHHmmss"))
-                + String.format("%04d", ThreadLocalRandom.current().nextInt(10000));
+        var res = codeRuleApi.next("meeting_booking");
+        String no = res == null || res.getData() == null ? "" : res.getData().trim();
+        if (no.isEmpty()) {
+            log.error("预定单号取号失败：未配置单号规则或返回为空，tableName=meeting_booking");
+            throw new BizException(ErrorCode.SYSTEM_ERROR, "预定单号生成失败，请稍后重试");
+        }
+        return no;
     }
 
     private List<Long> replaceAttendees(MeetingBooking booking, Collection<Long> attendeeIds, Long creator) {
