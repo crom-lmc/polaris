@@ -14,6 +14,12 @@ public interface ContractService {
     /** internal 只读：不分页，返回同一份 VO（字段与 contract-client 对齐） */
     List<ContractVOs.ContractVO> list(String type, String status, String projectNo);
 
+    /**
+     * 跨服务下拉候选：internal Feign 无登录上下文，按显式传入的账号解析数据范围。
+     * 账号为空或范围为空一律返回空集，不绕过数据权限。
+     */
+    List<ContractVOs.ContractVO> optionsForAccount(Long accountId);
+
     ContractVOs.ContractVO detail(Long id);
 
     ContractVOs.ContractVO getByNo(String no);

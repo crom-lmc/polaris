@@ -42,7 +42,12 @@ public class DataScopeServiceImpl implements DataScopeService, DataScope {
      * 空 scopeCode（未配置）→ WHERE org_code = '__NO_ACCESS__'（安全兜底空集）。
      */
     public <T> void applyOrgScope(LambdaQueryWrapper<T> wrapper, SFunction<T, String> orgCodeFn) {
-        String scopeCode = currentScopeCode();
+        applyOrgScope(wrapper, orgCodeFn, currentScopeCode());
+    }
+
+    /** 显式 scopeCode 版本：供 internal Feign 按调用方账号解析范围后复用同一套过滤口径 */
+    @Override
+    public <T> void applyOrgScope(LambdaQueryWrapper<T> wrapper, SFunction<T, String> orgCodeFn, String scopeCode) {
         if (scopeCode == null || scopeCode.isBlank()) {
             wrapper.eq(orgCodeFn, "__NO_ACCESS__");
             return;

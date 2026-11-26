@@ -94,6 +94,17 @@ public class ContractServiceImpl implements ContractService {
         return decorate(mapper.selectList(qw));
     }
 
+    /** 财务凭证选择合同用：internal Feign 不带 X-Account-Id，改用显式账号解析范围 */
+    @Override
+    public List<ContractVOs.ContractVO> optionsForAccount(Long accountId) {
+        String scopeCode = accountId == null ? null : dataScopeService.scopeCodeOf(accountId);
+        LambdaQueryWrapper<ContractHeader> qw = new LambdaQueryWrapper<ContractHeader>()
+                .orderByDesc(ContractHeader::getId);
+        dataScopeService.applyOrgScope(qw, ContractHeader::getOrgCode, scopeCode);
+        // 下拉只要编号与名称，纯字段映射即可；decorate 会按当前请求上下文查子表，internal 调用无意义
+        return mapper.selectList(qw).stream().map(this::toVO).collect(Collectors.toList());
+    }
+
     private LambdaQueryWrapper<ContractHeader> query(String type, String status, String keyword,
                                                       String projectNo, String partnerCode) {
         String kw = keyword == null ? "" : keyword.trim();

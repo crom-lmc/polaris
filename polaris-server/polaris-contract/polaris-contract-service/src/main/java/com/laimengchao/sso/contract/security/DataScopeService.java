@@ -17,6 +17,12 @@ public interface DataScopeService {
      */
     <T> void applyOrgScope(LambdaQueryWrapper<T> wrapper, SFunction<T, String> orgCodeFn);
 
+    /**
+     * 用显式 scopeCode 拼数据范围：internal Feign 无登录上下文时，由调用方传入账号解析出的范围。
+     * 空范围同样 fail-closed 写 {@code __NO_ACCESS__}。
+     */
+    <T> void applyOrgScope(LambdaQueryWrapper<T> wrapper, SFunction<T, String> orgCodeFn, String scopeCode);
+
     /** 单条记录是否可见（返回 boolean，只读选项用） */
     boolean canAccessOrg(String orgCode);
 

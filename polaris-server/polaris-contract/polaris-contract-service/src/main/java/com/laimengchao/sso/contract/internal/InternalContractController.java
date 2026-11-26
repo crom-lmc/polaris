@@ -47,6 +47,15 @@ public class InternalContractController {
         return R.ok(contractService.list(type, status, projectNo));
     }
 
+    /**
+     * 财务凭证「关联合同号」下拉。internal Feign 无登录上下文，显式传账号由合同域解析数据范围；
+     * 不用 /contracts/options 以免与 /contracts/{no} 混淆。
+     */
+    @GetMapping("/contract-options")
+    public R<List<ContractVOs.ContractVO>> options(@RequestParam(value = "accountId", required = false) Long accountId) {
+        return R.ok(contractService.optionsForAccount(accountId));
+    }
+
     @GetMapping("/contracts/{no}")
     public R<ContractVOs.ContractVO> getByNo(@PathVariable("no") String no) {
         return R.ok(contractService.getByNo(no));

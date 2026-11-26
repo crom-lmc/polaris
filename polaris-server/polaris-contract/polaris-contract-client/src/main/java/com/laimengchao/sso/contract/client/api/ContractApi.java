@@ -30,4 +30,11 @@ public interface ContractApi {
     R<List<ContractDTO>> list(@RequestParam(value = "type", required = false) String type,
                               @RequestParam(value = "status", required = false) String status,
                               @RequestParam(value = "projectNo", required = false) String projectNo);
+
+    /**
+     * 跨服务合同下拉：internal Feign 无登录上下文，显式传账号由合同域按该账号的数据范围过滤。
+     * 账号为空时返回空集，不绕过数据权限。
+     */
+    @GetMapping("/internal/contract/contract-options")
+    R<List<ContractDTO>> options(@RequestParam(value = "accountId", required = false) Long accountId);
 }
