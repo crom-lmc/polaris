@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, reactive, ref, watch } from 'vue'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import dayjs, { type Dayjs } from 'dayjs'
 import { message, Modal } from 'ant-design-vue'
@@ -14,7 +14,7 @@ import { dateOf, fmtDate, statusColor, statusLabel, yuan } from '@/utils/format'
 
 const router = useRouter()
 const store = useUserStore()
-const { deptOptions, employeeOptions, load: loadOrgDirectory } = useOrgDirectory()
+const { orgNodes, employees, deptOptions, load: loadOrgDirectory } = useOrgDirectory()
 const filterOption = orgFilterOption
 const canCreate = () => store.can('finance:expense:create')
 const canAudit = () => store.can('finance:expense:audit')
@@ -108,8 +108,23 @@ const saving = ref(false)
 const form = reactive<ExpenseSave>({
   applicant: '', reason: '', amount: 0, dept: '', subject: '', date: dayjs().format('YYYY-MM-DD')
 })
+/** 当前登录人及其部门：账号ID → 员工 → orgId → 部门名；与审批按名称取负责人一致 */
+const currentApplicant = computed(() => {
+  const me = store.me
+  const id = me?.accountId == null ? '' : String(me.accountId)
+  return employees.value.find((e) => e.id === id)?.name || store.displayName || ''
+})
+const currentDept = computed(() => {
+  const me = store.me
+  const id = me?.accountId == null ? '' : String(me.accountId)
+  const emp = employees.value.find((e) => e.id === id)
+  return emp?.orgId ? (orgNodes.value.find((n) => n.id === emp.orgId)?.name || '') : ''
+})
 function openCreate() {
-  Object.assign(form, { applicant: '', reason: '', amount: 0, dept: '', subject: '', date: dayjs().format('YYYY-MM-DD') })
+  Object.assign(form, {
+    applicant: currentApplicant.value, reason: '', amount: 0, dept: currentDept.value,
+    subject: '', date: dayjs().format('YYYY-MM-DD')
+  })
   drawerOpen.value = true
 }
 async function submit() {
@@ -119,7 +134,7 @@ async function submit() {
   }
   saving.value = true
   try {
-    await createExpense({ ...form, amount: Number(form.amount) })
+    await createExpense({ ...form, applicant: form.applicant || currentApplicant.value, dept: form.dept || currentDept.value, amount: Number(form.amount) })
     drawerOpen.value = false
     message.success('报销单已创建，可在列表提交审批')
     page.value = 1; load()
@@ -179,8 +194,7 @@ async function submit() {
     <a-drawer v-model:open="drawerOpen" title="发起报销申请" :width="520" placement="right">
       <a-form layout="vertical">
         <a-form-item label="申请人" required>
-          <a-select v-model:value="form.applicant" :options="employeeOptions" placeholder="从组织架构选择" show-search
-                    :filter-option="filterOption" allow-clear style="width: 100%" />
+          <a-input :value="form.applicant || currentApplicant" readonly placeholder="自动取当前登录人" />
         </a-form-item>
         <a-form-item label="费用事由" required>
           <a-textarea v-model:value="form.reason" :rows="3" placeholder="请输入报销事由" />
@@ -193,8 +207,7 @@ async function submit() {
           </a-col>
           <a-col :span="12">
             <a-form-item label="归属部门">
-              <a-select v-model:value="form.dept" :options="deptOptions" allow-clear show-search :filter-option="filterOption"
-                        placeholder="从组织架构选择" />
+              <a-input :value="form.dept || currentDept" readonly placeholder="自动取当前登录人所在部门" />
             </a-form-item>
           </a-col>
         </a-row>

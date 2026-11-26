@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
+import { useRoute } from 'vue-router'
 import dayjs from 'dayjs'
 import { message, Modal } from 'ant-design-vue'
 import {
@@ -12,7 +12,6 @@ import { useUserStore } from '@/stores/user'
 import { categoryLabel, directionLabel, fmtDateTime, statusColor, statusLabel, yuan } from '@/utils/format'
 
 const route = useRoute()
-const router = useRouter()
 const store = useUserStore()
 const canEdit = () => store.can('finance:master:edit')
 
@@ -111,13 +110,6 @@ watch(() => route.path, (p) => {
 watch(kind, () => { page.value = 1; resetFilter() })
 onMounted(load)
 
-function onTabChange(key: string | number) {
-  const next = String(key) as Kind
-  if (next === kind.value) return
-  kind.value = next
-  router.replace(next === 'budget' ? '/budget-subject' : '/account-subject')
-}
-
 async function onToggle(row: SubjectVO | BudgetSubjectVO) {
   const next = row.status === 'ENABLED' ? 'DISABLED' : 'ENABLED'
   try {
@@ -193,7 +185,7 @@ async function submit() {
 <template>
   <section class="ft-page">
     <section class="ft-head toolbar">
-      <h2>主数据维护</h2>
+      <h2>{{ title }}</h2>
       <span class="divider" />
       <a-input-search v-model:value="keyword" placeholder="编码 / 名称 / 关联科目" style="width: 220px" allow-clear />
       <a-select v-model:value="status" :options="statusOptions" placeholder="状态" style="width: 100px" allow-clear />
@@ -209,10 +201,6 @@ async function submit() {
       <a-button v-if="canEdit()" type="primary" @click="openCreate">＋ 新增{{ title }}</a-button>
     </section>
     <section class="ft-scroll ft-bottom">
-      <a-tabs :active-key="kind" size="small" @change="onTabChange">
-        <a-tab-pane key="subject" tab="会计科目" />
-        <a-tab-pane key="budget" tab="预算科目" />
-      </a-tabs>
       <a-alert type="info" show-icon class="drawer-alert"
                :message="title"
                :description="kind === 'subject'

@@ -396,3 +396,10 @@ export const fetchOrgTree = () => request.get<never, OrgNodeVO[]>('/api/finance/
 
 /** 全部已开户、未离职员工，人员下拉候选（姓名/工号） */
 export const fetchActiveEmployees = () => request.get<never, OrgEmployeeVO[]>('/api/finance/orgs/employees/active')
+
+/** 合同下拉候选（经财务服务代理合同域，只取编号与名称） */
+export interface ContractOptionVO {
+  no: string
+  name: string
+}
+export const fetchContractOptions = () => request.get<never, ContractOptionVO[]>('/api/finance/contracts/options')

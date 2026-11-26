@@ -113,6 +113,10 @@ body {
   border-left: 1px solid var(--panel-border, var(--header-border));
 }
 .ft-table .ant-table-tbody > tr > td:last-child .ant-btn-link { padding-inline: 0; margin: 0 10px 0 0; }
+/* 操作列按钮横排不换行（往来单位等 4 按钮列） */
+.action-links { display: inline-flex; flex-wrap: nowrap; align-items: center; gap: 12px; white-space: nowrap; }
+.partner-table .ant-table-thead > tr > th:last-child,
+.partner-table .ant-table-tbody > tr > td:last-child { white-space: nowrap; }
 
 /* 长文本：列宽内省略 + a-tooltip 悬浮看全文（flex 行内补 min-width） */
 .cell-ellipsis { display: block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }

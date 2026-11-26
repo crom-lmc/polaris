@@ -4,8 +4,8 @@ import { useRoute } from 'vue-router'
 import dayjs, { type Dayjs } from 'dayjs'
 import { message, Modal } from 'ant-design-vue'
 import {
-  listVouchers, getVoucher, createVoucher, postVoucher, deleteVoucher, subjectOptions,
-  type VoucherVO, type VoucherSave, type SubjectVO
+  listVouchers, getVoucher, createVoucher, postVoucher, deleteVoucher, subjectOptions, fetchContractOptions,
+  type VoucherVO, type VoucherSave, type SubjectVO, type ContractOptionVO
 } from '@/api/finance'
 import { useUserStore } from '@/stores/user'
 import { useOrgDirectory, filterOption as orgFilterOption } from '@/composables/useOrgDirectory'
@@ -14,7 +14,7 @@ import { dateOf, fmtDate, sourceLabel, statusColor, statusLabel, yuan } from '@/
 const route = useRoute()
 const store = useUserStore()
 const canEdit = () => store.can('finance:voucher:edit')
-const { deptOptions, employeeOptions, load: loadOrgDirectory } = useOrgDirectory()
+const { deptOptions, load: loadOrgDirectory } = useOrgDirectory()
 const filterOption = orgFilterOption
 
 const loading = ref(false)
@@ -28,6 +28,7 @@ const sourceType = ref<string>()
 const range = ref<[Dayjs, Dayjs] | null>(null)
 
 const subjects = ref<SubjectVO[]>([])
+const contractOptions = ref<{ label: string; value: string }[]>([])
 const statusOptions = [
   { label: '草稿', value: 'DRAFT' }, { label: '已入账', value: 'POSTED' }
 ]
@@ -90,6 +91,10 @@ watch([keyword, status, sourceType, range], () => { page.value = 1; load() })
 
 onMounted(async () => {
   try { subjects.value = await subjectOptions() } catch { /* 下拉可空，不阻断列表 */ }
+  try {
+    const list: ContractOptionVO[] = await fetchContractOptions() || []
+    contractOptions.value = list.map((c) => ({ label: c.name ? `${c.no} · ${c.name}` : c.no, value: c.no }))
+  } catch { /* 合同下拉可空，不阻断列表 */ }
   await loadOrgDirectory()
   load()
 })
@@ -132,7 +137,7 @@ const form = reactive<VoucherSave>({
 function openCreate() {
   Object.assign(form, {
     sourceType: 'MANUAL', sourceNo: '', summary: '', subject: '', amount: 0,
-    date: dayjs().format('YYYY-MM-DD'), creator: '', dept: '', contractNo: ''
+    date: dayjs().format('YYYY-MM-DD'), creator: store.displayName, dept: '', contractNo: ''
   })
   drawerOpen.value = true
 }
@@ -218,14 +223,16 @@ async function submit() {
           <a-input-number v-model:value="form.amount" :min="0" :precision="2" style="width: 100%" />
         </a-form-item>
         <a-form-item label="制单人">
-          <a-select v-model:value="form.creator" :options="employeeOptions" placeholder="从组织架构选择" show-search
-                    :filter-option="filterOption" allow-clear style="width: 100%" />
+          <a-input :value="form.creator || store.displayName" readonly placeholder="默认当前登录人，不可修改" />
         </a-form-item>
         <a-form-item label="归属部门">
           <a-select v-model:value="form.dept" :options="deptOptions" placeholder="从组织架构选择" show-search
                     :filter-option="filterOption" allow-clear style="width: 100%" />
         </a-form-item>
-        <a-form-item label="关联合同号"><a-input v-model:value="form.contractNo" /></a-form-item>
+        <a-form-item label="关联合同号">
+          <a-select v-model:value="form.contractNo" :options="contractOptions" placeholder="请选择关联合同（选填）"
+                    show-search :filter-option="filterOption" allow-clear style="width: 100%" />
+        </a-form-item>
       </a-form>
       <template #footer>
         <div class="drawer-footer">

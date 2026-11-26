@@ -76,7 +76,7 @@ const columns = [
   { title: '结算账期', dataIndex: 'terms', key: 'terms', width: 130 },
   { title: '评级', key: 'rating', align: 'center' as const, width: 80 },
   { title: '合作状态', key: 'status', align: 'center' as const, width: 110 },
-  { title: '操作', key: 'action', width: 160 }
+  { title: '操作', key: 'action', width: 260 }
 ]
 
 /* 详情 */
@@ -179,9 +179,9 @@ onMounted(load)
         <div class="stat-card"><span class="st-label">供应商</span><strong class="st-value">{{ stats.supplier }} 家</strong><span class="st-foot"><b>本页 · 可用于采购合同</b></span></div>
         <div class="stat-card"><span class="st-label">客户</span><strong class="st-value">{{ stats.customer }} 家</strong><span class="st-foot"><b>本页 · 可用于销售合同</b></span></div>
       </div>
-      <a-table class="ft-table" row-key="id" :columns="columns" :data-source="displayRows" :loading="loading"
+      <a-table class="ft-table partner-table" row-key="id" :columns="columns" :data-source="displayRows" :loading="loading"
                :pagination="pagination" :class="{ 'tbl-empty-mode': !loading && !displayRows.length }"
-               :scroll="displayRows.length ? { x: 1650 } : undefined">
+               :scroll="displayRows.length ? { x: 1750 } : undefined">
         <template #bodyCell="{ column, record }">
           <template v-if="column.key === 'name'">
             <a-tooltip :title="record.name"><span class="cell-ellipsis">{{ record.name }}</span></a-tooltip>
@@ -200,14 +200,14 @@ onMounted(load)
             <a-tag :color="statusColor[record.status] || 'default'">{{ statusLabel[record.status] || record.status }}</a-tag>
           </template>
           <template v-else-if="column.key === 'action'">
-            <a-space :size="4">
+            <span class="action-links">
               <a @click="openDetail(record.id)">详情</a>
               <template v-if="store.can('contract:partner:edit')">
                 <a @click="openEdit(record)">编辑</a>
                 <a @click="switchStatus(record)">{{ record.status === 'COOPERATING' ? '停用' : '启用合作' }}</a>
                 <a @click="remove(record)">删除</a>
               </template>
-            </a-space>
+            </span>
           </template>
         </template>
         <template #emptyText><div class="tbl-empty"><a-empty v-if="!loading" description="暂无往来单位" /></div></template>

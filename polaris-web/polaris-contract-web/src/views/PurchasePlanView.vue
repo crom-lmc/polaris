@@ -13,7 +13,7 @@ import { yuan } from '@/utils/format'
 
 const store = useUserStore()
 const isMobile = useIsMobile()
-const { deptOptions, employeeOptions, load: loadOrgDirectory } = useOrgDirectory()
+const { orgNodes, employees, deptOptions, employeeOptions, load: loadOrgDirectory } = useOrgDirectory()
 const drawerWidth = computed(() => (isMobile.value ? '100%' : 760))
 
 const loading = ref(false)
@@ -142,10 +142,23 @@ async function loadBudgetSubjects() {
     budgetSubjectOptions.value = [...seen.entries()].map(([name, code]) => ({ label: `${code} · ${name}`, value: name }))
   } catch { budgetSubjectOptions.value = [] }
 }
+/** 当前登录人及其部门：从组织架构反查（accountId → 员工 → orgId → 部门名），与审批按名称取负责人一致 */
+const currentApplicant = computed(() => {
+  const me = store.me
+  const id = me?.accountId == null ? '' : String(me.accountId)
+  const hit = employees.value.find((e) => e.id === id)
+  return hit?.name || store.displayName || ''
+})
+const currentDept = computed(() => {
+  const me = store.me
+  const id = me?.accountId == null ? '' : String(me.accountId)
+  const emp = employees.value.find((e) => e.id === id)
+  return emp?.orgId ? (orgNodes.value.find((n) => n.id === emp.orgId)?.name || '') : ''
+})
 function openCreate() {
   createForm.title = ''
-  createForm.dept = ''
-  createForm.applicant = ''
+  createForm.dept = currentDept.value
+  createForm.applicant = currentApplicant.value
   createForm.needDate = undefined
   createForm.budgetSubject = ''
   createForm.items = []
@@ -166,7 +179,7 @@ async function submitCreate() {
   createSaving.value = true
   try {
     await savePurchasePlan({
-      title: createForm.title.trim(), dept: createForm.dept || undefined, applicant: createForm.applicant || undefined,
+      title: createForm.title.trim(), dept: createForm.dept || currentDept.value || undefined, applicant: createForm.applicant || currentApplicant.value || undefined,
       needDate: createForm.needDate, budgetSubject: createForm.budgetSubject || undefined,
       items: createForm.items.map((i) => ({ materialCode: i.materialCode, qty: Number(i.qty), price: Number(i.price) }))
     })
@@ -353,14 +366,12 @@ onMounted(() => { load(); loadOptions(); loadOrgDirectory(); loadBudgetSubjects(
         <a-row :gutter="12">
           <a-col :span="12">
             <a-form-item label="需求部门">
-              <a-select v-model:value="createForm.dept" :options="deptOptions" placeholder="从组织架构选择" show-search
-                        :filter-option="filterOption" allow-clear style="width: 100%" />
+              <a-input :value="createForm.dept || currentDept" readonly placeholder="自动取当前登录人所在部门" />
             </a-form-item>
           </a-col>
           <a-col :span="12">
             <a-form-item label="申请人">
-              <a-select v-model:value="createForm.applicant" :options="employeeOptions" placeholder="从组织架构选择" show-search
-                        :filter-option="filterOption" allow-clear style="width: 100%" />
+              <a-input :value="createForm.applicant || currentApplicant" readonly placeholder="自动取当前登录人" />
             </a-form-item>
           </a-col>
         </a-row>
