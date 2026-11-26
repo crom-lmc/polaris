@@ -1,7 +1,6 @@
 package com.laimengchao.sso.account.dto.request;
 
 import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotNull;
 import lombok.Data;
 
 /** 当前用户绑定微信。openid 由客户端经由微信 OAuth 流程获取后回传。 */

@@ -1,5 +1,5 @@
 package com.laimengchao.sso.account.service.impl;
-
+import com.laimengchao.sso.account.security.impl.AccountContextServiceImpl;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
@@ -15,7 +15,6 @@ import com.laimengchao.sso.account.mapper.SsoAccountRoleMapper;
 import com.laimengchao.sso.account.mapper.SsoPermissionMapper;
 import com.laimengchao.sso.account.mapper.SsoRoleMapper;
 import com.laimengchao.sso.account.mapper.SsoRolePermissionMapper;
-import com.laimengchao.sso.account.security.AccountContextService;
 import com.laimengchao.sso.account.service.AuditLogService;
 import com.laimengchao.sso.account.service.RoleService;
 import com.laimengchao.sso.common.ErrorCode;
@@ -59,7 +58,7 @@ public class RoleServiceImpl implements RoleService {
             w.and(q -> q.like(SsoRole::getName, keyword).or().like(SsoRole::getCode, keyword));
         }
         if (appCode != null && !appCode.isBlank()) {
-            w.eq(SsoRole::getAppCode, appCode.trim());
+            w.eq(SsoRole::getAppCode, (appCode == null ? null : appCode.trim()));
         }
         if (visibleRoleIds != null) {
             w.in(SsoRole::getId, visibleRoleIds);
@@ -145,7 +144,7 @@ public class RoleServiceImpl implements RoleService {
             existing.setRemark(req.getRemark() == null ? "" : req.getRemark());
             roleMapper.updateById(existing);
             replacePermissions(existing.getId(), permissionIds);
-            auditLogService.record(AuditLogService.ROLE_CREATE, AuditLogService.TARGET_ROLE,
+            auditLogService.record(AuditLogServiceImpl.ROLE_CREATE, AuditLogServiceImpl.TARGET_ROLE,
                     existing.getId(), "code=" + code + ";restored=true;permissionIds=" + permissionIds);
             return toVO(existing);
         }
@@ -158,7 +157,7 @@ public class RoleServiceImpl implements RoleService {
         role.setRemark(req.getRemark() == null ? "" : req.getRemark());
         roleMapper.insert(role);
         replacePermissions(role.getId(), permissionIds);
-        auditLogService.record(AuditLogService.ROLE_CREATE, AuditLogService.TARGET_ROLE,
+        auditLogService.record(AuditLogServiceImpl.ROLE_CREATE, AuditLogServiceImpl.TARGET_ROLE,
                 role.getId(), "code=" + code + ";restored=false;permissionIds=" + permissionIds);
         return toVO(role);
     }
@@ -181,11 +180,11 @@ public class RoleServiceImpl implements RoleService {
         if (req.getPermissionIds() != null) {
             Set<Long> permissionIds = validPermissionIds(req.getPermissionIds());
             replacePermissions(id, permissionIds);
-            auditLogService.record(AuditLogService.ROLE_PERMISSION_ASSIGN,
-                    AuditLogService.TARGET_ROLE, id,
+            auditLogService.record(AuditLogServiceImpl.ROLE_PERMISSION_ASSIGN,
+                    AuditLogServiceImpl.TARGET_ROLE, id,
                     "code=" + role.getCode() + ";permissionIds=" + permissionIds);
         }
-        auditLogService.record(AuditLogService.ROLE_UPDATE, AuditLogService.TARGET_ROLE, id,
+        auditLogService.record(AuditLogServiceImpl.ROLE_UPDATE, AuditLogServiceImpl.TARGET_ROLE, id,
                 "code=" + role.getCode() + ";permissionsChanged=" + (req.getPermissionIds() != null));
         return toVO(role);
     }
@@ -195,7 +194,7 @@ public class RoleServiceImpl implements RoleService {
     public void delete(Long id) {
         SsoRole role = roleMapper.selectById(id);
         Asserts.notNull(role, ErrorCode.NOT_FOUND, "角色不存在");
-        Asserts.isFalse(AccountContextService.SUPER_ADMIN_ROLE.equals(role.getCode()),
+        Asserts.isFalse(AccountContextServiceImpl.SUPER_ADMIN_ROLE.equals(role.getCode()),
                 ErrorCode.FORBIDDEN, "内置超级管理员角色不可删除");
 
         Long used = accountRoleMapper.selectCount(
@@ -206,7 +205,7 @@ public class RoleServiceImpl implements RoleService {
         roleMapper.deleteById(id);
         rolePermissionMapper.delete(new LambdaQueryWrapper<SsoRolePermission>()
                 .eq(SsoRolePermission::getRoleId, id));
-        auditLogService.record(AuditLogService.ROLE_DELETE, AuditLogService.TARGET_ROLE, id,
+        auditLogService.record(AuditLogServiceImpl.ROLE_DELETE, AuditLogServiceImpl.TARGET_ROLE, id,
                 "code=" + role.getCode());
     }
 
@@ -218,8 +217,8 @@ public class RoleServiceImpl implements RoleService {
         Set<Long> ids = validPermissionIds(permissionIds);
         // 角色可以跨应用授权：人事专员这类角色能同时挂 EHR、CMS 等应用的权限点
         replacePermissions(id, ids);
-        auditLogService.record(AuditLogService.ROLE_PERMISSION_ASSIGN,
-                AuditLogService.TARGET_ROLE, id,
+        auditLogService.record(AuditLogServiceImpl.ROLE_PERMISSION_ASSIGN,
+                AuditLogServiceImpl.TARGET_ROLE, id,
                 "code=" + role.getCode() + ";permissionIds=" + ids);
     }
 
@@ -268,7 +267,7 @@ public class RoleServiceImpl implements RoleService {
         vo.setName(role.getName());
         vo.setRemark(role.getRemark());
         vo.setCreatedAt(role.getCreatedAt());
-        vo.setBuiltin(AccountContextService.SUPER_ADMIN_ROLE.equals(role.getCode()));
+        vo.setBuiltin(AccountContextServiceImpl.SUPER_ADMIN_ROLE.equals(role.getCode()));
         List<Long> permIds = rolePermissionMapper.selectList(
                         new LambdaQueryWrapper<SsoRolePermission>().eq(SsoRolePermission::getRoleId, role.getId()))
                 .stream().map(SsoRolePermission::getPermissionId).collect(Collectors.toList());

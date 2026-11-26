@@ -5,7 +5,6 @@ import com.laimengchao.sso.cms.module.banner.entity.Banner;
 import com.laimengchao.sso.cms.module.banner.mapper.BannerMapper;
 import com.laimengchao.sso.cms.module.content.dto.ArticleVO;
 import com.laimengchao.sso.cms.module.content.dto.TagVO;
-import com.laimengchao.sso.cms.module.content.entity.Article;
 import com.laimengchao.sso.cms.module.content.service.ArticleService;
 import com.laimengchao.sso.cms.module.content.service.CategoryService;
 import com.laimengchao.sso.cms.module.content.service.TagService;

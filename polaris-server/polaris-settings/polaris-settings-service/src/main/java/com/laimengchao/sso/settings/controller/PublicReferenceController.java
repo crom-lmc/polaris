@@ -2,9 +2,7 @@ package com.laimengchao.sso.settings.controller;
 
 import com.laimengchao.sso.common.R;
 import com.laimengchao.sso.settings.module.bizdata.service.BizItemService;
-import com.laimengchao.sso.settings.module.bizdata.vo.BizItemVO;
 import com.laimengchao.sso.settings.module.dict.service.DictService;
-import com.laimengchao.sso.settings.module.dict.vo.DictItemVO;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;

@@ -9,7 +9,7 @@ import java.util.Map;
  * 历年《部分节假日安排的通知》，2025 年起全体公民放假的节日增加除夕与 5 月 2 日两天）。
  * 仅作为数据库未显式配置时的兜底：页面保存或 CSV 导入后，以数据库中的工作日历为准。
  */
-final class AttendanceHolidayPreset {
+public final class AttendanceHolidayPreset {
 
     private static final Map<LocalDate, String> HOLIDAYS = new HashMap<>();
     private static final Map<LocalDate, String> MAKEUP_WORKDAYS = new HashMap<>();
@@ -107,22 +107,22 @@ final class AttendanceHolidayPreset {
     }
 
     /** 预设法定节假日名称，非节假日返回 null。 */
-    static String holidayName(LocalDate date) {
+    public static String holidayName(LocalDate date) {
         return HOLIDAYS.get(date);
     }
 
     /** 预设调休上班日：周末因调休需正常上班。 */
-    static boolean isMakeupWorkday(LocalDate date) {
+    public static boolean isMakeupWorkday(LocalDate date) {
         return MAKEUP_WORKDAYS.containsKey(date);
     }
 
     /** 预设调休上班标记名称，非调休日返回 null。 */
-    static String makeupName(LocalDate date) {
+    public static String makeupName(LocalDate date) {
         return MAKEUP_WORKDAYS.get(date);
     }
 
     /** 指定年份的全部预设法定节假日（日期 → 节日名），用于「一键更新下一年工作日历」。 */
-    static Map<LocalDate, String> holidaysOf(int year) {
+    public static Map<LocalDate, String> holidaysOf(int year) {
         Map<LocalDate, String> out = new HashMap<>();
         HOLIDAYS.forEach((d, name) -> {
             if (d.getYear() == year) {
@@ -133,7 +133,7 @@ final class AttendanceHolidayPreset {
     }
 
     /** 指定年份的全部预设调休上班日。 */
-    static Map<LocalDate, String> makeupsOf(int year) {
+    public static Map<LocalDate, String> makeupsOf(int year) {
         Map<LocalDate, String> out = new HashMap<>();
         MAKEUP_WORKDAYS.forEach((d, name) -> {
             if (d.getYear() == year) {

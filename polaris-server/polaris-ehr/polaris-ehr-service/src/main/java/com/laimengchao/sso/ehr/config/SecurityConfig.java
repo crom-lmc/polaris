@@ -2,7 +2,6 @@ package com.laimengchao.sso.ehr.config;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.laimengchao.sso.common.ErrorCode;
-import com.laimengchao.sso.ehr.common.EhrErrorCode;
 import com.laimengchao.sso.common.R;
 import com.laimengchao.sso.ehr.security.SsoHeaderAuthFilter;
 import jakarta.servlet.http.HttpServletResponse;

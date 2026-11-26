@@ -1,11 +1,13 @@
 package com.laimengchao.sso.cms.storage;
 
+
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
 import java.io.InputStream;
 
-/** 存储抽象：当前本地磁盘实现，后续可换 OSS/MinIO */
+
+
 public interface StorageService {
 
     StoredFile store(MultipartFile file, String folder) throws IOException;

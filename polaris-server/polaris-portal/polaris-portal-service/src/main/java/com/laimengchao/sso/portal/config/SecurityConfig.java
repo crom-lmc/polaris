@@ -2,7 +2,6 @@ package com.laimengchao.sso.portal.config;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.laimengchao.sso.common.ErrorCode;
-import com.laimengchao.sso.portal.common.PortalErrorCode;
 import com.laimengchao.sso.common.R;
 import com.laimengchao.sso.portal.security.SsoHeaderAuthFilter;
 import jakarta.servlet.http.HttpServletResponse;

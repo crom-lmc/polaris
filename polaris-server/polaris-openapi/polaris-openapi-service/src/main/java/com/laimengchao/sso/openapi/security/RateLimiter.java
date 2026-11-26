@@ -1,5 +1,6 @@
 package com.laimengchao.sso.openapi.security;
 
+import com.laimengchao.sso.openapi.module.setting.service.impl.SettingServiceImpl;
 import com.laimengchao.sso.common.BizException;
 import com.laimengchao.sso.openapi.common.OpenapiErrorCode;
 import com.laimengchao.sso.openapi.module.setting.service.SettingService;
@@ -74,7 +75,7 @@ public class RateLimiter {
     /** 读取全局每应用每分钟上限；空/非法配置返回 0（不限）。SettingService 内部带 10s 缓存。 */
     private int globalLimit() {
         try {
-            String v = settingService.get(SettingService.KEY_GLOBAL_RATE_LIMIT, "");
+            String v = settingService.get(SettingServiceImpl.KEY_GLOBAL_RATE_LIMIT, "");
             if (v == null || v.isBlank()) {
                 return 0;
             }

@@ -12,6 +12,8 @@ level: L2
 ## 分层与注入
 
 - MUST 用 `Controller → 自定义 XxxService 接口 → XxxServiceImpl → BaseMapper`，构造器注入（`@RequiredArgsConstructor` + `private final`）。
+- **Service 文件结构**：`XxxService.java` 必须与 impl 同属一个 service 包——接口在 `.../service/XxxService.java`，实现在 `.../service/impl/XxxServiceImpl.java`（参考 `polaris-sso-account` 的 `service/impl/`）。接口只放方法签名与 Javadoc，不放实现体、不放常量、方法不写 `public`、不保留未引用 import；impl 标 `@Service`、`@RequiredArgsConstructor`、`@Slf4j`（如需要），`implements XxxService`，所有常量 / 变量定义在 impl。调用方（Controller / 其它 Service / Job / 内部 Controller）一律注入接口类型 `XxxService`，MUST NOT 注入 `XxxServiceImpl`；引用常量时改用 `XxxServiceImpl.CONST`。
+- 静态无状态工具方法（如 `SeniorityService.yearsBetween`）可留在接口作 `static` 方法或抽到独立工具类，两种都可以，但不要因此破坏实例方法的接口/实现拆分。
 - MUST NOT 使用 MyBatis-Plus 的 `IService` / `ServiceImpl`（全仓未发现）；MUST NOT 用字段注入。
 - MUST 查询用 `LambdaQueryWrapper` / `LambdaUpdateWrapper`；导出与分页 MUST 共用同一个 wrapper 构造方法。
 - MUST 多个 `like...or()` 用 `w.nested(...)` 包裹，避免后续 `in()` 因 AND 优先级失效。

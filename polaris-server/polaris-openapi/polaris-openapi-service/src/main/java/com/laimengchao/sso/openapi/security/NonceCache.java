@@ -1,5 +1,6 @@
 package com.laimengchao.sso.openapi.security;
 
+import com.laimengchao.sso.openapi.module.setting.service.impl.SettingServiceImpl;
 import com.laimengchao.sso.openapi.module.setting.service.SettingService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -46,7 +47,7 @@ public class NonceCache {
     /** 有效去重窗口：平台设置 nonce.ttl.seconds 优先，空/非法时回退到签名容忍窗口。 */
     private long windowSeconds() {
         try {
-            String v = settingService.get(SettingService.KEY_NONCE_TTL, "");
+            String v = settingService.get(SettingServiceImpl.KEY_NONCE_TTL, "");
             if (v != null && !v.isBlank()) {
                 long n = Long.parseLong(v.trim());
                 if (n > 0) {

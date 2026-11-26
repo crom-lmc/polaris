@@ -109,10 +109,6 @@ public class AccountAppServiceImpl implements AccountAppService {
         }
     }
 
-    @Override
-    public List<String> enabledCodes(Long accountId) {
-        return accountAppMapper.selectEnabledCodesByAccount(accountId);
-    }
 
     private ApplicationVO toVO(SsoApplication app) {
         ApplicationVO vo = new ApplicationVO();

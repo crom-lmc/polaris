@@ -1,5 +1,6 @@
 package com.laimengchao.sso.file.module.file.controller;
 
+import com.laimengchao.sso.file.module.file.service.impl.AttachmentSettingServiceImpl;
 import com.laimengchao.sso.audit.client.annotation.AuditLog;
 import com.laimengchao.sso.common.R;
 import com.laimengchao.sso.common.security.PermissionCodes;
@@ -116,8 +117,8 @@ public class FileAdminController {
             mode = "UNSUPPORTED";
         }
         // 在线预览总开关 / 大小上限（附件设置）。关闭或超限时不给可内联预览的 URL。
-        boolean previewEnabled = settings.bool(AttachmentSettingService.PREVIEW_ENABLED, true);
-        int maxPreviewMb = settings.integer(AttachmentSettingService.PREVIEW_MAX_SIZE_MB, 50);
+        boolean previewEnabled = settings.bool(AttachmentSettingServiceImpl.PREVIEW_ENABLED, true);
+        int maxPreviewMb = settings.integer(AttachmentSettingServiceImpl.PREVIEW_MAX_SIZE_MB, 50);
         long sizeMb = obj.getSize() == null ? 0 : obj.getSize() / (1024 * 1024);
         String previewReason = null;
         if (!previewEnabled || sizeMb > maxPreviewMb) {

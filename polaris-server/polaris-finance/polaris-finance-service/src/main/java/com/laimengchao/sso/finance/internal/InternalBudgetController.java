@@ -3,6 +3,7 @@ package com.laimengchao.sso.finance.internal;
 import com.laimengchao.sso.common.R;
 import com.laimengchao.sso.finance.module.finance.dto.FinanceRequests;
 import com.laimengchao.sso.finance.module.finance.service.BudgetService;
+import com.laimengchao.sso.finance.module.finance.service.BudgetSubjectService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -12,6 +13,8 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.math.BigDecimal;
+import java.util.List;
+import java.util.Map;
 
 /**
  * 合同域预算能力：可用额度查询、合同承诺占用/释放、已付/在途回写。
@@ -23,6 +26,17 @@ import java.math.BigDecimal;
 public class InternalBudgetController {
 
     private final BudgetService budgetService;
+    private final BudgetSubjectService budgetSubjectService;
+
+    /**
+     * 预算科目主数据（启用中），供合同域采购计划选预算科目用。
+     * 不套数据范围：预算科目挂集团根、全员可见，且 internal 调用无 X-Account-Id。
+     */
+    @GetMapping("/budget-subjects/options")
+    public R<List<Map<String, Object>>> budgetSubjectOptions(
+            @RequestParam(value = "year", required = false) Integer year) {
+        return R.ok(budgetSubjectService.enabledOptionsForInternal(year));
+    }
 
     /** 可用额度：无预算记录返回 0（读接口兜底） */
     @GetMapping("/available")

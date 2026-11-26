@@ -1,5 +1,6 @@
 package com.laimengchao.sso.account.controller;
 
+import com.laimengchao.sso.account.service.impl.AuditLogServiceImpl;
 import com.laimengchao.sso.account.dto.request.ChangePasswordRequest;
 import com.laimengchao.sso.account.dto.response.AccountVO;
 import com.laimengchao.sso.account.dto.response.ApplicationVO;
@@ -60,8 +61,8 @@ public class CurrentAccountController {
             return R.ok();
         } catch (BizException e) {
             // 事务已回滚后再写失败审计，避免失败日志随业务事务一起回滚；不记录任何密码内容。
-            auditLogService.recordFailure(AuditLogService.PASSWORD_CHANGE,
-                    AuditLogService.TARGET_ACCOUNT, id, "reason=" + e.getMessage());
+            auditLogService.recordFailure(AuditLogServiceImpl.PASSWORD_CHANGE,
+                    AuditLogServiceImpl.TARGET_ACCOUNT, id, "reason=" + e.getMessage());
             throw e;
         }
     }

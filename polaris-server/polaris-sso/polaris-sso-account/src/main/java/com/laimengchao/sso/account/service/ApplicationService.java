@@ -6,17 +6,7 @@ import com.laimengchao.sso.account.dto.response.ApplicationVO;
 
 import java.util.List;
 
-/**
- * 应用注册服务。应用是「账号能进哪些业务系统」的粒度，与按钮级权限码正交。
- */
 public interface ApplicationService {
-
-    /**
-     * 平台内置应用编码：统一账号中心自身。
-     * 启动时幂等播种到 sso_application，列表默认存在，
-     * 且不允许编辑/停用/删除/重置密钥——删掉它等于把平台自己从接入列表里开除。
-     */
-    String BUILTIN_CODE = "sso-center";
 
     List<ApplicationVO> list(String keyword, Integer status);
 

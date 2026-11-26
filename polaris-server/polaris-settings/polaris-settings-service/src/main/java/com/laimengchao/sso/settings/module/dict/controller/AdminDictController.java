@@ -19,8 +19,6 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
-import java.util.Map;
-
 /**
  * 管理端字典接口（网关后，sso-web / settings-web 使用）。
  * 细粒度权限走 @Permit：查看登录即可 + dict:view，写操作分类型/项两级。

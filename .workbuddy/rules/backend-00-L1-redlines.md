@@ -13,6 +13,9 @@ level: L1
 ## 协作与发布
 
 - MUST NOT 未经用户明确指令执行 `git commit` / `git push` / 部署 / 重启线上服务；本地编译、本地构建可以做。
+- MUST 提交备注（commit message）用中文，MUST NOT 使用英文 subject（如 `feat(xxx): launch ...`）；格式用 `类型(范围): 中文概述`，例如 `feat(finance): 报销接入审批引擎`、`fix(settings): 修复字典项 ID 冲突`。
+- MUST 前后端分开提交：一次任务同时改动 `polaris-server/` 与 `polaris-web/` 时，必须拆成至少两个 commit——后端代码及其平台侧配套（SQL / Nacos / 网关 / 部署配置）走一个后端提交，前端代码走一个前端提交；MUST NOT 混在一个 commit 里。只改一端时按实际范围提交即可。
+- MUST 生产后端发布采用滚动重启：一次只重启 1 个服务，确认该服务 healthy/running 后再继续下一个，服务间隔 30 秒；MUST NOT 用 `docker compose up -d` 或一次性重启/拉起全部服务（4G 机器多容器冷启动会触发 swap 抖动甚至卡死）。使用 `deploy/rolling-restart.sh` 执行，失败立即停止，不继续后续服务。
 - MUST 每次改动在仓库外 `F:\code\迭代文档\polaris-server\update.md` 顶部追加记录（该文件不入库）。
 - MUST 最终回复列明需重启的应用；MUST NOT 把数据库密码、appSecret、内部令牌、私钥写入代码/文档/日志，用时从环境变量/Nacos/容器现取。
 - MUST NOT 引入新依赖、新框架；栈已锁定 Java 17 / Spring Boot 3.2.5 / MyBatis-Plus 3.5.7。MUST NOT 恢复已迁出的 blog（9003 空缺）。
@@ -25,6 +28,16 @@ level: L1
 - MUST 空数据返回空集合/空页，MUST NOT 返回 `null` 让 `R` 的 `@JsonInclude(NON_NULL)` 省略 data。
 - MUST 19 位雪花 ID 序列化为字符串，MUST NOT 让下游以 number 承载。
 - MUST LOGIN / SENSITIVE 审计事件必留；MUST NOT 让审计上报失败回滚业务。登录事件记尝试登录的用户名，有主体操作不得以 SYSTEM 代替。
+
+## 分层结构（Service）
+
+- MUST 所有业务 Service 采用「接口 + 实现类」结构：`XxxService` 是 `interface`（只放方法签名），实现类放同级 `impl/` 子包、命名 `XxxServiceImpl` 并标注 `@Service`、`implements XxxService`。
+- MUST Controller / 其他 Service / Job 等调用方一律注入接口类型 `XxxService`，MUST NOT 注入 `XxxServiceImpl`；静态工具方法（无 Spring 状态）可留在接口或独立工具类，不强制建 impl。
+- MUST NOT 在 `XxxService` 接口里写方法实现体或 `@Service`；接口方法 MUST NOT 显式写 `public`（接口方法默认 public）；实现类 MUST NOT 再声明接口已定义的方法签名以外的 public 业务入口而不在接口暴露。
+- MUST 常量 / 变量只放在 `XxxServiceImpl`（含 `static {}` 初始化的字段），接口 MUST NOT 声明常量；调用方引用常量时用 `XxxServiceImpl.CONST`，不要回退到 `XxxService.CONST`。
+- MUST 接口只保留正文实际引用的 import，MUST NOT 保留 IDE 显示的灰色未引用 import（如 mapper / entity / Lombok / Spring 注解残留）。
+- `ContractSupport` / `*Utils` / `*Preset` / `*Calculator` 等静态工具类，以及 `ApprovalEngine` / `NoticeMailSender` 等非 `*Service` 命名助手组件，不属于 `XxxService` 接口+实现改造范围，保持原样即可。
+- 存量单 class Service MUST 逐步按此结构拆分，新增 Service 从一开始就必须按此结构创建。
 
 ## 平台契约
 

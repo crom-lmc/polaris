@@ -2,7 +2,6 @@ package com.laimengchao.sso.portal.controller;
 
 import com.laimengchao.sso.common.BizException;
 import com.laimengchao.sso.common.ErrorCode;
-import com.laimengchao.sso.portal.common.PortalErrorCode;
 import com.laimengchao.sso.common.R;
 import com.laimengchao.sso.common.security.SecurityUser;
 import com.laimengchao.sso.common.security.SecurityUtils;

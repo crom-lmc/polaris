@@ -1,5 +1,6 @@
 package com.laimengchao.sso.audit.module.audit.controller;
 
+import com.laimengchao.sso.audit.module.audit.service.impl.AuditSettingServiceImpl;
 import com.laimengchao.sso.audit.module.audit.entity.AuditEvent;
 import com.laimengchao.sso.audit.module.audit.entity.SystemLog;
 import com.laimengchao.sso.audit.module.audit.service.AuditEventService;
@@ -117,7 +118,7 @@ public class AuditAdminController {
                              @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate,
                              @RequestParam(required = false) String purpose,
                              HttpServletResponse response) throws IOException {
-        if (!auditSettingService.bool(AuditSettingService.EXPORT_ENABLED, false)) {
+        if (!auditSettingService.bool(AuditSettingServiceImpl.EXPORT_ENABLED, false)) {
             response.setStatus(HttpServletResponse.SC_FORBIDDEN);
             response.setContentType("text/plain;charset=UTF-8");
             response.getWriter().write("审计事件导出未开放，请联系管理员在全局设置中开启");
@@ -128,7 +129,7 @@ public class AuditAdminController {
 
         String operatorName = nvl(AccountContext.getUsername());
         String today = LocalDate.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd"));
-        String watermark = nvl(auditSettingService.get(AuditSettingService.EXPORT_WATERMARK));
+        String watermark = nvl(auditSettingService.get(AuditSettingServiceImpl.EXPORT_WATERMARK));
         watermark = watermark.replace("{username}", operatorName).replace("{date}", today);
 
         response.setContentType("text/csv;charset=UTF-8");

@@ -1,14 +1,12 @@
 package com.laimengchao.sso.openapi.security;
 
+import com.laimengchao.sso.openapi.module.setting.service.impl.SettingServiceImpl;
 import com.laimengchao.sso.common.BizException;
 import com.laimengchao.sso.openapi.common.OpenapiErrorCode;
 import com.laimengchao.sso.openapi.module.setting.service.SettingService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
-
-import java.util.regex.Pattern;
-
 /**
  * 第三方来源 IP 白名单校验（P2）。
  * <p>
@@ -35,7 +33,7 @@ public class IpWhitelist {
             raw = settingService.get(SettingService.keyIpWhitelist(appCode.trim()), "");
         }
         if (raw == null || raw.isBlank()) {
-            raw = settingService.get(SettingService.KEY_IP_WHITELIST, "");
+            raw = settingService.get(SettingServiceImpl.KEY_IP_WHITELIST, "");
         }
         if (raw == null || raw.isBlank()) {
             return; // 未配置=不限制

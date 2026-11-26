@@ -1,5 +1,6 @@
 package com.laimengchao.sso.audit.module.audit.job;
 
+import com.laimengchao.sso.audit.module.audit.service.impl.AuditSettingServiceImpl;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.laimengchao.sso.audit.module.audit.entity.AuditEvent;
 import com.laimengchao.sso.audit.module.audit.entity.SystemLog;
@@ -35,7 +36,7 @@ public class RetentionCleanupJob {
     /** 每分钟检查一次是否到达设定的清理时间（HH:mm），命中当天首次执行。 */
     @Scheduled(cron = "0 * * * * ?")
     public void checkAndRun() {
-        String cleanTime = settings.get(AuditSettingService.RETENTION_CLEAN_TIME);
+        String cleanTime = settings.get(AuditSettingServiceImpl.RETENTION_CLEAN_TIME);
         if (cleanTime == null || !cleanTime.matches("\\d{1,2}:\\d{2}")) {
             return;
         }
@@ -52,9 +53,9 @@ public class RetentionCleanupJob {
 
     /** 执行清理，供手动触发或测试调用。 */
     public void runCleanup() {
-        int eventDays = settings.integer(AuditSettingService.RETENTION_EVENT_DAYS, 180);
-        int logDays = settings.integer(AuditSettingService.RETENTION_SYSLOG_DAYS, 90);
-        boolean archive = settings.bool(AuditSettingService.RETENTION_ARCHIVE_BEFORE, false);
+        int eventDays = settings.integer(AuditSettingServiceImpl.RETENTION_EVENT_DAYS, 180);
+        int logDays = settings.integer(AuditSettingServiceImpl.RETENTION_SYSLOG_DAYS, 90);
+        boolean archive = settings.bool(AuditSettingServiceImpl.RETENTION_ARCHIVE_BEFORE, false);
         if (archive) {
             log.warn("审计留存清理开启归档模式，但归档存储尚未对接，本次仍直接删除（请评估数据不可恢复风险）");
         }

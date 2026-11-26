@@ -1,8 +1,6 @@
 package com.laimengchao.sso.settings.module.approval.controller;
 
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
-import com.laimengchao.sso.common.BizException;
-import com.laimengchao.sso.common.ErrorCode;
 import com.laimengchao.sso.common.R;
 import com.laimengchao.sso.common.security.PermissionCodes;
 import com.laimengchao.sso.settings.module.approval.dto.ApprovalActionRequest;

@@ -23,9 +23,11 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class ApplicationServiceImpl implements ApplicationService {
 
+    /** 平台内置应用编码：统一账号中心自身；删掉它等于把平台自己从接入列表里开除 */
+    public static final String BUILTIN_CODE = "sso-center";
+
     /** 1 启用 / 2 停用，与 sso_application.status 注释一致 */
     private static final int ENABLED = 1;
-    private static final int DISABLED = 2;
 
     /** 去掉 0/O/1/l/I 等易混淆字符，便于人工抄写密钥 */
     private static final char[] SECRET_ALPHABET =

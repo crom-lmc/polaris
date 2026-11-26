@@ -1,5 +1,6 @@
 package com.laimengchao.sso.account.config;
 
+import com.laimengchao.sso.account.security.impl.AccountContextServiceImpl;
 import com.laimengchao.sso.account.constant.PermissionConstants;
 import com.laimengchao.sso.account.constant.PermissionConstants.PermDef;
 import com.laimengchao.sso.account.domain.entity.SsoAccount;
@@ -17,8 +18,7 @@ import com.laimengchao.sso.account.mapper.SsoApplicationMapper;
 import com.laimengchao.sso.account.mapper.SsoPermissionMapper;
 import com.laimengchao.sso.account.mapper.SsoRoleMapper;
 import com.laimengchao.sso.account.mapper.SsoRolePermissionMapper;
-import com.laimengchao.sso.account.security.AccountContextService;
-import com.laimengchao.sso.account.service.ApplicationService;
+import com.laimengchao.sso.account.service.impl.ApplicationServiceImpl;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -84,11 +84,11 @@ public class BootstrapInitializer implements ApplicationRunner {
      * 随机生成一个即可——它不参与任何 exchange 流程，也没人知道它是什么。
      */
     private void initBuiltinApplication() {
-        if (applicationMapper.selectByCode(ApplicationService.BUILTIN_CODE) != null) {
+        if (applicationMapper.selectByCode(ApplicationServiceImpl.BUILTIN_CODE) != null) {
             return;
         }
         SsoApplication app = new SsoApplication();
-        app.setCode(ApplicationService.BUILTIN_CODE);
+        app.setCode(ApplicationServiceImpl.BUILTIN_CODE);
         app.setName("统一账号中心");
         app.setAppType("SYSTEM");
         app.setBaseUrl("");
@@ -97,7 +97,7 @@ public class BootstrapInitializer implements ApplicationRunner {
         app.setSort(-1);
         app.setAppSecret(randomSecret());
         applicationMapper.insert(app);
-        log.info("已播种内置应用：{}（统一账号中心）", ApplicationService.BUILTIN_CODE);
+        log.info("已播种内置应用：{}（统一账号中心）", ApplicationServiceImpl.BUILTIN_CODE);
     }
 
     private String randomSecret() {
@@ -565,10 +565,10 @@ public class BootstrapInitializer implements ApplicationRunner {
 
     /** 初始化 SUPER_ADMIN 角色与内置管理员账户，并让该角色拥有全部权限（幂等补链） */
     private void initSuperAdmin() {
-        SsoRole role = roleMapper.selectByCode(AccountContextService.SUPER_ADMIN_ROLE);
+        SsoRole role = roleMapper.selectByCode(AccountContextServiceImpl.SUPER_ADMIN_ROLE);
         if (role == null) {
             role = new SsoRole();
-            role.setCode(AccountContextService.SUPER_ADMIN_ROLE);
+            role.setCode(AccountContextServiceImpl.SUPER_ADMIN_ROLE);
             role.setName("超级管理员");
             role.setRemark("内置，拥有全部权限");
             roleMapper.insert(role);

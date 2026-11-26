@@ -6,13 +6,6 @@ import com.laimengchao.sso.account.dto.response.PermissionVO;
 
 import java.util.List;
 
-/**
- * 权限服务。权限数据集中在 sso_permission，是「角色 -> 权限 -> 账户」这条链的叶子。
- *
- * <p>权限点按 {@code appCode} 分域：{@code sso} 是平台自身，其余对应已注册的业务应用。
- * 不同应用可以有同名权限码（各自的 {@code article:list} 互不影响），
- * 因此所有查询与唯一性校验都必须带应用维度。
- */
 public interface PermissionService {
 
     /**

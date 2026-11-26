@@ -4,9 +4,6 @@ import com.baomidou.mybatisplus.annotation.TableName;
 import com.laimengchao.sso.common.BaseEntity;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
-
-import java.time.LocalDate;
-
 /** 员工银行卡。一张档案可录多张卡，is_primary=1 的是工资卡且每张档案最多一张。 */
 @Data
 @EqualsAndHashCode(callSuper = true)

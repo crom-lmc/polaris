@@ -31,4 +31,12 @@ public interface EhrOrgApi {
     /** 在职员工简要信息（会议室邀请参会人选择器用）：id 为字符串化账号 ID */
     @GetMapping("/internal/orgs/employees/active")
     R<List<Map<String, Object>>> activeEmployees();
+
+    /** 全量组织节点扁平列表：id/parentId 字符串化，供业务服务代理给前端组树 */
+    @GetMapping("/internal/orgs/tree")
+    R<List<Map<String, Object>>> tree();
+
+    /** 某组织已开户、未离职的直属成员：id 为字符串化账号 ID */
+    @GetMapping("/internal/orgs/{id}/employees")
+    R<List<Map<String, Object>>> employees(@PathVariable("id") Long orgId);
 }

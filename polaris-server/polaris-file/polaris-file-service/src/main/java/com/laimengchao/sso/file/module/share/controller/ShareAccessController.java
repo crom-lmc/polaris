@@ -5,7 +5,6 @@ import com.laimengchao.sso.common.R;
 import com.laimengchao.sso.file.module.file.entity.FileObject;
 import com.laimengchao.sso.file.module.file.service.FileService;
 import com.laimengchao.sso.file.module.share.service.ShareService;
-import com.laimengchao.sso.file.module.share.vo.ShareInfoVO;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseEntity;

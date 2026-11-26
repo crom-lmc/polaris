@@ -1,5 +1,6 @@
 package com.laimengchao.sso.openapi.module.setting.controller;
 
+import com.laimengchao.sso.openapi.module.setting.service.impl.SettingServiceImpl;
 import com.laimengchao.sso.client.api.AccountApi;
 import com.laimengchao.sso.client.dto.AppInfo;
 import com.laimengchao.sso.client.dto.R;
@@ -69,7 +70,7 @@ public class SettingAdminController {
         if (resp == null || !resp.ok()) {
             throw new BizException(ErrorCode.BIZ_ERROR, "查询第三方应用失败");
         }
-        String global = settingService.get(SettingService.KEY_IP_WHITELIST, "");
+        String global = settingService.get(SettingServiceImpl.KEY_IP_WHITELIST, "");
         List<AppIpWhitelistVo> out = new ArrayList<>();
         for (AppInfo app : resp.getData() == null ? List.<AppInfo>of() : resp.getData()) {
             if (app.getCode() == null || app.getCode().isBlank()) {

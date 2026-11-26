@@ -1,5 +1,6 @@
 package com.laimengchao.sso.settings.module.approval.service;
 
+import com.laimengchao.sso.settings.module.coderule.service.impl.CodeRuleServiceImpl;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -151,7 +152,7 @@ public class ApprovalEngine {
      */
     private String generateApprNo() {
         try {
-            return codeRuleService.nextCode(CodeRuleService.APPROVAL_TABLE);
+            return codeRuleService.nextCode(CodeRuleServiceImpl.APPROVAL_TABLE);
         } catch (Exception e) {
             log.warn("审批单号生成失败，按空单号继续：{}", e.getMessage());
             return "";

@@ -1,5 +1,6 @@
 package com.laimengchao.sso.ehr.schedule;
 
+import com.laimengchao.sso.ehr.module.leave.service.impl.AnnualLeaveServiceImpl;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.laimengchao.sso.ehr.module.employee.constant.EmployeeStatus;
 import com.laimengchao.sso.ehr.module.employee.entity.Employee;
@@ -8,7 +9,6 @@ import com.laimengchao.sso.ehr.module.leave.entity.LeaveCarryoverWaiver;
 import com.laimengchao.sso.ehr.module.leave.entity.LeaveQuota;
 import com.laimengchao.sso.ehr.module.leave.mapper.LeaveCarryoverWaiverMapper;
 import com.laimengchao.sso.ehr.module.leave.mapper.LeaveQuotaMapper;
-import com.laimengchao.sso.ehr.module.leave.service.AnnualLeaveService;
 import com.laimengchao.sso.job.client.dto.JobResult;
 import com.laimengchao.sso.job.client.handler.JobContext;
 import com.laimengchao.sso.job.client.handler.JobHandler;
@@ -60,7 +60,7 @@ public class AnnualLeaveCarryoverNoticeJob implements JobHandler {
             try {
                 LeaveQuota q = quotaMapper.selectOne(new LambdaQueryWrapper<LeaveQuota>()
                         .eq(LeaveQuota::getEmployeeId, emp.getId())
-                        .eq(LeaveQuota::getLeaveType, AnnualLeaveService.LEAVE_TYPE_ANNUAL)
+                        .eq(LeaveQuota::getLeaveType, AnnualLeaveServiceImpl.LEAVE_TYPE_ANNUAL)
                         .eq(LeaveQuota::getPeriodStart, LocalDate.of(year, 1, 1))
                         .last("limit 1"));
                 if (q == null) {

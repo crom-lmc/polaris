@@ -1,5 +1,5 @@
 package com.laimengchao.sso.account.service.impl;
-
+import com.laimengchao.sso.account.security.impl.AccountContextServiceImpl;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
@@ -22,7 +22,6 @@ import com.laimengchao.sso.account.mapper.SsoAccountMapper;
 import com.laimengchao.sso.account.mapper.SsoAccountRoleMapper;
 import com.laimengchao.sso.account.mapper.SsoApplicationMapper;
 import com.laimengchao.sso.account.mapper.SsoRoleMapper;
-import com.laimengchao.sso.account.security.AccountContextService;
 import com.laimengchao.sso.account.security.PasswordPolicy;
 import com.laimengchao.sso.common.security.ScopeCodeCache;
 import com.laimengchao.sso.settings.client.support.SettingsClient;
@@ -253,7 +252,7 @@ public class AccountServiceImpl implements AccountService {
         a.setLoginFailCount(0);
         a.setLockedUntil(null);
         accountMapper.updateById(a);
-        auditLogService.record(AuditLogService.PASSWORD_RESET, AuditLogService.TARGET_ACCOUNT, id,
+        auditLogService.record(AuditLogServiceImpl.PASSWORD_RESET, AuditLogServiceImpl.TARGET_ACCOUNT, id,
                 "channel=admin;forceChange=" + (a.getPwdResetRequired() == 1));
     }
 
@@ -275,7 +274,7 @@ public class AccountServiceImpl implements AccountService {
         a.setLoginFailCount(0);
         a.setLockedUntil(null);
         accountMapper.updateById(a);
-        auditLogService.record(AuditLogService.PASSWORD_CHANGE, AuditLogService.TARGET_ACCOUNT, id,
+        auditLogService.record(AuditLogServiceImpl.PASSWORD_CHANGE, AuditLogServiceImpl.TARGET_ACCOUNT, id,
                 "channel=self");
     }
 
@@ -290,8 +289,8 @@ public class AccountServiceImpl implements AccountService {
         a.setLoginFailCount(0);
         a.setLockedUntil(null);
         accountMapper.updateById(a);
-        auditLogService.recordInternal(a.getId(), a.getUsername(), AuditLogService.PASSWORD_RESET,
-                AuditLogService.TARGET_ACCOUNT, id, "channel=email", clientIp, userAgent);
+        auditLogService.recordInternal(a.getId(), a.getUsername(), AuditLogServiceImpl.PASSWORD_RESET,
+                AuditLogServiceImpl.TARGET_ACCOUNT, id, "channel=email", clientIp, userAgent);
     }
 
     @Override
@@ -364,7 +363,7 @@ public class AccountServiceImpl implements AccountService {
                     "应用不存在：" + app);
         }
         List<String> roleCodes = accountMapper.selectRoleCodesByAccountId(accountId);
-        boolean superAdmin = roleCodes.contains(AccountContextService.SUPER_ADMIN_ROLE);
+        boolean superAdmin = roleCodes.contains(AccountContextServiceImpl.SUPER_ADMIN_ROLE);
         // 权限码按应用切分：超管拿该应用的全部码，普通账号拿角色在该应用下授权的码
         List<String> permissions = superAdmin
                 ? accountMapper.selectAllPermissionCodes(app)
@@ -643,13 +642,9 @@ public class AccountServiceImpl implements AccountService {
     }
 
     private boolean isSuperAdminAccount(Long accountId) {
-        return getRoleCodes(accountId).contains(AccountContextService.SUPER_ADMIN_ROLE);
+        return getRoleCodes(accountId).contains(AccountContextServiceImpl.SUPER_ADMIN_ROLE);
     }
 
-    private Long adminAccountId() {
-        SsoAccount a = accountMapper.selectByUsername("admin");
-        return a == null ? -1L : a.getId();
-    }
 
     private AccountVO toVO(SsoAccount a) {
         AccountVO vo = new AccountVO();

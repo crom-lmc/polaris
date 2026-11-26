@@ -1,11 +1,10 @@
 package com.laimengchao.sso.ehr.module.leave.controller;
 
+import com.laimengchao.sso.ehr.module.leave.service.impl.AnnualLeaveServiceImpl;
 import com.laimengchao.sso.common.ErrorCode;
 import com.laimengchao.sso.common.BizException;
 import com.laimengchao.sso.common.R;
 import com.laimengchao.sso.common.security.PermissionCodes;
-import com.laimengchao.sso.ehr.module.employee.entity.Employee;
-import com.laimengchao.sso.ehr.module.employee.mapper.EmployeeMapper;
 import com.laimengchao.sso.ehr.module.leave.dto.QuotaAdjustRequest;
 import com.laimengchao.sso.ehr.module.leave.entity.LeaveQuota;
 import com.laimengchao.sso.ehr.module.leave.entity.LeaveQuotaAdjust;
@@ -40,7 +39,6 @@ public class LeaveQuotaController {
     private final LeaveQuotaService quotaService;
     private final LeaveQuotaAdjustService adjustService;
     private final LeaveService leaveService;
-    private final EmployeeMapper employeeMapper;
 
     /** 我的额度：前端请假弹窗展示余额 */
     @GetMapping("/me")
@@ -91,7 +89,7 @@ public class LeaveQuotaController {
         Long employeeId = leaveService.myEmployeeId();
         int year = LocalDate.now().getYear();
         LeaveQuota q = quotaService.find(employeeId,
-                com.laimengchao.sso.ehr.module.leave.service.AnnualLeaveService.LEAVE_TYPE_ANNUAL, year);
+                AnnualLeaveServiceImpl.LEAVE_TYPE_ANNUAL, year);
         if (q == null) {
             throw new BizException(ErrorCode.NOT_FOUND, "当年没有年假额度");
         }
