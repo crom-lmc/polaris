@@ -104,43 +104,46 @@
       </a-descriptions>
     </a-modal>
 
-    <a-modal v-model:open="editOpen" title="修改预定" :width="860" :confirm-loading="saving" centered @ok="submitEdit">
+    <!-- 长表单统一用抽屉：手机端全宽展示，开始/结束时间不会被固定宽度弹窗裁掉 -->
+    <a-drawer v-model:open="editOpen" title="修改预定" :width="mobile ? '100%' : 860" placement="right"
+              :body-style="{ paddingBottom: 80 }">
       <a-form layout="vertical">
         <a-row :gutter="12">
-          <a-col :span="6">
+          <a-col :span="mobile ? 12 : 6">
             <a-form-item label="日期">
               <a-date-picker v-model:value="editForm.date" value-format="YYYY-MM-DD" format="YYYY-MM-DD"
                              style="width: 100%" @change="onEditDateChange" />
             </a-form-item>
           </a-col>
-          <a-col :span="6">
+          <a-col :span="mobile ? 12 : 6">
             <a-form-item label="会议室"><a-select v-model:value="editForm.roomId" :options="editRoomOptions" /></a-form-item>
           </a-col>
-          <a-col :span="6">
+          <a-col :span="mobile ? 12 : 6">
             <a-form-item label="主题"><a-input v-model:value="editForm.title" /></a-form-item>
           </a-col>
-          <a-col :span="6">
+          <a-col :span="mobile ? 12 : 6">
             <a-form-item label="参会人数">
               <a-input-number v-model:value="editForm.attendeeCount" :min="1" style="width: 100%" />
             </a-form-item>
           </a-col>
         </a-row>
         <a-row :gutter="12">
-          <a-col :span="6">
+          <a-col :span="mobile ? 12 : 6">
             <a-form-item label="开始时间" required>
               <a-select v-model:value="editStart" :options="startTimeOptions" style="width: 100%" />
             </a-form-item>
           </a-col>
-          <a-col :span="6">
+          <a-col :span="mobile ? 12 : 6">
             <a-form-item label="结束时间" required>
               <a-select v-model:value="editEnd" :options="endTimeOptions" style="width: 100%" />
             </a-form-item>
           </a-col>
         </a-row>
         <a-form-item :label="`选择新时段（${editRangeText}）`" required>
+          <div v-if="mobile" class="mobile-slot-tip">上排 00:00–12:00，下排 12:00–24:00；点击当前时段内的格子可直接前移/后移开始时间</div>
           <div class="slot-scroll">
-            <SlotGrid :slots="editSlots" selectable allow-mine hour-scale :mine-booking-id="editing?.id"
-                      :value="editRange" @pick="pickEditSlot" />
+            <SlotGrid :slots="editSlots" selectable allow-mine hour-scale :split="mobile"
+                      :mine-booking-id="editing?.id" :value="editRange" @pick="pickEditSlot" />
           </div>
         </a-form-item>
         <a-form-item label="邀请参会人">
@@ -148,7 +151,13 @@
                     :filter-option="false" @search="onEmployeeSearch" />
         </a-form-item>
       </a-form>
-    </a-modal>
+      <template #footer>
+        <div class="drawer-footer">
+          <a-button :disabled="saving" @click="editOpen = false">取消</a-button>
+          <a-button type="primary" :loading="saving" @click="submitEdit">确定</a-button>
+        </div>
+      </template>
+    </a-drawer>
 
     <a-modal v-model:open="extendOpen" title="申请延时" :confirm-loading="saving" centered @ok="submitExtend">
       <p>当前结束：{{ editing?.endTime }}</p>
@@ -474,10 +483,21 @@ function pickEditSlot(cell: Slot) {
   const slots = editSlots.value
   const idx = slots.findIndex(s => s.start === cell.start)
   const cur = editRange.value
-  if (!cur || cell.start <= cur.start) {
+  if (!cur) {
     editRange.value = { start: cell.start, end: cell.end }
     return
   }
+  const endIdx = slots.findIndex(s => s.end === cur.end)
+  // 点击当前区间内（或更早）的格子：以该格为新起点、结束时间不变，支持从 17:00 直接改成 17:30
+  if (cell.start < cur.end) {
+    if (endIdx >= idx && !slots.slice(idx, endIdx + 1).some(s => !editableSlot(s))) {
+      editRange.value = { start: cell.start, end: cur.end }
+    } else {
+      editRange.value = { start: cell.start, end: cell.end }
+    }
+    return
+  }
+  // 点击结束之后的格子：向后延长结束时间
   const startIdx = slots.findIndex(s => s.start === cur.start)
   if (slots.slice(startIdx < 0 ? 0 : startIdx, idx + 1).some(s => !editableSlot(s))) {
     message.warning('所选区间包含已占用时段，请重新选择起点')
@@ -544,6 +564,11 @@ onMounted(async () => {
 .booking-table.tbl-empty-mode { min-width: 0; }
 /* 与新建预定一致：宽屏弹窗内 48 格无需滚动，避免 overflow-x:auto 裁掉格子的时间提示 */
 .slot-scroll { overflow: visible; }
+.mobile-slot-tip {
+  font-size: 11px; line-height: 16px; color: var(--text-secondary, #8c8c8c);
+  margin-bottom: 6px;
+}
+.drawer-footer { display: flex; justify-content: flex-end; gap: 8px; }
 /* ===== 移动端卡片列表：与表格字段同源，页签角标口径不变 ===== */
 .mobile-tabs { gap: 14px; overflow-x: auto; white-space: nowrap; scrollbar-width: none; }
 .mobile-tabs::-webkit-scrollbar { display: none; }

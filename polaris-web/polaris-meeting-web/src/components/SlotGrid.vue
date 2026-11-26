@@ -1,16 +1,18 @@
 <template>
-  <div class="slot-wrap">
-    <!-- 外层时间轴的小时标尺：24 个整点各占两格、数字居中在两格之间 -->
-    <div v-if="hourScale" class="hour-scale">
-      <b v-for="h in 24" :key="h">{{ String(h - 1).padStart(2, '0') }}</b>
-    </div>
-    <div class="slot-grid" :class="{ compact }">
-      <div v-for="(cell, i) in slots" :key="i"
-           class="slot-cell" :class="[cell.state, { chosen: isChosen(cell), pickable: isPickable(cell) }]"
-           :title="cell.state === 'FREE' || cell.state === 'MINE' || cell.state === 'OTHERS'
-             ? slotTitle(cell) : stateLabel(cell)"
-           @click="onClick(cell)">
-        <span v-if="!compact && !hourScale && i % 2 === 0">{{ cell.start }}</span>
+  <div class="slot-wrap" :class="{ split }">
+    <!-- split：移动端 48 格放不下，拆成 00:00–12:00 / 12:00–24:00 两行，每行独立小时标尺 -->
+    <div v-for="(row, ri) in gridRows" :key="ri" class="slot-row">
+      <div v-if="hourScale || split" class="hour-scale" :style="scaleStyle(row)">
+        <b v-for="h in row.length / 2" :key="h">{{ String(startHourOf(row) + h - 1).padStart(2, '0') }}</b>
+      </div>
+      <div class="slot-grid" :class="{ compact }" :style="gridStyle(row)">
+        <div v-for="(cell, i) in row" :key="i"
+             class="slot-cell" :class="[cell.state, { chosen: isChosen(cell), pickable: isPickable(cell) }]"
+             :title="cell.state === 'FREE' || cell.state === 'MINE' || cell.state === 'OTHERS'
+               ? slotTitle(cell) : stateLabel(cell)"
+             @click="onClick(cell)">
+          <span v-if="!compact && !hourScale && i % 2 === 0">{{ cell.start }}</span>
+        </div>
       </div>
     </div>
   </div>
@@ -32,10 +34,22 @@ const props = withDefaults(defineProps<{
   allowMine?: boolean
   /** 仅该预定单号对应的 MINE 格子可选，避免误选本人其他预定 */
   mineBookingId?: string
-}>(), { selectable: false, value: undefined, hourScale: false, allowMine: false, mineBookingId: undefined })
+  /** 移动端分两行：12:00 前一行、12:00 后一行，避免 48 格横向放不下 */
+  split?: boolean
+}>(), { selectable: false, value: undefined, hourScale: false, allowMine: false, mineBookingId: undefined, split: false })
 
 const emit = defineEmits<{ (e: 'pick', slot: Slot): void }>()
 const compact = computed(() => !props.selectable)
+/** 分行后每行仍保持「每两格一个整点」的对齐口径 */
+const gridRows = computed<Slot[][]>(() => {
+  if (!props.split || !props.slots.length) return [props.slots]
+  const noon = props.slots.findIndex(s => s.start >= '12:00')
+  if (noon <= 0) return [props.slots]
+  return [props.slots.slice(0, noon), props.slots.slice(noon)]
+})
+function scaleStyle(row: Slot[]) { return { gridTemplateColumns: `repeat(${row.length / 2}, minmax(0, 1fr))` } }
+function gridStyle(row: Slot[]) { return { gridTemplateColumns: `repeat(${row.length}, minmax(0, 1fr))` } }
+function startHourOf(row: Slot[]) { return Number((row[0]?.start || '00:00').slice(0, 2)) || 0 }
 
 const labels: Record<string, string> = {
   FREE: '空闲', MINE: '我的预约', OTHERS: '他人预约', PAST: '已过去',
@@ -76,7 +90,12 @@ function onClick(cell: Slot) {
 
 <style scoped>
 .slot-wrap { flex: 1 1 auto; min-width: 720px; }
-.slot-wrap > .slot-grid { width: 100%; }
+.slot-wrap.split { min-width: 0; width: 100%; }
+.slot-wrap.split .slot-row + .slot-row { margin-top: 8px; }
+.slot-wrap.split .hour-scale, .slot-wrap.split .slot-grid { min-width: 0; }
+.slot-wrap.split .slot-grid { gap: 1px; }
+.slot-wrap.split .slot-cell { height: 28px; }
+.slot-row > .slot-grid { width: 100%; }
 .hour-scale {
   display: grid; grid-template-columns: repeat(24, 1fr);
   min-width: 720px; height: 18px; font-size: 10px;

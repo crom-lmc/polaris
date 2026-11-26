@@ -58,7 +58,9 @@ level: L2
 
 **列表字段类型归一化**：后端实体用逗号分隔 String 存储、而提交 DTO 是 `List` 的字段（如会议室 `fileIds`），前端 TS 类型 MUST 写成 `string[] | string`，回填与提交 MUST 经统一函数归一为数组（按逗号 split + trim + 过滤空值），MUST NOT 用 `record.xxx || []` 直接回填——字符串会被原样提交，Jackson 反序列化 `ArrayList` 失败报「系统异常」（meeting 编辑会议室曾因此报错）。
 
-**内容多的表单用抽屉**：表单字段超过一屏、或含上传/多段列表/时间轴等长内容时，MUST 用 `a-drawer`（`placement="right"` + `#footer` 放取消/确定）而非 `a-modal`，并给 body 留底部 padding 避免内容被 footer 遮挡（meeting 编辑会议室弹窗曾一屏放不下）。简单确认/详情弹窗仍可用 `a-modal`。
+**内容多的表单用抽屉**：表单字段超过一屏、或含上传/多段列表/时间轴等长内容时，MUST 用 `a-drawer`（`placement="right"` + `#footer` 放取消/确定）而非 `a-modal`，并给 body 留底部 padding 避免内容被 footer 遮挡（meeting 编辑会议室弹窗曾一屏放不下）。简单确认/详情弹窗仍可用 `a-modal`。移动端抽屉宽度用 `100%`，表单栅格降为两列，MUST NOT 沿用固定宽度的 PC 弹窗导致开始时间等字段被裁到屏幕外（meeting 修改预定曾如此）。
+
+**移动端 48 格时间轴**：MUST 拆成 `00:00–12:00`、`12:00–24:00` 两行，每行 24 格 + 半日小时标尺，时间范围表单的开始/结束仍要能独立用下拉修改；点击当前区间内的格子 MUST 把它作为新起点、结束时间保持不变，MUST NOT 只支持向后延长结束时间（meeting 修改预定曾无法把 17:00 改成 17:30）。
 
 **查询类日期范围默认一周**：MUST 搜索/筛选/统计用途的 `a-range-picker`（含弹窗内统计范围）初始值、重置值均为「含今天的最近 7 个自然日」——`[dayjs().subtract(6,'day').startOf('day'), dayjs()]`（字符串口径 `format('YYYY-MM-DD')`），首次进入就有数据、不需手选；MUST NOT 默认空值/`null`/仅今天。仅「表单录入类」日期范围（请假申请、教育/工作经历、合同）与按月统计（`picker="month"`）可保留自定义默认或空值。
 
