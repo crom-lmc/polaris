@@ -258,9 +258,25 @@ function appNameOf(code: string) {
 /** 表名 → 业务说明（取数据库表注释，简洁一句话） */
 const remarkMap = ref<Record<string, string>>({})
 
-/** 少数表没开实体元数据，注释读不到时兜底 */
+/** 少数表/应用没开实体元数据，注释读不到时兜底（finance/contract 未接入 entity 元数据路由） */
 const REMARK_FALLBACK: Record<string, string> = {
-  appr_instance: '审批实例'
+  appr_instance: '审批实例',
+  // 合同域
+  contract_purchase_plan: '采购计划',
+  contract_header_purchase: '采购合同',
+  contract_header_sales: '销售合同',
+  contract_acceptance: '合同到货验收单',
+  contract_project: '业务项目档案',
+  contract_change_log: '合同变更记录',
+  contract_partner: '往来单位（供应商/客户共用）',
+  // 财务域
+  fin_expense: '费用报销单',
+  fin_other_expense: '其他费用单',
+  fin_payroll: '工资单',
+  fin_ar_ap: '应收应付单',
+  fin_voucher: '会计凭证',
+  fin_budget_adjust: '预算调整单',
+  fin_payment: '付款单'
 }
 
 /** 表注释常带补充说明（如「录用Offer（审批通过后自动生成待入职档案）」），括号前一句就够用 */
