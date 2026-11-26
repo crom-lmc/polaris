@@ -179,7 +179,8 @@ export interface Room {
   maxCapacity: number
   comfortCapacity: number
   layout: string
-  fileIds?: string[]
+  /** 后端实体以逗号分隔字符串存储，列表/详情返回字符串；提交 RoomSave 时需传数组 */
+  fileIds?: string[] | string
   status: string
   needApproval?: boolean
   remark?: string

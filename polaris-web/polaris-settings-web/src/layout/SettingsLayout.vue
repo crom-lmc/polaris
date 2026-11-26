@@ -17,7 +17,7 @@
         </a-button>
         <a-dropdown :trigger="['hover']">
           <span class="who">
-            {{ store.username || '未登录' }}
+            {{ store.displayName || '未登录' }}
             <down-outlined class="caret" />
           </span>
           <template #overlay>

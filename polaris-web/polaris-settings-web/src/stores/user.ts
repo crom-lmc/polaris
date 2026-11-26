@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 import { fetchMe, type MeInfo } from '@/api/settings'
-import { clearTokens, getAccessToken } from '@/utils/token'
+import { clearTokens, getAccessToken, getNickname } from '@/utils/token'
 
 /** 登录态：令牌在 localStorage，身份/权限由 /api/ehr/me 实时刷新 */
 export const useUserStore = defineStore('user', () => {
@@ -11,6 +11,8 @@ export const useUserStore = defineStore('user', () => {
   const permissions = computed(() => me.value?.permissions || [])
   const isSuperAdmin = computed(() => !!me.value?.superAdmin)
   const username = computed(() => me.value?.username || '')
+  /** 顶栏展示名：优先 JWT 里的中文昵称，回退登录名（/me 的 username 是登录名） */
+  const displayName = computed(() => getNickname() || username.value)
 
   /** 按钮级权限判断：超管直接放行，与后端 @Permit 口径一致 */
   function can(code: string): boolean {
@@ -43,5 +45,5 @@ export const useUserStore = defineStore('user', () => {
     ready.value = false
   }
 
-  return { me, ready, permissions, isSuperAdmin, username, can, applyMe, bootstrap, logout }
+  return { me, ready, permissions, isSuperAdmin, username, displayName, can, applyMe, bootstrap, logout }
 })

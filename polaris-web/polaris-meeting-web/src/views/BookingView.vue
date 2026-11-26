@@ -651,7 +651,7 @@ onMounted(async () => {
 .room-head { display: flex; align-items: center; }
 /* 小时数字居中在每两个 30 分钟格子的交界上方 */
 .hour-scale { display: grid; grid-template-columns: repeat(24, 1fr); font-size: 10px; color: var(--text-secondary, #8c8c8c); }
-.hour-scale b { font-weight: 400; text-align: center; border-left: 1px solid var(--border, #eee); }
+.hour-scale b { font-weight: 400; text-align: center; white-space: nowrap; border-left: 1px solid var(--border, #eee); }
 /* 会议室行：左侧名称 + 设备两行，右侧时间格；行间留距离并加分割线 */
 .room-col {
   display: flex; flex-direction: column; justify-content: center; gap: 2px;

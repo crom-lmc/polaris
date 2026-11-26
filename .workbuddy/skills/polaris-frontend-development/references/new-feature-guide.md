@@ -42,6 +42,12 @@ const options = (await request.get<never, { data: DictOption[] }>(...)).data
 
 以下不是"建议"，是列表页/表单页交付前逐条自查的项。
 
+### 3.0 页面留白：header 搜索栏与卡片之间要有间距
+
+- **MUST** `<section class="ft-head">` 内的标题、筛选控件（下拉/日期框/搜索框/按钮）之间留可见间距，且 `ft-head` 与下方内容卡片之间留间距（约 12px）。全局 `.ft-head` 只有 `flex:0 0 auto`，本身不提供任何间距，靠各页面自己写。
+- 统一写法：`ft-head` 加 `.toolbar` 类并定义 `.toolbar { display:flex; align-items:center; gap:12px; margin-bottom:12px; flex-wrap:wrap; }`；标题与筛选组之间用 `<span class="head-divider" />`（1px 竖线）或 `margin-left` 分隔。**MUST NOT** 把标题和一堆 `a-space` 控件直接塞进无样式的 `ft-head`（会全部贴在一起，meeting 使用率页曾因此返工）。
+- 图表/卡片页同理：`ft-head.toolbar` + `margin-bottom:12px` + 卡片，不要让筛选栏底边贴住卡片顶边。
+
 ### 3.1 列表页：分页固定 + 操作列固定 + 表头对齐
 
 1. **分页固定在右下角**：用 `<section class="ft-scroll ft-bottom">` 包住 `a-table`，分页 `sticky bottom:0`，z-index 5（高于 sticky 操作列的 3）。
@@ -120,7 +126,12 @@ const columns = [
 - [ ] 列表默认每页 20 条并开 `showSizeChanger`（不写死 5），翻页/换 size 走同一 `@change`，换 size 回到第 1 页（meeting 爽约记录页曾写死 5）
 - [ ] 表头 `align` 与列内容一致，无错位
 - [ ] 状态/枚举比较与提交值同后端常量、字典 value 一致，未在前端另造编码
+- [ ] 树形/父子层级表格的「新增/编辑/删除」MUST 按行类型分流到各自的接口与表单（如楼层行走 `updateFloor(floorId)`、大楼行走 `updateBuilding(buildingId)`），MUST NOT 共用父级入口导致 ID 串用（meeting 位置维护曾把楼层 ID 传 `updateBuilding` 报 8302）
 - [ ] 长文本省略 + tooltip，无 JS 硬截断；label 与 hint 用 `&nbsp;`
+- [ ] 后端存逗号分隔 String、提交 DTO 是 List 的字段（如会议室 `fileIds`），TS 类型写 `string[] | string`，回填/提交统一归一为数组；MUST NOT 用 `record.xxx || []` 直接回填（字符串原样提交会让 Jackson 反序列化 ArrayList 失败报「系统异常」）
+- [ ] 表单字段多、一屏放不下（含上传/多段列表/时间轴）时用 `a-drawer`（placement=right + #footer + body 留底部 padding），不用 `a-modal`；简单确认/详情仍可用 modal
+- [ ] 时段选择/时间轴 MUST 用与新建预定一致的整点标尺（两位小时 `00`~`23`，每个标签跨两个 30 分钟格居中，格内不再塞时间文字）；MUST NOT 把 `00:00` 塞进 15px 的格子里被截成 `00:0`（meeting 修改预定弹窗曾因此返工）
+- [ ] 表单里的时间范围若允许修改，开始/结束 MUST 可独立编辑（30 分钟粒度下拉，结束含 24:00）并与时段轴双向同步；MUST NOT 只能点格子改结束、开始时间无法单独修改（meeting 修改预定曾如此）
 - [ ] 查询/筛选/统计日期范围默认最近 7 天（含今天），重置同样回到最近 7 天；表单录入类与月份统计除外；单日期统计过滤默认今天且不可选过去日期、最大可选日期来自配置（meeting 概览曾因此统计为 0）
 - [ ] 查询日期选择器允许清空（不加 `:allow-clear="false"`），清空即「不限日期」需前后端同时生效：前端传空 from/to，后端不得兜底回最近 7 天（meeting 爽约记录页曾前后端一起踩坑）
 - [ ] PC / Pad 下验证过，无横向溢出，侧栏抽屉正常

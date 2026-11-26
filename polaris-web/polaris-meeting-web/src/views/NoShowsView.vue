@@ -27,7 +27,7 @@
         :data-source="currentState.list"
         :loading="currentState.loading"
         :class="{ 'tbl-empty-mode': !currentState.loading && !currentState.list.length }"
-        :scroll="currentState.list.length ? { x: tab === 'all' ? 640 : 520 } : undefined"
+        :scroll="currentState.list.length ? { x: tab === 'all' ? 780 : 680 } : undefined"
         :pagination="paginationOf(tab)"
         @change="(p: any) => onTableChange(tab, p)"
       >
@@ -40,8 +40,8 @@
           </template>
           <template v-else-if="column.key === 'time'">{{ timeRange(record) }}</template>
           <template v-else-if="column.key === 'creator'">
-            <a-tooltip :title="record.creatorName || record.creatorId">
-              <span class="cell-ellipsis">{{ record.creatorName || '-' }}</span>
+            <a-tooltip :title="creatorText(record)">
+              <span class="cell-ellipsis">{{ creatorText(record) }}</span>
             </a-tooltip>
           </template>
           <template v-else-if="column.key === 'releasedAt'">{{ fmtTime(record.releasedAt) }}</template>
@@ -84,22 +84,29 @@ const currentColumns = computed(() => tab.value === 'all' ? allColumns : mineCol
 const mineColumns = [
   { title: '会议主题', dataIndex: 'title', key: 'title', width: 120 },
   { title: '会议室', key: 'room', width: 150 },
-  { title: '会议时间', key: 'time', width: 130 },
-  { title: '释放时间', dataIndex: 'releasedAt', key: 'releasedAt', width: 110 }
+  { title: '会议时间', key: 'time', width: 260 },
+  { title: '释放时间', dataIndex: 'releasedAt', key: 'releasedAt', width: 150 }
 ]
 const allColumns = [
   { title: '会议主题', dataIndex: 'title', key: 'title', width: 120 },
   { title: '会议室', key: 'room', width: 140 },
-  { title: '会议时间', key: 'time', width: 125 },
-  { title: '发起人', key: 'creator', width: 90 },
-  { title: '释放时间', dataIndex: 'releasedAt', key: 'releasedAt', width: 105 }
+  { title: '会议时间', key: 'time', width: 260 },
+  { title: '发起人', key: 'creator', width: 110 },
+  { title: '释放时间', dataIndex: 'releasedAt', key: 'releasedAt', width: 150 }
 ]
 
+/** 时间带年份展示，避免跨年后无法区分 */
 function fmtTime(value?: string) {
-  return value ? dayjs(value).format('MM-DD HH:mm') : '-'
+  return value ? dayjs(value).format('YYYY-MM-DD HH:mm') : '-'
 }
 function timeRange(record: NoShowRecord) {
   return `${fmtTime(record.startTime)}–${fmtTime(record.endTime)}`
+}
+/** 后端对查不到姓名的账号回退为 ID 本身，展示层把这种纯数字归一，不向用户暴露雪花 ID */
+function creatorText(record: NoShowRecord) {
+  const name = record.creatorName
+  if (!name || /^\d+$/.test(name)) return '-'
+  return name
 }
 function roomText(record: NoShowRecord) {
   return [record.roomName, record.location].filter(Boolean).join(' · ') || '-'

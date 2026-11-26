@@ -122,9 +122,21 @@
             </a-form-item>
           </a-col>
         </a-row>
+        <a-row :gutter="12">
+          <a-col :span="6">
+            <a-form-item label="开始时间" required>
+              <a-select v-model:value="editStart" :options="startTimeOptions" style="width: 100%" />
+            </a-form-item>
+          </a-col>
+          <a-col :span="6">
+            <a-form-item label="结束时间" required>
+              <a-select v-model:value="editEnd" :options="endTimeOptions" style="width: 100%" />
+            </a-form-item>
+          </a-col>
+        </a-row>
         <a-form-item :label="`选择新时段（${editRangeText}）`" required>
           <div class="slot-scroll">
-            <SlotGrid :slots="editSlots" selectable allow-mine :mine-booking-id="editing?.id"
+            <SlotGrid :slots="editSlots" selectable allow-mine hour-scale :mine-booking-id="editing?.id"
                       :value="editRange" @pick="pickEditSlot" />
           </div>
         </a-form-item>
@@ -252,6 +264,66 @@ const editForm = reactive({
   roomId: '', title: '', attendeeCount: 1, attendeeIds: [] as string[], remark: '', date: ''
 })
 const editRangeText = computed(() => editRange.value ? `${editRange.value.start}–${editRange.value.end}` : '点击空闲格重新选择')
+/** 30 分钟粒度的时间点：开始 00:00~23:30，结束额外支持 24:00（后端按次日 00:00 保存） */
+function buildTimeOptions(withMidnight: boolean) {
+  const list: Array<{ label: string; value: string }> = []
+  for (let h = 0; h < 24; h++) {
+    for (const m of ['00', '30']) {
+      const value = `${String(h).padStart(2, '0')}:${m}`
+      list.push({ label: value, value })
+    }
+  }
+  if (withMidnight) list.push({ label: '24:00', value: '24:00' })
+  return list
+}
+const startTimeOptions = buildTimeOptions(false)
+const endTimeOptions = buildTimeOptions(true)
+/** 时间转分钟，24:00 视为 1440，便于比较先后 */
+function timeToMinutes(t: string) {
+  const [h, m] = t.split(':').map(Number)
+  return h * 60 + m
+}
+/** 时间前后移动指定分钟，跨 00:00/24:00 边界归一 */
+function shiftTime(t: string, delta: number) {
+  const total = Math.max(0, Math.min(1440, timeToMinutes(t) + delta))
+  const h = Math.floor(total / 60), m = total % 60
+  return h === 24 ? '24:00' : `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`
+}
+/** 下拉与时段轴双向同步：选开始/结束时间后重算高亮区间 */
+const editStart = computed({
+  get: () => editRange.value?.start || '',
+  set: v => setEditBoundary('start', v)
+})
+const editEnd = computed({
+  get: () => editRange.value?.end || '',
+  set: v => setEditBoundary('end', v)
+})
+function setEditBoundary(which: 'start' | 'end', value?: string) {
+  if (!value) return
+  const cur = editRange.value
+  let start = which === 'start' ? value : (cur?.start || '')
+  let end = which === 'end' ? value : (cur?.end || '')
+  // 切换日期后区间被清空：单独设一端时补一个 30 分钟的默认另一端，避免出现半截区间
+  if (!end) end = shiftTime(start, 30)
+  if (!start) start = shiftTime(end, -30)
+  if (end === start || timeToMinutes(end) < timeToMinutes(start)) {
+    message.warning('结束时间必须晚于开始时间')
+    return
+  }
+  // 当天开始时间不能早于当前时刻，与时间轴 PAST 格不可选、后端校验保持一致
+  if (editForm.date === dayjs().format('YYYY-MM-DD') && start < dayjs().format('HH:mm')) {
+    message.warning('已过去的时段不可预约')
+    return
+  }
+  const slots = editSlots.value
+  const from = slots.findIndex(s => s.start === start)
+  const to = slots.findIndex(s => s.end === end)
+  if (from < 0 || to < from || slots.slice(from, to + 1).some(s => !editableSlot(s))) {
+    message.warning('所选区间包含已占用或不可用时段，请重新选择')
+    return
+  }
+  editRange.value = { start, end }
+}
 const editRoomOptions = computed(() => editSchedule.value.rooms.map(r => ({ label: r.name, value: r.roomId })))
 const editSlots = computed<Slot[]>(() => {
   const room = editSchedule.value.rooms.find(r => r.roomId === editForm.roomId)

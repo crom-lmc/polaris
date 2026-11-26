@@ -64,8 +64,8 @@
       </a-table>
     </section>
 
-    <a-modal v-model:open="formOpen" :title="editing ? '编辑会议室' : '新增会议室'" :width="720"
-             :confirm-loading="saving" centered @ok="submit">
+    <a-drawer v-model:open="formOpen" :title="editing ? '编辑会议室' : '新增会议室'" :width="720"
+              placement="right" :body-style="{ paddingBottom: 80 }">
       <a-form layout="vertical">
         <a-row :gutter="12">
           <a-col :span="12"><a-form-item label="城市"><a-input :value="city" readonly /></a-form-item></a-col>
@@ -119,7 +119,13 @@
         </a-form-item>
         <a-form-item label="备注"><a-textarea v-model:value="form.remark" :rows="2" /></a-form-item>
       </a-form>
-    </a-modal>
+      <template #footer>
+        <div class="drawer-footer">
+          <a-button :disabled="saving" @click="formOpen = false">取消</a-button>
+          <a-button type="primary" :loading="saving" @click="submit">确定</a-button>
+        </div>
+      </template>
+    </a-drawer>
   </div>
 </template>
 
@@ -181,6 +187,12 @@ const form = reactive({
   comfortCapacity: 0, layout: '', status: '可用', needApproval: false,
   remark: '', fileIds: [] as string[], imageUrls: [] as string[], devices: [] as Device[]
 })
+/** 后端 fileIds 是逗号分隔字符串，提交 DTO 却是 List<String>；统一归一为数组，避免把字符串原样提交导致 Jackson 解析失败 */
+function fileIdsOf(value?: string[] | string): string[] {
+  if (Array.isArray(value)) return value.filter(Boolean)
+  if (!value) return []
+  return String(value).split(',').map(s => s.trim()).filter(Boolean)
+}
 
 async function loadTree() {
   if (!city.value) { tree.value = []; return }
@@ -214,7 +226,7 @@ function openForm(record?: Room) {
     maxCapacity: record?.maxCapacity || 1, comfortCapacity: record?.comfortCapacity || 0,
     layout: record?.layout || '', status: roomStatus(record?.status || '可用'),
     needApproval: !!record?.needApproval, remark: record?.remark || '',
-    fileIds: record?.fileIds || [],
+    fileIds: fileIdsOf(record?.fileIds),
     imageUrls: record?.roomImages || [],
     devices: (record?.devices || []).map(d => ({ deviceCode: d.deviceCode, qty: d.qty, remark: d.remark || '' }))
   })
@@ -243,7 +255,7 @@ async function submit() {
       floorId: form.floorId, name: form.name, roomNo: form.roomNo, roomType: form.roomType,
       capacityTier: form.capacityTier, maxCapacity: form.maxCapacity, comfortCapacity: form.comfortCapacity,
       layout: form.layout, status: form.status, needApproval: form.needApproval, remark: form.remark,
-      fileIds: form.fileIds, devices: form.devices.filter(d => !!d.deviceCode)
+      fileIds: fileIdsOf(form.fileIds), devices: form.devices.filter(d => !!d.deviceCode)
     }
     if (editing.value) await updateRoom(editingId.value, payload)
     else await saveRoom(payload)
@@ -281,4 +293,5 @@ onMounted(async () => {
 .danger { color: #ff4d4f; }
 .device-row { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
 .thumbs { display: flex; gap: 8px; margin-top: 8px; flex-wrap: wrap; }
+.drawer-footer { display: flex; justify-content: flex-end; gap: 8px; }
 </style>

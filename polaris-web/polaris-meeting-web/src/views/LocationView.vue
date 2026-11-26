@@ -27,7 +27,7 @@
           <template v-else-if="column.key === 'action'">
             <a-space :size="4">
               <a v-if="!record.floorNo && store.can('meeting:room:edit')" @click="openFloor(record)">＋楼层</a>
-              <a v-if="store.can('meeting:room:edit')" @click="openBuilding(record)">编辑</a>
+              <a v-if="store.can('meeting:room:edit')" @click="editRecord(record)">编辑</a>
               <template v-if="store.can('meeting:room:edit')">
                 <a-tooltip v-if="record.roomCount > 0" title="已维护会议室，停用/删除已锁定">
                   <a class="disabled-link">状态</a>
@@ -139,12 +139,22 @@ function openBuilding(record?: Building) {
   })
   formOpen.value = true
 }
-function openFloor(building: Building) {
-  editing.value = false
+/** 行级编辑：楼层行走楼层表单（带父大楼 ID），大楼行走大楼表单；此前楼层行错走大楼表单导致 8302 */
+function editRecord(record: Building) {
+  if (record.floorNo) {
+    const parent = buildings.value.find(b => b.id === record.buildingId)
+    openFloor(parent || { id: record.buildingId || '', name: '' } as Building, record)
+  } else {
+    openBuilding(record)
+  }
+}
+function openFloor(building: Building, floor?: Building) {
+  editing.value = !!floor
   currentParentName.value = building.name
   Object.assign(form, {
-    id: '', buildingId: building.id, floorId: building.id, name: '', address: '',
-    sort: 0, status: enabledValue.value, remark: ''
+    id: floor?.id || '', buildingId: building.id, floorId: building.id,
+    name: floor?.floorNo || '', address: '',
+    sort: floor?.sort ?? 0, status: floor?.status || enabledValue.value, remark: floor?.remark || ''
   })
   formOpen.value = true
 }

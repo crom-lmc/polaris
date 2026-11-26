@@ -30,6 +30,8 @@ level: L2
 
 **列表页骨架**：MUST 用 `<section class="ft-page"><section class="ft-head">…<section class="ft-scroll ft-bottom">`；`ft-scroll` 是唯一滚动容器，`ft-bottom` 让分页 margin:auto 贴底 + sticky bottom:0（z-index 5）。
 
+**页面留白（header 搜索栏与卡片间距）**：全局 `.ft-head` 仅 `flex:0 0 auto`、无间距，header 内的标题/筛选控件之间及 header 与下方卡片之间 MUST 显式留间距（约 12px）。统一给 `ft-head` 加 `.toolbar` 类并定义 `.toolbar { display:flex; align-items:center; gap:12px; margin-bottom:12px; flex-wrap:wrap; }`，标题与筛选组之间用 1px 竖线分隔条或 `margin-left`。MUST NOT 把标题与 `a-space` 控件直接塞进无样式 `ft-head` 导致全部贴在一起（meeting 使用率页曾返工）。图表页同样适用。
+
 **分页与日期筛选口径**：
 - MUST 列表默认 `pageSize: 20`、开 `showSizeChanger`；MUST NOT 写死 5 或更小的每页条数（meeting 爽约记录页曾写死 5 被要求改）。换每页条数时回到第 1 页，翻页/换 size 走同一 `@change` 入口。
 - MUST 查询用的 `a-range-picker` 允许清空（`allow-clear` 默认开，MUST NOT 写 `:allow-clear="false"`），清空即「不限日期」——前端传空 from/to，后端不得兜底回「最近 7 天」；默认值可用最近一周，但用户清空后必须真正查全部（meeting 爽约记录页曾前后端同时踩坑）。
@@ -40,6 +42,10 @@ level: L2
 - MUST NOT 只写 `#emptyText` 插槽却漏掉 `.tbl-empty-mode` 触发类或 `.tbl-empty` 样式定义——空态会只占一行高、下方大片留白（meeting 会议室维护页曾有此问题）。有分页的页面 MUST 用 `ft-bottom`（分页 sticky 右下角、z-index 5 高于操作列 3）；无分页页同样加空态铺满，但无需分页条。
 - **空态不出现横向滚动条**：MUST 把固定横向滚动改为按数据条件绑定，如 `:scroll="rows.length ? { x: 1080 } : undefined"`（无数据时传 `undefined`，不要传固定 `{ x }`）；空态 CSS 再兜底 `.tbl-empty-mode .ant-table-content { overflow-x: hidden }`。MUST NOT 在零数据时空表仍显示横向滚动条（meeting 我的预定页曾因此返工）。
 
+**展示兜底（时间/姓名 ID）**：
+- MUST 列表里的时间（会议时间、释放时间等跨天/跨年数据）展示带年份 `YYYY-MM-DD HH:mm`，MUST NOT 只显示 `MM-DD HH:mm` 导致跨年无法区分；列宽按完整区间（含年份）预留并同步 `:scroll.x`。
+- MUST 后端姓名映射查不到账号时可能回退为 ID 本身（如 meeting `employeeNames` 的兜底），前端展示姓名列 MUST 把「等于账号 ID 的纯数字」归一为 `-`，MUST NOT 把雪花 ID 暴露给用户（tooltip 用同一归一值）。
+
 **长文本列（省略 + 悬浮展示完整内容）**：
 
 - MUST 用全局 `.cell-ellipsis`（定义于 `_shared/styles/responsive.css`：`display:block; max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap`）让文本在列宽内以省略号收尾，外层用 `<a-tooltip :title="完整值">` 在鼠标悬浮时以浮层展示完整内容——即「显示省略、悬浮看全」。
@@ -49,6 +55,10 @@ level: L2
 - 堆栈、入参/响应等超长内容用「行内省略 + 展开行 `<pre>` 看全文」双层策略，不把全文塞进单元格。
 
 **操作列固定**：MUST 用 `.ft-table` + CSS `position:sticky; right:0; z-index:3` 固定最后一列；MUST NOT 用 antd 的 `fixed:'right'`（会在表格内部再开一层横向滚动，与整页滚动容器冲突；审计 `EventsView.vue` 是历史例外）。按钮左对齐不换行，靠 `.ft-table .ant-btn-link` 的 padding 规则实现。
+
+**列表字段类型归一化**：后端实体用逗号分隔 String 存储、而提交 DTO 是 `List` 的字段（如会议室 `fileIds`），前端 TS 类型 MUST 写成 `string[] | string`，回填与提交 MUST 经统一函数归一为数组（按逗号 split + trim + 过滤空值），MUST NOT 用 `record.xxx || []` 直接回填——字符串会被原样提交，Jackson 反序列化 `ArrayList` 失败报「系统异常」（meeting 编辑会议室曾因此报错）。
+
+**内容多的表单用抽屉**：表单字段超过一屏、或含上传/多段列表/时间轴等长内容时，MUST 用 `a-drawer`（`placement="right"` + `#footer` 放取消/确定）而非 `a-modal`，并给 body 留底部 padding 避免内容被 footer 遮挡（meeting 编辑会议室弹窗曾一屏放不下）。简单确认/详情弹窗仍可用 `a-modal`。
 
 **查询类日期范围默认一周**：MUST 搜索/筛选/统计用途的 `a-range-picker`（含弹窗内统计范围）初始值、重置值均为「含今天的最近 7 个自然日」——`[dayjs().subtract(6,'day').startOf('day'), dayjs()]`（字符串口径 `format('YYYY-MM-DD')`），首次进入就有数据、不需手选；MUST NOT 默认空值/`null`/仅今天。仅「表单录入类」日期范围（请假申请、教育/工作经历、合同）与按月统计（`picker="month"`）可保留自定义默认或空值。
 

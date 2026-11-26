@@ -1,15 +1,14 @@
 <template>
   <section class="ft-page">
-    <section class="ft-head">
+    <section class="ft-head toolbar">
       <div class="head-title">会议室使用率</div>
-      <a-space>
-        <span class="filter-label">地区</span>
-        <a-select v-model:value="city" :options="cityOptions" placeholder="全部地区"
-                  style="width: 130px" allow-clear @change="load" />
-        <span class="filter-label">统计日期</span>
-        <a-date-picker v-model:value="date" format="YYYY-MM-DD" :allow-clear="false" @change="load" />
-        <a-button @click="load">刷新</a-button>
-      </a-space>
+      <span class="head-divider" />
+      <span class="filter-label">地区</span>
+      <a-select v-model:value="city" :options="cityOptions" placeholder="全部地区"
+                style="width: 130px" allow-clear @change="load" />
+      <span class="filter-label">统计日期</span>
+      <a-date-picker v-model:value="date" format="YYYY-MM-DD" :allow-clear="false" @change="load" />
+      <a-button @click="load">刷新</a-button>
     </section>
     <section class="ft-scroll usage-scroll">
       <a-card size="small" class="usage-card" :extra="cardExtra">
@@ -113,7 +112,10 @@ onMounted(async () => {
 </script>
 
 <style scoped>
+/* header 与卡片、控件之间留间距：与全仓 .toolbar 口径一致 */
+.toolbar { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; flex-wrap: wrap; }
 .head-title { font-weight: 600; }
+.head-divider { width: 1px; height: 18px; background: var(--panel-border, var(--header-border, #e5e7eb)); }
 .filter-label { font-size: 12px; color: var(--muted, #8a9099); }
 .usage-scroll { display: flex; }
 .usage-card { flex: 1; min-width: 0; min-height: 0; display: flex; flex-direction: column; }

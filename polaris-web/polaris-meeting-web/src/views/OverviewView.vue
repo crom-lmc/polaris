@@ -37,7 +37,7 @@
             <div class="cal-grid" :style="{ gridTemplateRows: `repeat(${dayRows}, minmax(44px, 1fr))` }">
               <button v-for="d in days" :key="d.key" class="cal-cell"
                       :class="{ today: d.key === today, selected: d.key === selectedDate, empty: !d.day, 'has-events': d.events.length }"
-                      :disabled="!d.day || d.key < today || d.key > maxDate" @click="selectDay(d.key)">
+                      :disabled="!d.day || d.key > maxDate" @click="selectDay(d.key)">
                 <span v-if="d.day" class="day">{{ d.day }}</span>
                 <template v-if="d.events.length">
                   <a-tooltip v-for="ev in d.events.slice(0, 2)" :key="ev.bookingId" :title="`${ev.startTime} ${ev.title}`">
@@ -104,13 +104,15 @@ const data = reactive<Overview>({
 const monthLabel = computed(() => `${cursor.value.getFullYear()} 年 ${cursor.value.getMonth() + 1} 月`)
 const monthKey = computed(() =>
   `${cursor.value.getFullYear()}-${String(cursor.value.getMonth() + 1).padStart(2, '0')}`)
-/** 可选日期：[今天, 今天 + 可提前预约天数]，天数来自 meeting.booking.max_advance_days */
+/** 可选日期上限：[过去5年(历史数据起点), 今天 + 可提前预约天数]，天数来自 meeting.booking.max_advance_days */
 const maxDate = computed(() => dayjs().add(Math.max(data.maxDays, 0), 'day').format('YYYY-MM-DD'))
-const canPrevMonth = computed(() => monthKey.value > today.slice(0, 7))
+/** 月历可往前翻的边界：历史预约数据为近 5 年，再往前翻没有数据 */
+const minMonth = dayjs().subtract(5, 'year').format('YYYY-MM')
+const canPrevMonth = computed(() => monthKey.value > minMonth)
 const canNextMonth = computed(() => monthKey.value < maxDate.value.slice(0, 7))
 function disabledDate(d: Dayjs) {
   const key = d.format('YYYY-MM-DD')
-  return key < today || key > maxDate.value
+  return key < minMonth + '-01' || key > maxDate.value
 }
 /** 右上角统计日期过滤：与月历选中日期联动 */
 const statDate = computed<Dayjs>({
@@ -201,7 +203,8 @@ onMounted(async () => {
 </script>
 
 <style scoped>
-.overview-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+/* 内容区 a-row :gutter=12 使卡片右边缘比页面容器内缩 12px，头部补等量右内边距对齐 */
+.overview-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; padding-right: 12px; }
 .overview-head h2 { margin: 0; font-size: 17px; }
 .hint { font-size: 12px; color: var(--text-secondary, #8c8c8c); }
 .filter-label { font-size: 12px; color: var(--text-secondary, #8c8c8c); }

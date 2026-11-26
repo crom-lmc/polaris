@@ -82,7 +82,7 @@ function onClick(cell: Slot) {
   min-width: 720px; height: 18px; font-size: 10px;
   color: var(--text-secondary, #8c8c8c);
 }
-.hour-scale b { font-weight: 400; text-align: center; border-left: 1px solid var(--border, #eee); }
+.hour-scale b { font-weight: 400; text-align: center; white-space: nowrap; border-left: 1px solid var(--border, #eee); }
 .slot-grid {
   display: grid; grid-template-columns: repeat(48, minmax(14px, 1fr));
   gap: 1px; min-width: 720px; background: var(--border, #e5e6eb); padding: 1px;
