@@ -36,7 +36,12 @@ const props = withDefaults(defineProps<{
   mineBookingId?: string
   /** 移动端分两行：12:00 前一行、12:00 后一行，避免 48 格横向放不下 */
   split?: boolean
-}>(), { selectable: false, value: undefined, hourScale: false, allowMine: false, mineBookingId: undefined, split: false })
+  /** 两点选时的第二格：仅作为结束边界、不计入区间，被占用的格子也可点 */
+  allowBoundary?: boolean
+}>(), {
+  selectable: false, value: undefined, hourScale: false, allowMine: false,
+  mineBookingId: undefined, split: false, allowBoundary: false
+})
 
 const emit = defineEmits<{ (e: 'pick', slot: Slot): void }>()
 const compact = computed(() => !props.selectable)
@@ -78,6 +83,8 @@ function isChosen(cell: Slot): boolean {
 function isPickable(cell: Slot): boolean {
   if (!props.selectable) return false
   if (cell.state === 'FREE') return true
+  // 第二格只取起点作为结束边界，格子本身不计入会议，他人/本人其他预定也能作为边界
+  if (props.allowBoundary && !['PAST', 'DISABLED', 'UNSELECTABLE'].includes(cell.state)) return true
   return props.allowMine && cell.state === 'MINE'
     && (!props.mineBookingId || cell.bookingId === props.mineBookingId)
 }

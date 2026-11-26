@@ -145,7 +145,8 @@
           </div>
           <div class="slot-scroll">
             <SlotGrid :slots="editSlots" selectable allow-mine hour-scale :split="mobile"
-                      :mine-booking-id="editing?.id" :value="editRange" @pick="pickEditSlot" />
+                      :allow-boundary="editPickStage === 1" :mine-booking-id="editing?.id"
+                      :value="editRange" @pick="pickEditSlot" />
           </div>
         </a-form-item>
         <a-form-item label="邀请参会人">
