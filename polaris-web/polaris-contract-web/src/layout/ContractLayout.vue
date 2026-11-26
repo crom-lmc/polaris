@@ -80,7 +80,7 @@ const menus = [
   { path: '/purchase-plan', title: '采购计划', icon: ShoppingCartOutlined, perm: 'contract:plan:list' },
   { path: '/partner', title: '往来单位维护', icon: TeamOutlined, perm: 'contract:partner:list' },
   { path: '/material', title: '物料库', icon: AppstoreOutlined, perm: 'contract:material:list' },
-  { path: '/material-maintain', title: '物料维护', icon: EditOutlined, perm: 'contract:material:edit' },
+  { path: '/material-maintain', title: '物料维护', icon: EditOutlined, perm: 'contract:material-maintain:list' },
   { path: '/project', title: '项目维护', icon: ProjectOutlined, perm: 'contract:project:list' },
   { path: '/contract', title: '合同台账', icon: FileTextOutlined, perm: 'contract:ledger:list' },
   { path: '/payment-plan', title: '合同付款计划', icon: WalletOutlined, perm: 'contract:payment:list' }
