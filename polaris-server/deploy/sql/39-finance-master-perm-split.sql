@@ -10,6 +10,7 @@
 --   下线旧按钮 finance:master:edit（已被拆分，无代码引用）
 -- 幂等：可重复执行。
 -- ============================================================
+USE `sso_ms`;
 
 -- 1) 删除已下线的旧按钮码 finance:master:edit（先清角色授权，再删权限记录）
 DELETE rp FROM `sso_ms`.`sso_role_permission` rp
