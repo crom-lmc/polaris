@@ -180,7 +180,7 @@ public class PurchasePlanServiceImpl implements PurchasePlanService {
                 ContractServiceImpl.PURCHASE, plan.getTitle(), req.getPartnerCode().trim(),
                 req.getProjectNo() == null ? null : req.getProjectNo().trim(),
                 nvl(req.getDept(), plan.getDept()), nvl(req.getOwner(), plan.getApplicant()),
-                nvl(req.getPaymentTerms(), ""), nvl(req.getSubject(), plan.getBudgetSubject()), orgCode);
+                nvl(req.getPaymentTerms(), ""), nvl(req.getSubject(), ""), nvl(plan.getBudgetSubject(), ""), orgCode);
         for (ContractPurchasePlanItem source : planItems) {
             ContractRequests.ItemSave itemReq = new ContractRequests.ItemSave();
             itemReq.setMaterialCode(source.getMaterialCode());

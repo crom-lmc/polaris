@@ -182,6 +182,7 @@ public class ContractServiceImpl implements ContractService {
         entity.setNo(bizNoService.next(PURCHASE.equals(type)
                 ? BizNoServiceImpl.TABLE_CONTRACT_PURCHASE : BizNoServiceImpl.TABLE_CONTRACT_SALES));
         apply(entity, req, type, projectNo, orgCode);
+        entity.setContractSource("DIRECT");
         entity.setCreatedAt(LocalDateTime.now());
         mapper.insert(entity);
         return decorate(List.of(entity)).get(0);
@@ -191,7 +192,7 @@ public class ContractServiceImpl implements ContractService {
     @Transactional(rollbackFor = Exception.class)
     public ContractHeader createForPlan(String type, String name, String partnerCode, String projectNo,
                                         String dept, String owner, String paymentTerms, String subject,
-                                        String orgCode) {
+                                        String budgetSubject, String orgCode) {
         ContractHeader entity = new ContractHeader();
         entity.setNo(bizNoService.next(PURCHASE.equals(type)
                 ? BizNoServiceImpl.TABLE_CONTRACT_PURCHASE : BizNoServiceImpl.TABLE_CONTRACT_SALES));
@@ -204,6 +205,8 @@ public class ContractServiceImpl implements ContractService {
         entity.setSignedDate(LocalDateTime.now().toLocalDate());
         entity.setPaymentTerms(paymentTerms);
         entity.setSubject(subject);
+        entity.setBudgetSubject(budgetSubject);
+        entity.setContractSource("FROM_PLAN");
         entity.setOrgCode(orgCode);
         entity.setStatus("DRAFT");
         entity.setCreatedAt(LocalDateTime.now());
@@ -546,6 +549,8 @@ public class ContractServiceImpl implements ContractService {
         vo.setStatus(e.getStatus());
         vo.setPaymentTerms(e.getPaymentTerms());
         vo.setSubject(e.getSubject());
+        vo.setBudgetSubject(e.getBudgetSubject());
+        vo.setContractSource(e.getContractSource());
         vo.setOrgCode(e.getOrgCode());
         return vo;
     }
@@ -564,6 +569,7 @@ public class ContractServiceImpl implements ContractService {
         e.setStatus(nvl(req.getStatus(), "DRAFT"));
         e.setPaymentTerms(nvl(req.getPaymentTerms(), ""));
         e.setSubject(nvl(req.getSubject(), ""));
+        e.setBudgetSubject(nvl(req.getBudgetSubject(), e.getBudgetSubject()));
         e.setOrgCode(orgCode);
     }
 

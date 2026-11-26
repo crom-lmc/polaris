@@ -25,7 +25,7 @@ public interface ContractService {
     ContractVOs.ContractVO save(ContractRequests.ContractSave req);
 
     /** 采购计划转合同复用：直接落库并返回实体，清单由调用方写入 */
-    ContractHeader createForPlan(String type, String name, String partnerCode, String projectNo, String dept, String owner, String paymentTerms, String subject, String orgCode);
+    ContractHeader createForPlan(String type, String name, String partnerCode, String projectNo, String dept, String owner, String paymentTerms, String subject, String budgetSubject, String orgCode);
 
     void update(Long id, ContractRequests.ContractSave req);
 

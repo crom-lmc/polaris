@@ -31,7 +31,12 @@ public class ContractHeader extends BaseEntity {
     /** DRAFT / PENDING / EFFECTIVE / EXECUTING / COMPLETED / TERMINATED */
     private String status;
     private String paymentTerms;
+    /** 合同标的 */
     private String subject;
+    /** 预算科目（财务主数据名称；采购计划转入时固定取计划值，不被前端手输覆盖） */
+    private String budgetSubject;
+    /** 来源：DIRECT 直接新建 / FROM_PLAN 采购计划转入 */
+    private String contractSource;
     private String orgCode;
 
     /** 以下均为派生展示字段，不落库 */

@@ -100,7 +100,12 @@ public final class ContractVOs {
         private String endDate;
         private String status;
         private String paymentTerms;
+        /** 合同标的 */
         private String subject;
+        /** 预算科目 */
+        private String budgetSubject;
+        /** 来源 DIRECT / FROM_PLAN */
+        private String contractSource;
         private String orgCode;
         private BigDecimal amount;
         private BigDecimal paidAmount;
