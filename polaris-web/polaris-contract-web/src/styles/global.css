@@ -60,6 +60,14 @@ body {
 .grow, .panel-grow { flex: 1 1 auto; min-width: 0; }
 .hint, .panel-hint { color: var(--muted); font-size: 12px; }
 .muted { color: var(--muted); font-size: 12px; }
+/* 置灰链接按钮：只置灰、光标禁用，不改字号（与普通 <a> 同字号）；MUST NOT 用 .muted（带 font-size:12px 会小一号） */
+.link-disabled { color: var(--muted); cursor: not-allowed; }
+/* 表单标签统一左对齐：必填星号绝对定位到左侧预留位，不挤占文字，必填/非必填标签文字起点一致 */
+/* 4 类前缀提高特异性，压过 AntDV CSS-in-JS 运行时的 :not() 规则；label 本身 position:relative 由 AntDV 提供 */
+.ant-form .ant-form-item .ant-form-item-label > label { padding-left: 14px; }
+.ant-form .ant-form-item .ant-form-item-label > label.ant-form-item-required::before {
+  position: absolute; left: 0; top: 50%; transform: translateY(-50%); margin-inline-end: 0;
+}
 .trend-up { color: #2f54eb; }
 .trend-down { color: #52a563; }
 
@@ -156,6 +164,18 @@ body {
 .panel-tree-layout { display: flex; gap: 12px; height: 100%; min-height: 0; }
 .panel-tree-side { width: 260px; flex: 0 0 260px; overflow: auto; padding: 10px; background: var(--panel-bg); border: 1px solid var(--panel-border); border-radius: 8px; }
 .panel-tree-main { flex: 1 1 auto; min-width: 0; overflow: auto; }
+/* 树表布局铺满：右侧主区占满剩余高度，表格撑满卡片，分页 sticky 固定右下角 */
+.panel-tree-main.ft-bottom { display: flex; flex-direction: column; overflow: hidden; }
+.panel-tree-main.ft-bottom .tree-table-card { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; margin-bottom: 0; }
+.panel-tree-main.ft-bottom .tree-table-card > .ant-card-body { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; padding: 0; }
+.panel-tree-main.ft-bottom .tree-table-card .ant-table-wrapper,
+.panel-tree-main.ft-bottom .tree-table-card .ant-spin-nested-loading,
+.panel-tree-main.ft-bottom .tree-table-card .ant-spin-container,
+.panel-tree-main.ft-bottom .tree-table-card .ant-table { flex: 1 0 auto; display: flex; flex-direction: column; }
+.panel-tree-main.ft-bottom .tree-table-card .ant-table-pagination.ant-pagination {
+  position: sticky; bottom: 0; z-index: 5; margin: auto 0 0; padding: 10px 14px;
+  background: var(--panel-bg, var(--header-bg)); border-top: 1px solid var(--panel-border, var(--header-border));
+}
 .panel-tree-node { white-space: nowrap; }
 /* 物料分类树：自绘节点，缩进直接内联 padding-left，不依赖 a-tree 的 CSS-in-JS 缩进测量 */
 .mt-tree { font-size: 14px; padding: 2px 0; }

@@ -87,28 +87,23 @@ const selectedLevel = computed(() => {
 })
 const categoryLevelOk = computed(() => selectedLevel.value === 1 || selectedLevel.value === 2)
 const materialLevelOk = computed(() => selectedLevel.value === 3)
-const addHint = computed(() => {
-  if (!manage.value) {
-    if (selectedLevel.value === 1) return '当前一级分类 → 可新增二级分类'
-    if (selectedLevel.value === 2) return '当前二级分类 → 可新增三级分类'
-    return '请选中一级或二级分类后新增分类'
-  }
-  return selectedLevel.value === 3 ? '当前三级分类 → 可新增物料' : '请选中三级分类后新增物料'
-})
 
 /* ============ 右侧列表数据 ============ */
 const categoryRows = ref<MaterialCategoryVO[]>([])
 const materialRows = ref<MaterialVO[]>([])
 const rowsLoading = ref(false)
+const page = ref(1)
+const pageSize = ref(20)
 async function loadRows() {
   rowsLoading.value = true
+  page.value = 1
   try {
     if (!manage.value) {
       categoryRows.value = await getCategoryList(currentNode.value?.id || null)
     } else {
-      materialRows.value = selectedLevel.value === 3
-        ? await getMaterials(currentNode.value?.id)
-        : []
+      // 分类码是层级前缀（01/0101/010101），物料码=分类码+6位流水。
+      // 选中任意级分类，后端按分类码前缀 like 返回该分类及其全部子孙分类下的物料。
+      materialRows.value = await getMaterials(currentNode.value?.id || null)
     }
   } catch (e: any) { message.error(e?.message || '加载列表失败') }
   finally { rowsLoading.value = false }
@@ -117,7 +112,14 @@ const keywordFiltered = <T extends { code?: string; name?: string }>(list: T[]) 
   const kw = keyword.value.trim().toLowerCase()
   return list.filter((n) => !kw || (n.code || '').toLowerCase().includes(kw) || (n.name || '').toLowerCase().includes(kw))
 }
-const rows = computed(() => (manage.value ? keywordFiltered(materialRows.value) : keywordFiltered(categoryRows.value)))
+const filteredRows = computed(() => (manage.value ? keywordFiltered(materialRows.value) : keywordFiltered(categoryRows.value)))
+/** 本地分页：数据量为分类/物料全量（百级），前端切片即可；分页固定右下角由 .ft-bottom 样式实现 */
+const rows = computed(() => filteredRows.value.slice((page.value - 1) * pageSize.value, page.value * pageSize.value))
+const pagination = computed(() => ({
+  current: page.value, pageSize: pageSize.value, total: filteredRows.value.length,
+  showSizeChanger: true, showTotal: (t: number) => `共 ${t} 条`,
+  onChange: (p: number, size: number) => { page.value = p; pageSize.value = size }
+}))
 
 /* ============ 表格列 ============ */
 const categoryColumns = [
@@ -306,15 +308,12 @@ onMounted(async () => { await loadTree(); await loadRows() })
       <span class="divider" />
       <a-input-search v-model:value="keyword" placeholder="编码 / 名称 / 规格" style="width: 240px" allow-clear />
       <span class="grow" />
-      <span class="hint">{{ manage ? '三级分类 + 物料 · 编码由服务端自动生成' : '三级分类维护 · 编码由服务端自动生成' }}</span>
       <template v-if="!manage">
-        <span v-if="canAddCategoryPerm" class="hint" :title="addHint">{{ addHint }}</span>
         <a-button v-if="canAddCategoryPerm" :disabled="!categoryLevelOk"
                   :title="categoryLevelOk ? '' : '请选中一级或二级分类'"
                   @click="openCreate">＋ 新增分类</a-button>
       </template>
       <template v-else>
-        <span class="hint" :title="addHint">{{ addHint }}</span>
         <a-button v-if="canAddMaterialPerm" type="primary" :disabled="!materialLevelOk"
                   :title="materialLevelOk ? '' : '请选中三级分类'"
                   @click="openCreate">＋ 新增物料</a-button>
@@ -323,7 +322,6 @@ onMounted(async () => { await loadTree(); await loadRows() })
     <section class="ft-scroll">
       <div class="panel-tree-layout">
         <div class="panel-tree-side">
-          <div class="panel-hint" style="margin: 0 0 8px 4px">物料分类树（共 {{ flatCategories.length }} 个分类）</div>
           <a-spin :spinning="loading">
             <div class="mt-tree">
               <div v-for="node in visibleNodes" :key="node.key" class="mt-node"
@@ -340,11 +338,11 @@ onMounted(async () => { await loadTree(); await loadRows() })
             </div>
           </a-spin>
         </div>
-        <div class="panel-tree-main">
-          <a-card size="small" class="panel-card">
+        <div class="panel-tree-main ft-bottom">
+          <a-card size="small" class="panel-card tree-table-card">
             <a-table class="ft-table" row-key="id" :columns="columns" :data-source="rows" :loading="rowsLoading"
-                     :pagination="false" :class="{ 'panel-empty-mode': !rows.length }"
-                     :scroll="rows.length ? { x: manage ? 900 : 700 } : undefined">
+                     :pagination="pagination" :class="{ 'panel-empty-mode': !filteredRows.length }"
+                     :scroll="filteredRows.length ? { x: manage ? 900 : 700 } : undefined">
               <template #bodyCell="{ column, record }">
                 <template v-if="column.key === 'name'">
                   <a-tooltip :title="`${record.name}`"><span class="cell-ellipsis">{{ record.name }}</span></a-tooltip>
@@ -368,7 +366,7 @@ onMounted(async () => { await loadTree(); await loadRows() })
                     </template>
                     <template v-if="!manage && !canDeleteRow(record)">
                       <a-tooltip :title="deleteHint(record)">
-                        <a class="muted" style="cursor: not-allowed">删除</a>
+                        <a class="link-disabled">删除</a>
                       </a-tooltip>
                     </template>
                     <a v-else @click="remove(record)">删除</a>
@@ -383,10 +381,6 @@ onMounted(async () => { await loadTree(); await loadRows() })
               </template>
             </a-table>
           </a-card>
-          <a-alert v-if="manage" type="info" show-icon message="维护口径"
-                   description="左侧展示完整分类树。选中任意层级分类，右侧展示该分类及其下级分类下的所有物料；新增物料仍需先选中三级分类，且分类须为启用状态。物料编码由服务端按分类码续位，已被合同清单或采购计划引用的物料不可删除。分类的启停、新增与编辑请到「物料库」页。" />
-          <a-alert v-else type="info" show-icon message="维护口径"
-                   description="这里只维护物料分类（最多三级）：选中一级/二级分类可新增下级分类，右侧列表显示该分类下所有子孙分类（含二级、三级）并支持编辑、启停、删除。有子分类或已挂物料的分类不可删除；停用后该分类及其下级不再用于选料。三级分类下不再新增分类，物料请到「物料维护」页。" />
         </div>
       </div>
     </section>

@@ -32,7 +32,6 @@ const range = ref<[Dayjs, Dayjs] | null>(null)
 
 /** 报销类型来自 settings 字典；remark 承载「类型 → 会计科目」映射 */
 const expenseTypes = ref<ExpenseTypeOption[]>([])
-const expenseReasonOptions = ref<{ label: string; value: string }[]>([])
 const invoiceTypeOptions = ref<{ label: string; value: string }[]>([])
 const taxRateOptions = ref<{ label: string; value: number }[]>([])
 const statusOptions = [
@@ -88,10 +87,6 @@ watch([keyword, status, dept, range], () => { page.value = 1; load() })
 onMounted(async () => {
   try { expenseTypes.value = await fetchExpenseTypeOptions() } catch { /* 字典可空，后端仍会校验报销类型 */ }
   try {
-    const reasons: DictOption[] = await fetchPublicDict('finance.expense_reason') || []
-    expenseReasonOptions.value = reasons.map((d) => ({ label: d.label, value: d.value }))
-  } catch { /* 字典可空，不阻断列表 */ }
-  try {
     const invoices: DictOption[] = await fetchPublicDict('finance.invoice_type') || []
     invoiceTypeOptions.value = invoices.map((d) => ({ label: d.label, value: d.value }))
   } catch { /* 字典可空，不阻断列表 */ }
@@ -127,9 +122,18 @@ const drawerOpen = ref(false)
 const saving = ref(false)
 const form = reactive<ExpenseSave>({
   applicant: '', expenseType: '', reason: '', amount: 0, dept: '',
-  expenseReason: '', invoiceType: '', taxRate: undefined, taxAmount: undefined,
+  invoiceType: '', taxRate: undefined, taxAmount: 0,
   date: dayjs().format('YYYY-MM-DD'), fileIds: []
 })
+/** 税额 = 金额 × 税率（字典值为百分数，如 3 表示 3%），金额或税率变化即重算；税额不允许手填 */
+function calcTaxAmount(): number {
+  const amount = Number(form.amount) || 0
+  const rate = Number(form.taxRate) || 0
+  return Number((amount * rate / 100).toFixed(2))
+}
+watch([() => form.amount, () => form.taxRate], () => {
+  form.taxAmount = calcTaxAmount()
+}, { immediate: true })
 /** 上传态：只保留 file_id 与签名预览 URL，文件本体不落业务库 */
 interface Attachment { uid: string; fileId: string; url: string; name: string }
 const attachments = ref<Attachment[]>([])
@@ -174,7 +178,7 @@ async function openCreate() {
   Object.assign(form, {
     applicant: profile?.applicant || currentApplicant.value,
     expenseType: '', reason: '', amount: 0,
-    expenseReason: '', invoiceType: '', taxRate: undefined, taxAmount: undefined,
+    invoiceType: '', taxRate: undefined, taxAmount: 0,
     dept: profile?.dept || currentDept.value,
     date: dayjs().format('YYYY-MM-DD'),
     fileIds: []
@@ -217,6 +221,7 @@ async function submit() {
       applicant: form.applicant || currentApplicant.value,
       dept: form.dept || currentDept.value,
       amount: Number(form.amount),
+      taxAmount: calcTaxAmount(),
       fileIds: attachments.value.map((a) => a.fileId)
     })
     drawerOpen.value = false
@@ -317,20 +322,10 @@ async function submit() {
         <a-form-item label="费用事由" required>
           <a-textarea v-model:value="form.reason" :rows="3" placeholder="请输入报销事由" />
         </a-form-item>
-        <a-row :gutter="12">
-          <a-col :span="12">
-            <a-form-item label="报销事由（字典）">
-              <a-select v-model:value="form.expenseReason" :options="expenseReasonOptions" placeholder="从字典选择（选填）"
-                        allow-clear show-search option-filter-prop="label" style="width: 100%" />
-            </a-form-item>
-          </a-col>
-          <a-col :span="12">
-            <a-form-item label="发票类型">
-              <a-select v-model:value="form.invoiceType" :options="invoiceTypeOptions" placeholder="从字典选择（选填）"
-                        allow-clear show-search option-filter-prop="label" style="width: 100%" />
-            </a-form-item>
-          </a-col>
-        </a-row>
+        <a-form-item label="发票类型">
+          <a-select v-model:value="form.invoiceType" :options="invoiceTypeOptions" placeholder="从字典选择（选填）"
+                    allow-clear show-search option-filter-prop="label" style="width: 100%" />
+        </a-form-item>
         <a-row :gutter="12">
           <a-col :span="12">
             <a-form-item label="税率">
@@ -340,7 +335,8 @@ async function submit() {
           </a-col>
           <a-col :span="12">
             <a-form-item label="税额">
-              <a-input-number v-model:value="form.taxAmount" :min="0" :precision="2" style="width: 100%" addon-before="¥" />
+              <a-input-number :value="form.taxAmount" readonly :precision="2" style="width: 100%" addon-before="¥" />
+              <template #extra>由金额 × 税率自动计算，不允许手输</template>
             </a-form-item>
           </a-col>
         </a-row>

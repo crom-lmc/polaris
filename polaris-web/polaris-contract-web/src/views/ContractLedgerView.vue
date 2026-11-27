@@ -6,7 +6,7 @@ import { useIsMobile } from '@/composables/useIsMobile'
 import { useOrgDirectory, filterOption as orgFilterOption } from '@/composables/useOrgDirectory'
 import {
   listContracts, getContractStats, getContract, saveContract, updateContract, deleteContract, changeContractStatus,
-  listContractChanges, getProjectOptions, listPartners, fetchBudgetSubjectOptions, uploadContractAttachment,
+  listContractChanges, getProjectOptions, listPartners, uploadContractAttachment,
   type ContractVO, type ContractSave, type ContractStats, type ProjectOptionVO, type ChangeLogVO
 } from '@/api/contract'
 import { yuan } from '@/utils/format'
@@ -43,7 +43,6 @@ const statusOptions = Object.entries(statusLabel).map(([value, label]) => ({ val
 
 const projectOptions = ref<{ label: string; value: string }[]>([])
 const partnerOptions = ref<{ label: string; value: string }[]>([])
-const budgetSubjectOptions = ref<{ label: string; value: string }[]>([])
 const sourceLabel: Record<string, string> = { DIRECT: '直接新建', FROM_PLAN: '计划转入' }
 const changeReason = ref('')
 
@@ -93,12 +92,6 @@ async function loadOptions() {
     const res = await listPartners({ page: 1, size: 200 })
     partnerOptions.value = (res.records || []).map((p) => ({ label: `${p.code} · ${p.name}`, value: p.code }))
   } catch { partnerOptions.value = [] }
-  try {
-    const list = await fetchBudgetSubjectOptions() || []
-    const seen = new Map<string, string>()
-    list.forEach((s) => { if (s.name && !seen.has(s.name)) seen.set(s.name, s.code) })
-    budgetSubjectOptions.value = [...seen.entries()].map(([name, code]) => ({ label: `${code} · ${name}`, value: name }))
-  } catch { budgetSubjectOptions.value = [] }
 }
 
 const columns = [
@@ -125,13 +118,13 @@ const createOpen = ref(false)
 const saving = ref(false)
 const createForm = reactive<ContractSave>({
   type: 'PURCHASE', name: '', partnerCode: '', projectNo: undefined, dept: '', owner: '',
-  signedDate: undefined, effectiveDate: undefined, endDate: undefined, paymentTerms: '', subject: '', budgetSubject: undefined,
+  signedDate: undefined, effectiveDate: undefined, endDate: undefined, paymentTerms: '', subject: '',
   fileIds: []
 })
 function resetCreate() {
   Object.assign(createForm, {
     type: 'PURCHASE', name: '', partnerCode: '', projectNo: undefined, dept: '', owner: '',
-    signedDate: undefined, effectiveDate: undefined, endDate: undefined, paymentTerms: '', subject: '', budgetSubject: undefined,
+    signedDate: undefined, effectiveDate: undefined, endDate: undefined, paymentTerms: '', subject: '',
     fileIds: []
   })
 }
@@ -291,7 +284,6 @@ onMounted(() => { load(); loadOptions(); loadOrgDirectory() })
               <a-descriptions-item label="签订 / 生效 / 到期">{{ detail.signedDate || '-' }} / {{ detail.effectiveDate || '-' }} / {{ detail.endDate || '-' }}</a-descriptions-item>
               <a-descriptions-item label="付款条款">{{ detail.paymentTerms || '-' }}</a-descriptions-item>
               <a-descriptions-item label="合同标的">{{ detail.subject || '-' }}</a-descriptions-item>
-              <a-descriptions-item label="预算科目">{{ detail.budgetSubject || '-' }}</a-descriptions-item>
               <a-descriptions-item label="来源">
                 <a-tag :color="detail.contractSource === 'FROM_PLAN' ? 'blue' : 'default'">
                   {{ sourceLabel[detail.contractSource] || detail.contractSource || '直接新建' }}
@@ -332,7 +324,7 @@ onMounted(() => { load(); loadOptions(); loadOrgDirectory() })
           <ContractItemsEditor v-if="detail" :contract-no="detail.no" />
 
           <div class="drawer-section-title">付款计划</div>
-          <PaymentPlanEditor v-if="detail" :contract-no="detail.no" />
+          <PaymentPlanEditor v-if="detail" :contract-no="detail.no" :remaining-amount="detail.pendingAmount" />
         </template>
       </a-spin>
       <template #footer>
@@ -409,10 +401,6 @@ onMounted(() => { load(); loadOptions(); loadOrgDirectory() })
           </a-row>
           <a-form-item label="付款条款"><a-input v-model:value="createForm.paymentTerms" /></a-form-item>
           <a-form-item label="合同标的"><a-input v-model:value="createForm.subject" /></a-form-item>
-          <a-form-item label="预算科目">
-            <a-select v-model:value="createForm.budgetSubject" :options="budgetSubjectOptions" placeholder="从财务主数据选择（选填）"
-                      allow-clear show-search :filter-option="filterOption" style="width: 100%" />
-          </a-form-item>
           <AttachmentUpload v-if="store.can('contract:ledger:attachment:upload')" v-model="createForm.fileIds" label="合同附件" button-text="上传合同附件"
                             :upload="(file) => uploadContractAttachment(file, 'contract')" @error="message.error" />
         </a-card>

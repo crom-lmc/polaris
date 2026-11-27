@@ -4,13 +4,13 @@ import { message, Modal } from 'ant-design-vue'
 import { useUserStore } from '@/stores/user'
 import { useIsMobile } from '@/composables/useIsMobile'
 import {
-  listPaymentPlans, savePaymentPlan, applyPaymentPlan, deletePaymentPlan, uploadContractAttachment,
-  type PaymentPlanVO
+  listPaymentPlans, savePaymentPlan, applyPaymentPlan, deletePaymentPlan, uploadContractAttachment, fetchPublicDict,
+  type PaymentPlanVO, type DictOption
 } from '@/api/contract'
 import { yuan } from '@/utils/format'
 import AttachmentUpload from '@shared/components/AttachmentUpload.vue'
 
-const props = defineProps<{ contractNo: string }>()
+const props = defineProps<{ contractNo: string; remainingAmount?: number }>()
 const store = useUserStore()
 const isMobile = useIsMobile()
 const drawerWidth = computed(() => (isMobile.value ? '100%' : 520))
@@ -23,10 +23,16 @@ const statusLabel: Record<string, string> = {
 const statusColor: Record<string, string> = {
   WAITING: 'default', PENDING: 'orange', APPROVED: 'blue', POSTED: 'green', PAID: 'green', REJECTED: 'red'
 }
+const dictStages = ref<DictOption[]>([])
+const stageOptions = computed(() => dictStages.value.map((d) => ({ value: d.value, label: d.label })))
+function stageText(value?: string) {
+  if (!value) return '-'
+  return dictStages.value.find((d) => d.value === value)?.label || value
+}
 
 const columns = [
   { title: '付款阶段', dataIndex: 'stage', key: 'stage', width: 140 },
-  { title: '应付金额', key: 'amount', align: 'right' as const, width: 130 },
+  { title: '本期付款金额', key: 'amount', align: 'right' as const, width: 140 },
   { title: '应付日期', dataIndex: 'dueDate', key: 'dueDate', width: 110 },
   { title: '付款事由', dataIndex: 'summary', key: 'summary', width: 180 },
   { title: '付款状态', key: 'status', align: 'center' as const, width: 120 },
@@ -46,11 +52,15 @@ async function load() {
 const createOpen = ref(false)
 const saving = ref(false)
 const form = reactive({
-  stage: '', amount: undefined as number | undefined, dueDate: undefined as string | undefined,
+  stage: undefined as string | undefined,
+  remainingAmount: undefined as number | undefined,
+  amount: undefined as number | undefined,
+  dueDate: undefined as string | undefined,
   summary: '', fileIds: [] as string[]
 })
 function openCreate() {
-  form.stage = ''
+  form.stage = undefined
+  form.remainingAmount = props.remainingAmount
   form.amount = undefined
   form.dueDate = undefined
   form.summary = ''
@@ -58,11 +68,22 @@ function openCreate() {
   createOpen.value = true
 }
 async function submit() {
-  if (!form.amount || form.amount <= 0) { message.warning('付款金额必须大于 0'); return }
+  const amount = form.amount
+  const missing: string[] = []
+  if (!form.stage) missing.push('付款阶段')
+  if (form.remainingAmount == null) missing.push('合同剩余金额')
+  if (!amount || amount <= 0) missing.push('本期付款金额')
+  if (!form.dueDate) missing.push('应付日期')
+  if (missing.length) { message.warning(`请填写必填项：${missing.join('、')}`); return }
+  if (amount == null) return
+  if (amount > Number(form.remainingAmount)) {
+    message.warning(`本期付款金额不能超过合同剩余金额 ${yuan(Number(form.remainingAmount))}`)
+    return
+  }
   saving.value = true
   try {
     await savePaymentPlan(props.contractNo, {
-      stage: form.stage || undefined, amount: Number(form.amount), dueDate: form.dueDate,
+      stage: form.stage, amount: Number(amount), dueDate: form.dueDate,
       summary: form.summary || undefined, fileIds: form.fileIds
     })
     createOpen.value = false
@@ -77,7 +98,7 @@ async function apply(row: PaymentPlanVO) {
 }
 function remove(row: PaymentPlanVO) {
   Modal.confirm({
-    centered: true, title: '删除付款计划', content: `确定删除「${row.stage}」吗？仅待申请计划可删除。`,
+    centered: true, title: '删除付款计划', content: `确定删除「${stageText(row.stage)}」吗？仅待申请计划可删除。`,
     okButtonProps: { danger: true },
     onOk: async () => {
       try { await deletePaymentPlan(row.id); message.success('已删除'); await load() }
@@ -85,7 +106,11 @@ function remove(row: PaymentPlanVO) {
     }
   })
 }
-onMounted(load)
+onMounted(() => {
+  load()
+  fetchPublicDict('contract.payment_stage').then((list) => { dictStages.value = list || [] })
+    .catch(() => { message.warning('付款阶段字典加载失败，请检查配置中心') })
+})
 </script>
 
 <template>
@@ -97,7 +122,8 @@ onMounted(load)
     <a-table class="ft-table" row-key="id" :columns="columns" :data-source="rows" :loading="loading" :pagination="false"
              :class="{ 'tbl-empty-mode': !loading && !rows.length }" :scroll="rows.length ? { x: 1220 } : undefined">
       <template #bodyCell="{ column, record }">
-        <template v-if="column.key === 'amount'">{{ yuan(record.amount) }}</template>
+        <template v-if="column.key === 'stage'">{{ stageText(record.stage) }}</template>
+        <template v-else-if="column.key === 'amount'">{{ yuan(record.amount) }}</template>
         <template v-else-if="column.key === 'summary'">
           <a-tooltip v-if="record.summary" :title="record.summary"><span class="cell-ellipsis">{{ record.summary }}</span></a-tooltip>
           <span v-else class="muted">-</span>
@@ -138,20 +164,25 @@ onMounted(load)
     <a-drawer v-model:open="createOpen" title="新增付款计划" :width="drawerWidth" placement="right">
       <a-form layout="vertical">
         <a-form-item label="所属合同"><a-input :value="contractNo" readonly /></a-form-item>
-        <a-form-item label="付款阶段"><a-input v-model:value="form.stage" placeholder="如：预付款 / 到货款 / 质保金" /></a-form-item>
-        <a-form-item label="应付金额" required>
-          <a-input-number v-model:value="form.amount" :min="0" :precision="2" style="width: 100%" addon-before="¥" />
+        <a-form-item label="付款阶段" required>
+          <a-select v-model:value="form.stage" :options="stageOptions" placeholder="请选择付款阶段" show-search style="width: 100%" />
         </a-form-item>
-        <a-form-item label="应付日期">
+        <a-form-item label="合同剩余金额" required>
+          <a-input-number :value="form.remainingAmount" :controls="false" :precision="2" readonly
+                          placeholder="合同剩余金额" style="width: 100%" addon-before="¥" />
+        </a-form-item>
+        <a-form-item label="本期付款金额" required>
+          <a-input-number v-model:value="form.amount" :min="0" :max="form.remainingAmount ?? undefined" :precision="2"
+                          style="width: 100%" addon-before="¥" />
+        </a-form-item>
+        <a-form-item label="应付日期" required>
           <a-date-picker v-model:value="form.dueDate" value-format="YYYY-MM-DD" format="YYYY-MM-DD" style="width: 100%" />
         </a-form-item>
         <a-form-item label="付款事由">
           <a-textarea v-model:value="form.summary" :rows="2" placeholder="填写本次付款事由" />
         </a-form-item>
-        <a-form-item label="合同与验收凭证">
-          <AttachmentUpload v-model="form.fileIds" label="付款凭证" button-text="上传付款凭证"
-                            :upload="(file) => uploadContractAttachment(file, 'payment-plan')" />
-        </a-form-item>
+        <AttachmentUpload v-model="form.fileIds" label="付款凭证" button-text="上传付款凭证"
+                          :upload="(file) => uploadContractAttachment(file, 'payment-plan')" />
       </a-form>
       <template #footer>
         <div class="drawer-footer">

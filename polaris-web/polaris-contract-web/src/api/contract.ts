@@ -8,6 +8,12 @@ export interface PageResult<T> {
   size: number
 }
 
+/* ==================== 公共字典（settings 白名单） ==================== */
+
+export interface DictOption { value: string; label: string; remark?: string | null }
+export const fetchPublicDict = (typeCode: string) =>
+  request.get<never, DictOption[]>(`/api/settings/public/dicts/${typeCode}`)
+
 /* ==================== 认证与应用信息 ==================== */
 
 export interface MyAppInfo { code: string; name: string }
@@ -315,8 +321,6 @@ export interface ContractVO {
   paymentTerms: string
   /** 合同标的 */
   subject: string
-  /** 预算科目（财务主数据名称） */
-  budgetSubject: string
   /** 来源 DIRECT 直接新建 / FROM_PLAN 采购计划转入 */
   contractSource: string
   /** 来源采购计划号（FROM_PLAN 时带入） */
@@ -351,8 +355,6 @@ export interface ContractSave {
   paymentTerms?: string
   /** 合同标的 */
   subject?: string
-  /** 预算科目（财务主数据名称） */
-  budgetSubject?: string
   orgCode?: string
   /** 变更原因（仅用于变更留痕） */
   remark?: string
@@ -562,7 +564,6 @@ export interface PurchasePlanVO {
   /** 计划日期（设计稿 date） */
   date?: string
   needDate: string
-  budgetSubject: string
   status: string
   contractNo: string
   orgCode: string
@@ -590,7 +591,6 @@ export interface PurchasePlanSave {
   /** 计划日期（设计稿 date） */
   date?: string
   needDate?: string
-  budgetSubject?: string
   orgCode?: string
   items?: PurchasePlanItemSave[]
   /** 附件 file_id 列表；不传表示保留原附件 */
@@ -662,16 +662,3 @@ export const fetchOrgTree = () => request.get<never, OrgNodeVO[]>('/api/contract
 
 /** 全部已开户、未离职员工，人员下拉候选（姓名/工号）。 */
 export const fetchActiveEmployees = () => request.get<never, OrgEmployeeVO[]>('/api/contract/orgs/employees/active')
-
-/* ==================== 预算科目主数据（财务域只读引用） ==================== */
-
-/** 预算科目（真相源在财务域 fin_budget_subject，经合同服务内部令牌代理） */
-export interface BudgetSubjectVO {
-  code: string
-  name: string
-  year: number
-}
-
-/** 启用中的预算科目，采购计划只能从中选择，不允许手输 */
-export const fetchBudgetSubjectOptions = (year?: number) =>
-  request.get<never, BudgetSubjectVO[]>('/api/contract/budget-subjects/options', { params: { year } })

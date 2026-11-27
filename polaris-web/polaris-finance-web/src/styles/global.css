@@ -60,6 +60,12 @@ body {
 .grow { flex: 1 1 auto; }
 .hint { font-size: 12px; color: var(--muted); }
 .muted { color: var(--muted); font-size: 12px; }
+/* 表单标签统一左对齐：必填星号绝对定位到左侧预留位，不挤占文字，必填/非必填标签文字起点一致 */
+/* 4 类前缀提高特异性，压过 AntDV CSS-in-JS 运行时的 :not() 规则；label 本身 position:relative 由 AntDV 提供 */
+.ant-form .ant-form-item .ant-form-item-label > label { padding-left: 14px; }
+.ant-form .ant-form-item .ant-form-item-label > label.ant-form-item-required::before {
+  position: absolute; left: 0; top: 50%; transform: translateY(-50%); margin-inline-end: 0;
+}
 .panel-card { margin-bottom: 12px; }
 .drawer-alert { margin-bottom: 16px; }
 .drawer-footer { display: flex; justify-content: flex-end; gap: 8px; }

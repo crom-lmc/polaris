@@ -114,13 +114,11 @@ export interface ExpenseVO {
   dept: string
   subject: string
   subjectCode?: string
-  /** 报销事由字典 value */
-  expenseReason?: string
   /** 发票类型字典 value */
   invoiceType?: string
-  /** 税率 */
+  /** 税率（字典值为百分数，如 3 表示 3%） */
   taxRate?: number
-  /** 税额 */
+  /** 税额（由金额 × 税率计算，客户端只读） */
   taxAmount?: number
   status: string
   voucherNo?: string
@@ -285,13 +283,11 @@ export interface ExpenseSave {
   dept: string
   /** 兼容旧字段；新单科目由后端按报销类型映射带出 */
   subject?: string
-  /** 报销事由字典 value */
-  expenseReason?: string
   /** 发票类型字典 value */
   invoiceType?: string
-  /** 税率 */
+  /** 税率（字典值为百分数，如 3 表示 3%） */
   taxRate?: number
-  /** 税额 */
+  /** 税额（由金额 × 税率计算，客户端只读） */
   taxAmount?: number
   date: string
   orgCode?: string
@@ -536,3 +532,12 @@ export interface ContractOptionVO {
   name: string
 }
 export const fetchContractOptions = () => request.get<never, ContractOptionVO[]>('/api/finance/contracts/options')
+
+/** 往来单位下拉候选（经财务服务代理合同域，按角色取客户 / 供应商） */
+export interface PartnerOptionVO {
+  code: string
+  name: string
+  role?: string
+}
+export const fetchPartnerOptions = (role: 'CUSTOMER' | 'SUPPLIER') =>
+  request.get<never, PartnerOptionVO[]>('/api/finance/partners/options', { params: { role } })

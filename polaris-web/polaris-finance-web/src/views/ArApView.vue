@@ -4,7 +4,8 @@ import dayjs, { type Dayjs } from 'dayjs'
 import { message, Modal } from 'ant-design-vue'
 import {
   listArAp, listAging, createArAp, approveArAp, postArAp, writeOffArAp, deleteArAp,
-  fetchPublicDict, type ArApVO, type ArApSave, type AgingBucketVO, type WriteOffRequest, type DictOption
+  fetchPublicDict, fetchPartnerOptions, fetchContractOptions, subjectOptions,
+  type ArApVO, type ArApSave, type AgingBucketVO, type WriteOffRequest, type DictOption
 } from '@/api/finance'
 import { useUserStore } from '@/stores/user'
 import { useOrgDirectory, filterOption as orgFilterOption } from '@/composables/useOrgDirectory'
@@ -92,11 +93,39 @@ function reset() {
 watch([type, status, keyword, contractNo, range], () => { page.value = 1; load(); loadStats() })
 
 const invoiceTypeOptions = ref<{ label: string; value: string }[]>([])
+const creditPeriodOptions = ref<{ label: string; value: number }[]>([])
+const partnerOptions = ref<{ label: string; value: string }[]>([])
+const contractOptions = ref<{ label: string; value: string }[]>([])
+const accountSubjectOptions = ref<{ label: string; value: string }[]>([])
+
+async function loadPartners() {
+  const role = form.type === 'AR' ? 'CUSTOMER' : 'SUPPLIER'
+  try {
+    partnerOptions.value = (await fetchPartnerOptions(role) || [])
+      .map((p) => ({ label: `${p.code} · ${p.name}`, value: p.name }))
+  } catch { partnerOptions.value = [] }
+}
+async function loadFormOptions() {
+  await loadPartners()
+  try {
+    contractOptions.value = (await fetchContractOptions() || [])
+      .map((c) => ({ label: `${c.no} · ${c.name}`, value: c.no }))
+  } catch { contractOptions.value = [] }
+  try {
+    accountSubjectOptions.value = (await subjectOptions() || [])
+      .map((s) => ({ label: `${s.code} · ${s.name}`, value: s.name }))
+  } catch { accountSubjectOptions.value = [] }
+  try {
+    const periods: DictOption[] = await fetchPublicDict('finance.credit_period') || []
+    creditPeriodOptions.value = periods.map((d) => ({ label: d.label, value: Number(d.value) }))
+  } catch { creditPeriodOptions.value = [] }
+}
 onMounted(async () => {
   try {
     const dicts: DictOption[] = await fetchPublicDict('finance.invoice_type') || []
     invoiceTypeOptions.value = dicts.map((d) => ({ label: d.label, value: d.value }))
   } catch { /* 字典可空，不阻断列表 */ }
+  await loadFormOptions()
   load(); loadStats(); loadOrgDirectory()
 })
 
@@ -154,6 +183,14 @@ const form = reactive<ArApSave>({
   party: '', type: 'AR', amount: 0, contractNo: '', subject: '', summary: '',
   invoiceNo: '', invoiceType: '', creditDays: undefined, dueDate: undefined,
   date: dayjs().format('YYYY-MM-DD'), dept: ''
+})
+/** 类型切换后往来单位候选跟着切客户 / 供应商，已选单位清空避免串类型 */
+watch(() => form.type, () => { form.party = ''; loadPartners() })
+/** 账期或发生日期变化即推算到期日；账期清空时到期日一并清空，由后端再做最终派生 */
+watch([() => form.creditDays, () => form.date], () => {
+  form.dueDate = form.creditDays == null || !form.date
+    ? undefined
+    : dayjs(form.date).add(Number(form.creditDays), 'day').format('YYYY-MM-DD')
 })
 function openCreate() {
   Object.assign(form, {
@@ -290,13 +327,22 @@ async function submitCreate() {
 
     <a-drawer v-model:open="createOpen" title="新增应收应付单" :width="520" placement="right">
       <a-form layout="vertical">
-        <a-form-item label="往来单位" required><a-input v-model:value="form.party" placeholder="请输入往来单位" /></a-form-item>
+        <a-form-item label="往来单位" required>
+          <a-select v-model:value="form.party" :options="partnerOptions" placeholder="从主数据选择"
+                    show-search option-filter-prop="label" style="width: 100%" />
+        </a-form-item>
         <a-form-item label="类型" required><a-select v-model:value="form.type" :options="typeOptions" /></a-form-item>
         <a-form-item label="金额" required>
           <a-input-number v-model:value="form.amount" :min="0" :precision="2" style="width: 100%" />
         </a-form-item>
-        <a-form-item label="关联合同号"><a-input v-model:value="form.contractNo" /></a-form-item>
-        <a-form-item label="会计科目"><a-input v-model:value="form.subject" /></a-form-item>
+        <a-form-item label="关联合同号">
+          <a-select v-model:value="form.contractNo" :options="contractOptions" placeholder="从合同主数据选择（选填）"
+                    allow-clear show-search option-filter-prop="label" style="width: 100%" />
+        </a-form-item>
+        <a-form-item label="会计科目">
+          <a-select v-model:value="form.subject" :options="accountSubjectOptions" placeholder="从财务会计科目选择（选填）"
+                    allow-clear show-search option-filter-prop="label" style="width: 100%" />
+        </a-form-item>
         <a-form-item label="摘要"><a-textarea v-model:value="form.summary" :rows="3" /></a-form-item>
         <a-row :gutter="12">
           <a-col :span="12">
@@ -312,7 +358,8 @@ async function submitCreate() {
         <a-row :gutter="12">
           <a-col :span="12">
             <a-form-item label="账期天数">
-              <a-input-number v-model:value="form.creditDays" :min="0" style="width: 100%" placeholder="填写后自动推算到期日" />
+              <a-select v-model:value="form.creditDays" :options="creditPeriodOptions" placeholder="从字典选择（选填）"
+                        allow-clear style="width: 100%" />
             </a-form-item>
           </a-col>
           <a-col :span="12">

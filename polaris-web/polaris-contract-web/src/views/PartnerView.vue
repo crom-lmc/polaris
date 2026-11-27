@@ -1,10 +1,11 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { message, Modal } from 'ant-design-vue'
 import { useUserStore } from '@/stores/user'
 import { useIsMobile } from '@/composables/useIsMobile'
 import {
-  listPartners, getPartner, savePartner, updatePartner, togglePartner, deletePartner, type PartnerVO, type PartnerSave
+  listPartners, getPartner, savePartner, updatePartner, togglePartner, deletePartner, fetchPublicDict,
+  type PartnerVO, type PartnerSave, type DictOption
 } from '@/api/contract'
 
 const store = useUserStore()
@@ -31,9 +32,11 @@ const subjectTypeOptions = [{ label: '企业', value: 'COMPANY' }, { label: '个
 const statusOptions = Object.entries(statusLabel).map(([value, label]) => ({ value, label }))
 const ratingOptions = [{ label: 'A 级', value: 'A' }, { label: 'B 级', value: 'B' }, { label: 'C 级', value: 'C' }]
 const taxpayerOptions = [{ label: '一般纳税人', value: '一般纳税人' }, { label: '小规模纳税人', value: '小规模纳税人' }]
-const typeOptions = computed(() => [...new Set(rows.value.map((r) => r.type).filter(Boolean))].map((v) => ({ label: v, value: v })))
+/** 企业类型字典（settings contract.enterprise_type）；个人主体固定 PERSON */
+const enterpriseTypeOptions = ref<DictOption[]>([])
+const enterpriseTypeLabel = (v?: string) => enterpriseTypeOptions.value.find((o) => o.value === v)?.label || v || '-'
 const bankEditable = computed(() => store.can('contract:partner:bank:view'))
-/** 后端不提供 type 查询参数，单位类型按当前页数据本地过滤 */
+/** 后端不提供 type 查询参数，企业类型按当前页数据本地过滤 */
 const displayRows = computed(() => (query.type ? rows.value.filter((r) => r.type === query.type) : rows.value))
 
 const stats = computed(() => ({
@@ -68,7 +71,7 @@ const columns = [
   { title: '单位名称', key: 'name', width: 200 },
   { title: '角色', key: 'role', align: 'center' as const, width: 90 },
   { title: '主体类型', key: 'subjectType', align: 'center' as const, width: 100 },
-  { title: '类型', dataIndex: 'type', key: 'type', width: 110 },
+  { title: '企业类型', dataIndex: 'type', key: 'type', width: 110 },
   { title: '信用代码 / 身份证号', dataIndex: 'creditCode', key: 'creditCode', width: 200 },
   { title: '法定代表人', dataIndex: 'legalPerson', key: 'legalPerson', width: 100 },
   { title: '联系人', dataIndex: 'contact', key: 'contact', width: 100 },
@@ -118,6 +121,12 @@ const emptyForm = (): PartnerSave => ({
 })
 const form = reactive<PartnerSave>(emptyForm())
 const descColumn = computed(() => (isMobile.value ? 1 : 2))
+/** 主体类型=个人：企业类型自动带出「个人」且不可修改；切回企业时清空让用户重新选 */
+const isPerson = computed(() => form.subjectType === 'PERSON')
+watch(() => form.subjectType, (val) => {
+  if (val === 'PERSON') form.type = 'PERSON'
+  else if (form.type === 'PERSON') form.type = ''
+})
 function openEdit(row?: PartnerVO) {
   detailOpen.value = false
   editing.value = row?.id || null
@@ -138,10 +147,36 @@ function openEdit(row?: PartnerVO) {
 }
 async function submit() {
   const missing: string[] = []
-  // 新建时编码由 settings 单号规则自动生成（GYS-yyyy-XXXXXX），不需要手输
-  if (editing.value && !form.code?.trim()) missing.push('单位编码')
-  if (!form.name?.trim()) missing.push('单位名称')
-  if (!form.creditCode?.trim()) missing.push(form.subjectType === 'PERSON' ? '身份证号' : '统一社会信用代码')
+  const requireText = (value: unknown, label: string) => {
+    if (value == null || (typeof value === 'string' && !value.trim())) missing.push(label)
+  }
+  // 编码由 settings 单号规则自动生成（GYS-yyyy-XXXXXX），新增/编辑均不可手输，无需校验
+  requireText(form.name, '单位名称')
+  requireText(form.subjectType, '主体类型')
+  requireText(form.role, '业务角色')
+  requireText(form.type, '企业类型')
+  requireText(form.creditCode, form.subjectType === 'PERSON' ? '身份证号' : '统一社会信用代码')
+  if (form.subjectType !== 'PERSON') {
+    requireText(form.legalPerson, '法定代表人')
+    requireText(form.registeredCapital, '注册资本')
+    requireText(form.establishDate, '成立日期')
+    requireText(form.taxpayerType, '纳税人性质')
+  }
+  requireText(form.address, form.subjectType === 'PERSON' ? '住址' : '注册地址')
+  requireText(form.contact, '联系人')
+  requireText(form.phone, '联系电话')
+  requireText(form.terms, '结算账期')
+  requireText(form.rating, '评级')
+  requireText(form.status, '合作状态')
+  // 授信额度/已占用额度是数字，0 合法，用 == null 判空
+  if (form.role === 'CUSTOMER' || form.role === 'BOTH') {
+    if (form.creditLimit == null) missing.push('授信额度')
+    if (form.creditUsed == null) missing.push('已占用额度')
+  }
+  requireText(form.bank, '开户行')
+  requireText(form.accountName, '账户名称')
+  // 编辑态且无银行明文权限时账号被禁用且后端返回脱敏串（前端留空），豁免校验，否则该角色永远无法保存
+  if (!editing.value || bankEditable.value) requireText(form.bankAccount, '银行账号')
   if (missing.length) { message.warning(`请填写必填项：${missing.join('、')}`); return }
   saving.value = true
   try {
@@ -156,7 +191,11 @@ async function submit() {
   } catch (e: any) { message.error(e?.message || '保存失败') }
   finally { saving.value = false }
 }
-onMounted(load)
+onMounted(() => {
+  load()
+  fetchPublicDict('contract.enterprise_type').then((list) => { enterpriseTypeOptions.value = list || [] })
+    .catch(() => { message.warning('企业类型字典加载失败，请检查配置中心') })
+})
 </script>
 
 <template>
@@ -167,11 +206,10 @@ onMounted(load)
       <a-input-search v-model:value="query.code" placeholder="单位编码" style="width: 150px" allow-clear @search="resetAndLoad" />
       <a-input-search v-model:value="query.keyword" placeholder="名称 / 联系人" style="width: 180px" allow-clear @search="resetAndLoad" />
       <a-select v-model:value="query.role" :options="roleOptions" placeholder="全部角色" style="width: 120px" allow-clear @change="resetAndLoad" />
-      <a-select v-model:value="query.type" :options="typeOptions" placeholder="单位类型" style="width: 130px" allow-clear @change="resetAndLoad" />
+      <a-select v-model:value="query.type" :options="enterpriseTypeOptions" placeholder="企业类型" style="width: 130px" allow-clear @change="resetAndLoad" />
       <a-select v-model:value="query.status" :options="statusOptions" placeholder="合作状态" style="width: 120px" allow-clear @change="resetAndLoad" />
       <span class="grow" />
-      <span class="hint">一张表维护供应商与客户</span>
-      <a-button v-if="store.can('contract:partner:edit')" type="primary" @click="openEdit()">＋ 新增往来单位</a-button>
+      <a-button v-if="store.can('contract:partner:edit')" type="primary" @click="openEdit()">＋ 新增客户/供应商</a-button>
     </section>
     <section class="ft-scroll ft-bottom">
       <div class="stat-grid">
@@ -195,6 +233,7 @@ onMounted(load)
           <template v-else-if="column.key === 'subjectType'">
             <a-tag :color="record.subjectType === 'PERSON' ? 'purple' : 'default'">{{ subjectTypeLabel[record.subjectType] || '企业' }}</a-tag>
           </template>
+          <template v-else-if="column.key === 'type'">{{ enterpriseTypeLabel(record.type) }}</template>
           <template v-else-if="column.key === 'rating'"><a-tag>{{ record.rating }} 级</a-tag></template>
           <template v-else-if="column.key === 'status'">
             <a-tag :color="statusColor[record.status] || 'default'">{{ statusLabel[record.status] || record.status }}</a-tag>
@@ -222,7 +261,7 @@ onMounted(load)
             <a-descriptions-item label="单位名称">{{ detail.name }}</a-descriptions-item>
             <a-descriptions-item label="主体类型">{{ subjectTypeLabel[detail.subjectType] || '企业' }}</a-descriptions-item>
             <a-descriptions-item label="业务角色">{{ roleLabel[detail.role] || detail.role }}</a-descriptions-item>
-            <a-descriptions-item label="类型">{{ detail.type || '-' }}</a-descriptions-item>
+            <a-descriptions-item label="企业类型">{{ enterpriseTypeLabel(detail.type) }}</a-descriptions-item>
             <a-descriptions-item :label="detail.subjectType === 'PERSON' ? '身份证号' : '统一社会信用代码'">{{ detail.creditCode || '-' }}</a-descriptions-item>
             <template v-if="detail.subjectType !== 'PERSON'">
               <a-descriptions-item label="法定代表人">{{ detail.legalPerson || '-' }}</a-descriptions-item>
@@ -266,24 +305,29 @@ onMounted(load)
       </template>
     </a-drawer>
 
-    <a-drawer v-model:open="editOpen" :title="`${editing ? '编辑' : '新增'}往来单位`" :width="drawerWidth" placement="right">
+    <a-drawer v-model:open="editOpen" :title="`${editing ? '编辑' : '新增'}客户/供应商`" :width="drawerWidth" placement="right">
       <a-form layout="vertical">
         <a-card class="panel-card" size="small" title="基本信息">
           <a-row :gutter="12">
             <a-col :span="12">
               <a-form-item :label="editing ? '单位编码' : '单位编码（自动生成）'">
-                <a-input v-model:value="form.code" :disabled="!!editing"
+                <a-input v-model:value="form.code" disabled
                          :placeholder="editing ? '' : '保存时按规则自动生成'" />
               </a-form-item>
             </a-col>
             <a-col :span="12"><a-form-item label="单位名称" required><a-input v-model:value="form.name" /></a-form-item></a-col>
           </a-row>
           <a-row :gutter="12">
-            <a-col :span="12"><a-form-item label="主体类型"><a-select v-model:value="form.subjectType" :options="subjectTypeOptions" /></a-form-item></a-col>
-            <a-col :span="12"><a-form-item label="业务角色"><a-select v-model:value="form.role" :options="roleOptions" /></a-form-item></a-col>
+            <a-col :span="12"><a-form-item label="主体类型" required><a-select v-model:value="form.subjectType" :options="subjectTypeOptions" /></a-form-item></a-col>
+            <a-col :span="12"><a-form-item label="业务角色" required><a-select v-model:value="form.role" :options="roleOptions" /></a-form-item></a-col>
           </a-row>
           <a-row :gutter="12">
-            <a-col :span="12"><a-form-item label="类型"><a-input v-model:value="form.type" /></a-form-item></a-col>
+            <a-col :span="12">
+              <a-form-item label="企业类型" required>
+                <a-select v-model:value="form.type" :options="enterpriseTypeOptions" :disabled="isPerson"
+                          :placeholder="isPerson ? '个人（主体类型带出）' : '请选择企业类型'" />
+              </a-form-item>
+            </a-col>
             <a-col :span="12">
               <a-form-item :label="form.subjectType === 'PERSON' ? '身份证号' : '统一社会信用代码'" required>
                 <a-input v-model:value="form.creditCode" :maxlength="18" />
@@ -292,40 +336,40 @@ onMounted(load)
           </a-row>
           <template v-if="form.subjectType !== 'PERSON'">
             <a-row :gutter="12">
-              <a-col :span="12"><a-form-item label="法定代表人"><a-input v-model:value="form.legalPerson" /></a-form-item></a-col>
-              <a-col :span="12"><a-form-item label="注册资本"><a-input v-model:value="form.registeredCapital" /></a-form-item></a-col>
+              <a-col :span="12"><a-form-item label="法定代表人" required><a-input v-model:value="form.legalPerson" /></a-form-item></a-col>
+              <a-col :span="12"><a-form-item label="注册资本" required><a-input v-model:value="form.registeredCapital" /></a-form-item></a-col>
             </a-row>
             <a-row :gutter="12">
               <a-col :span="12">
-                <a-form-item label="成立日期">
+                <a-form-item label="成立日期" required>
                   <a-date-picker v-model:value="form.establishDate" value-format="YYYY-MM-DD" format="YYYY-MM-DD" style="width: 100%" />
                 </a-form-item>
               </a-col>
-              <a-col :span="12"><a-form-item label="纳税人性质"><a-select v-model:value="form.taxpayerType" :options="taxpayerOptions" /></a-form-item></a-col>
+              <a-col :span="12"><a-form-item label="纳税人性质" required><a-select v-model:value="form.taxpayerType" :options="taxpayerOptions" /></a-form-item></a-col>
             </a-row>
           </template>
-          <a-form-item :label="form.subjectType === 'PERSON' ? '住址' : '注册地址'"><a-input v-model:value="form.address" /></a-form-item>
+          <a-form-item :label="form.subjectType === 'PERSON' ? '住址' : '注册地址'" required><a-input v-model:value="form.address" /></a-form-item>
           <a-form-item label="备注"><a-input v-model:value="form.remark" /></a-form-item>
         </a-card>
         <a-card class="panel-card" size="small" title="联系与结算信息">
           <a-row :gutter="12">
-            <a-col :span="12"><a-form-item label="联系人"><a-input v-model:value="form.contact" /></a-form-item></a-col>
-            <a-col :span="12"><a-form-item label="联系电话"><a-input v-model:value="form.phone" /></a-form-item></a-col>
+            <a-col :span="12"><a-form-item label="联系人" required><a-input v-model:value="form.contact" /></a-form-item></a-col>
+            <a-col :span="12"><a-form-item label="联系电话" required><a-input v-model:value="form.phone" /></a-form-item></a-col>
           </a-row>
-          <a-form-item label="结算账期"><a-input v-model:value="form.terms" /></a-form-item>
+          <a-form-item label="结算账期" required><a-input v-model:value="form.terms" /></a-form-item>
           <a-row :gutter="12">
-            <a-col :span="12"><a-form-item label="评级"><a-select v-model:value="form.rating" :options="ratingOptions" /></a-form-item></a-col>
-            <a-col :span="12"><a-form-item label="合作状态"><a-select v-model:value="form.status" :options="statusOptions" /></a-form-item></a-col>
+            <a-col :span="12"><a-form-item label="评级" required><a-select v-model:value="form.rating" :options="ratingOptions" /></a-form-item></a-col>
+            <a-col :span="12"><a-form-item label="合作状态" required><a-select v-model:value="form.status" :options="statusOptions" /></a-form-item></a-col>
           </a-row>
           <template v-if="form.role === 'CUSTOMER' || form.role === 'BOTH'">
             <a-row :gutter="12">
               <a-col :span="12">
-                <a-form-item label="授信额度">
+                <a-form-item label="授信额度" required>
                   <a-input-number v-model:value="form.creditLimit" :min="0" :precision="2" style="width: 100%" placeholder="0 表示不限制" />
                 </a-form-item>
               </a-col>
               <a-col :span="12">
-                <a-form-item label="已占用额度">
+                <a-form-item label="已占用额度" required>
                   <a-input-number v-model:value="form.creditUsed" :min="0" :precision="2" style="width: 100%" />
                 </a-form-item>
               </a-col>
@@ -333,9 +377,9 @@ onMounted(load)
           </template>
         </a-card>
         <a-card class="panel-card" size="small" title="银行信息">
-          <a-form-item label="开户行"><a-input v-model:value="form.bank" /></a-form-item>
-          <a-form-item label="账户名称"><a-input v-model:value="form.accountName" /></a-form-item>
-          <a-form-item label="银行账号">
+          <a-form-item label="开户行" required><a-input v-model:value="form.bank" /></a-form-item>
+          <a-form-item label="账户名称" required><a-input v-model:value="form.accountName" /></a-form-item>
+          <a-form-item label="银行账号" :required="!editing || bankEditable">
             <a-input v-model:value="form.bankAccount" :disabled="!!editing && !bankEditable"
                      :placeholder="editing && !bankEditable ? '无明文权限，如需修改请联系管理员' : '对公 / 个人账户'" />
           </a-form-item>

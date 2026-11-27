@@ -6,8 +6,7 @@ import { useIsMobile } from '@/composables/useIsMobile'
 import { useOrgDirectory, filterOption as orgFilterOption } from '@/composables/useOrgDirectory'
 import {
   listPurchasePlans, getPurchasePlan, savePurchasePlan, approvePurchasePlan, rejectPurchasePlan,
-  convertPurchasePlan, listPartners, fetchBudgetSubjectOptions, uploadContractAttachment,
-  type PurchasePlanVO, type BudgetSubjectVO
+  convertPurchasePlan, listPartners, uploadContractAttachment, type PurchasePlanVO
 } from '@/api/contract'
 import { loadMaterialChildren, loadMaterialPage } from '@/composables/useMaterialPicker'
 import MaterialPickerModal, { type MaterialPick } from '@shared/components/MaterialPickerModal.vue'
@@ -73,7 +72,6 @@ const columns = [
   { title: '申请人', dataIndex: 'applicant', key: 'applicant', width: 100 },
   { title: '计划日期', dataIndex: 'date', key: 'date', width: 110 },
   { title: '需求日期', dataIndex: 'needDate', key: 'needDate', width: 110 },
-  { title: '预算科目', dataIndex: 'budgetSubject', key: 'budgetSubject', width: 170 },
   { title: '明细数', dataIndex: 'itemCount', key: 'itemCount', align: 'center' as const, width: 90 },
   { title: '计划金额', key: 'amount', align: 'right' as const, width: 130 },
   { title: '状态', key: 'status', align: 'center' as const, width: 110 },
@@ -121,22 +119,9 @@ type DraftItem = { materialCode: string; materialName: string; qty: number; pric
 const createForm = reactive({
   title: '', dept: '', applicant: '', date: undefined as string | undefined,
   needDate: undefined as string | undefined,
-  budgetSubject: '', items: [] as DraftItem[], fileIds: [] as string[]
+  items: [] as DraftItem[], fileIds: [] as string[]
 })
 const createTotal = computed(() => createForm.items.reduce((s, i) => s + (Number(i.qty) || 0) * (Number(i.price) || 0), 0))
-/** 预算科目只能从财务主数据选，不允许手输或从已有单据派生 */
-const budgetSubjectOptions = ref<{ label: string; value: string }[]>([])
-async function loadBudgetSubjects() {
-  try {
-    const list = await fetchBudgetSubjectOptions() || []
-    // 同一科目可能多年份重复，按 name 去重；label 带编码便于识别
-    const seen = new Map<string, string>()
-    list.forEach((s: BudgetSubjectVO) => {
-      if (s.name && !seen.has(s.name)) seen.set(s.name, s.code)
-    })
-    budgetSubjectOptions.value = [...seen.entries()].map(([name, code]) => ({ label: `${code} · ${name}`, value: name }))
-  } catch { budgetSubjectOptions.value = [] }
-}
 /** 当前登录人及其部门：从组织架构反查（accountId → 员工 → orgId → 部门名），与审批按名称取负责人一致 */
 const currentApplicant = computed(() => {
   const me = store.me
@@ -156,7 +141,6 @@ function openCreate() {
   createForm.applicant = currentApplicant.value
   createForm.date = undefined
   createForm.needDate = undefined
-  createForm.budgetSubject = ''
   createForm.items = []
   createForm.fileIds = []
   createOpen.value = true
@@ -193,7 +177,7 @@ async function submitCreate() {
   try {
     await savePurchasePlan({
       title: createForm.title.trim(), dept: createForm.dept || currentDept.value || undefined, applicant: createForm.applicant || currentApplicant.value || undefined,
-      date: createForm.date, needDate: createForm.needDate, budgetSubject: createForm.budgetSubject || undefined,
+      date: createForm.date, needDate: createForm.needDate,
       fileIds: createForm.fileIds,
       items: createForm.items.map((i) => ({ materialCode: i.materialCode, qty: Number(i.qty), price: Number(i.price) }))
     })
@@ -217,10 +201,8 @@ const convertOpen = ref(false)
 const convertSaving = ref(false)
 const convertId = ref('')
 const convertForm = reactive({ partnerCode: undefined as string | undefined, projectNo: '', dept: '', owner: '', paymentTerms: '', subject: '' })
-const convertBudgetSubject = ref('')
 function openConvert(id: string) {
   convertId.value = id
-  convertBudgetSubject.value = rows.value.find((r) => r.id === id)?.budgetSubject || ''
   convertForm.partnerCode = undefined
   convertForm.projectNo = ''
   convertForm.dept = ''
@@ -246,7 +228,7 @@ async function submitConvert() {
   finally { convertSaving.value = false }
 }
 
-onMounted(() => { load(); loadOptions(); loadOrgDirectory(); loadBudgetSubjects() })
+onMounted(() => { load(); loadOptions(); loadOrgDirectory() })
 </script>
 
 <template>
@@ -271,13 +253,10 @@ onMounted(() => { load(); loadOptions(); loadOrgDirectory(); loadBudgetSubjects(
       </div>
       <a-table class="ft-table" row-key="id" :columns="columns" :data-source="rows" :loading="loading"
                :pagination="pagination" :class="{ 'tbl-empty-mode': !loading && !rows.length }"
-               :scroll="rows.length ? { x: 1760 } : undefined" style="--ft-min-width: 1760px">
+               :scroll="rows.length ? { x: 1590 } : undefined" style="--ft-min-width: 1590px">
         <template #bodyCell="{ column, record }">
           <template v-if="column.key === 'title'">
             <a-tooltip :title="record.title"><span class="cell-ellipsis">{{ record.title }}</span></a-tooltip>
-          </template>
-          <template v-else-if="column.key === 'budgetSubject'">
-            <a-tooltip :title="record.budgetSubject"><span class="cell-ellipsis">{{ record.budgetSubject || '-' }}</span></a-tooltip>
           </template>
           <template v-else-if="column.key === 'amount'">{{ yuan(record.amount) }}</template>
           <template v-else-if="column.key === 'status'">
@@ -317,7 +296,6 @@ onMounted(() => { load(); loadOptions(); loadOrgDirectory(); loadBudgetSubjects(
               <a-descriptions-item label="需求部门 / 申请人">{{ detail.dept || '-' }} · {{ detail.applicant || '-' }}</a-descriptions-item>
               <a-descriptions-item label="计划日期">{{ detail.date || '-' }}</a-descriptions-item>
               <a-descriptions-item label="需求日期">{{ detail.needDate || '-' }}</a-descriptions-item>
-              <a-descriptions-item label="预算科目">{{ detail.budgetSubject || '-' }}</a-descriptions-item>
               <a-descriptions-item label="计划金额">{{ yuan(detail.amount) }}（{{ detail.itemCount }} 条明细）</a-descriptions-item>
               <a-descriptions-item label="状态">{{ statusLabel[detail.status] || detail.status }}</a-descriptions-item>
               <a-descriptions-item label="关联采购合同">{{ detail.contractNo || '未转合同' }}</a-descriptions-item>
@@ -377,10 +355,6 @@ onMounted(() => { load(); loadOptions(); loadOrgDirectory(); loadBudgetSubjects(
         </a-row>
         <a-form-item label="付款条款"><a-input v-model:value="convertForm.paymentTerms" /></a-form-item>
         <a-form-item label="合同标的"><a-input v-model:value="convertForm.subject" /></a-form-item>
-        <a-form-item label="预算科目">
-          <a-input :value="convertBudgetSubject || '未设置'" readonly placeholder="自动取采购计划的预算科目" />
-          <span class="panel-hint">预算科目固定取采购计划值，转入后不可在此改写</span>
-        </a-form-item>
       </a-form>
       <template #footer>
         <div class="drawer-footer">
@@ -416,13 +390,9 @@ onMounted(() => { load(); loadOptions(); loadOrgDirectory(); loadBudgetSubjects(
               <a-date-picker v-model:value="createForm.needDate" value-format="YYYY-MM-DD" format="YYYY-MM-DD" style="width: 100%" />
             </a-form-item>
           </a-col>
-          <a-col :span="12">
-            <a-form-item label="预算科目">
-              <a-select v-model:value="createForm.budgetSubject" :options="budgetSubjectOptions" placeholder="从主数据选择" show-search
-                        :filter-option="filterOption" allow-clear style="width: 100%" />
-            </a-form-item>
-          </a-col>
         </a-row>
+        <AttachmentUpload v-if="store.can('contract:plan:attachment:upload')" v-model="createForm.fileIds" label="计划附件" button-text="上传计划附件"
+                          :upload="(file) => uploadContractAttachment(file, 'purchase-plan')" @error="message.error" />
         <div class="panel-section-title">计划明细（从物料库选料）</div>
         <div v-for="(item, idx) in createForm.items" :key="idx" class="plan-item-row">
           <a-button style="flex: 2 1 220px; text-align: left" @click="openMaterialPicker(idx)">
@@ -435,8 +405,6 @@ onMounted(() => { load(); loadOptions(); loadOrgDirectory(); loadBudgetSubjects(
         </div>
         <a-button type="dashed" block @click="addItem">＋ 添加明细行</a-button>
         <div class="plan-total">计划金额：<b>{{ yuan(createTotal) }}</b></div>
-        <AttachmentUpload v-if="store.can('contract:plan:attachment:upload')" v-model="createForm.fileIds" label="计划附件" button-text="上传计划附件"
-                          :upload="(file) => uploadContractAttachment(file, 'purchase-plan')" @error="message.error" />
       </a-form>
       <template #footer>
         <div class="drawer-footer">

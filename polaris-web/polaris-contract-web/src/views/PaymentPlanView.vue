@@ -4,8 +4,8 @@ import { message } from 'ant-design-vue'
 import { useUserStore } from '@/stores/user'
 import { useIsMobile } from '@/composables/useIsMobile'
 import {
-  listContracts, listPaymentPlans, savePaymentPlan, applyPaymentPlan,
-  type PaymentPlanVO, type ContractVO
+  listContracts, listPaymentPlans, savePaymentPlan, applyPaymentPlan, fetchPublicDict,
+  type PaymentPlanVO, type ContractVO, type DictOption
 } from '@/api/contract'
 import { yuan } from '@/utils/format'
 
@@ -28,6 +28,12 @@ const statusColor: Record<string, string> = {
 }
 const statusOptions = Object.entries(statusLabel).map(([value, label]) => ({ value, label }))
 const contractOptions = computed(() => contracts.value.map((c) => ({ label: `${c.no} · ${c.name}`, value: c.no })))
+const dictStages = ref<DictOption[]>([])
+const stageOptions = computed(() => dictStages.value.map((d) => ({ value: d.value, label: d.label })))
+function stageText(value?: string) {
+  if (!value) return '-'
+  return dictStages.value.find((d) => d.value === value)?.label || value
+}
 
 const filtered = computed(() => {
   const kw = query.keyword.trim().toLowerCase()
@@ -35,7 +41,7 @@ const filtered = computed(() => {
     (!query.contractNo || p.contractNo === query.contractNo) &&
     (!query.status || p.status === query.status) &&
     (!kw || p.contractNo.toLowerCase().includes(kw) || (p.contractName || '').toLowerCase().includes(kw)
-      || (p.stage || '').toLowerCase().includes(kw) || (p.sourceDocNo || '').toLowerCase().includes(kw)))
+      || stageText(p.stage).toLowerCase().includes(kw) || (p.sourceDocNo || '').toLowerCase().includes(kw)))
 })
 const paged = computed(() => filtered.value.slice((localPage.value - 1) * localSize.value, localPage.value * localSize.value))
 const pagination = computed(() => ({
@@ -73,7 +79,7 @@ const columns = [
   { title: '合同编号', dataIndex: 'contractNo', key: 'contractNo', width: 170 },
   { title: '合同名称', key: 'contractName', width: 220 },
   { title: '付款阶段', dataIndex: 'stage', key: 'stage', width: 140 },
-  { title: '应付金额', key: 'amount', align: 'right' as const, width: 130 },
+  { title: '本期付款金额', key: 'amount', align: 'right' as const, width: 140 },
   { title: '应付日期', dataIndex: 'dueDate', key: 'dueDate', width: 110 },
   { title: '付款状态', key: 'status', align: 'center' as const, width: 120 },
   { title: '来源单据', dataIndex: 'sourceDocNo', key: 'sourceDocNo', width: 170 },
@@ -85,29 +91,63 @@ async function apply(row: PaymentPlanVO) {
   catch (e: any) { message.error(e?.message || '发起申请失败') }
 }
 
-/* 新增付款计划（选择合同） */
-const createOpen = ref(false)
+/* 发起付款申请：一步完成「新建计划 + 发起申请」。仅生成待申请计划的入口在合同详情的付款计划编辑器。 */
+const applyOpen = ref(false)
 const saving = ref(false)
-const form = reactive({ contractNo: undefined as string | undefined, stage: '', amount: undefined as number | undefined, dueDate: undefined as string | undefined })
-function openCreate() {
+const form = reactive({
+  contractNo: undefined as string | undefined,
+  stage: undefined as string | undefined,
+  remainingAmount: undefined as number | undefined,
+  amount: undefined as number | undefined,
+  dueDate: undefined as string | undefined
+})
+/** 合同剩余金额取合同 VO 的待付款金额（合同金额 - 已付 - 在途），选择合同后自动带出 */
+function onContractChange(no?: string) {
+  form.remainingAmount = contracts.value.find((c) => c.no === no)?.pendingAmount
+  form.amount = undefined
+}
+function openApply() {
   form.contractNo = undefined
-  form.stage = ''
+  form.stage = undefined
+  form.remainingAmount = undefined
   form.amount = undefined
   form.dueDate = undefined
-  createOpen.value = true
+  applyOpen.value = true
 }
-async function submitCreate() {
-  if (!form.contractNo || !form.amount || form.amount <= 0) { message.warning('请选择合同并填写付款金额'); return }
+async function submitApply() {
+  const amount = form.amount
+  const missing: string[] = []
+  if (!form.contractNo) missing.push('所属合同')
+  if (!form.stage) missing.push('付款阶段')
+  if (form.remainingAmount == null) missing.push('合同剩余金额')
+  if (!amount || amount <= 0) missing.push('本期付款金额')
+  if (!form.dueDate) missing.push('应付日期')
+  if (missing.length) { message.warning(`请填写必填项：${missing.join('、')}`); return }
+  if (amount == null) return
+  if (amount > Number(form.remainingAmount)) {
+    message.warning(`本期付款金额不能超过合同剩余金额 ${yuan(Number(form.remainingAmount))}`)
+    return
+  }
   saving.value = true
   try {
-    await savePaymentPlan(form.contractNo, { stage: form.stage || undefined, amount: Number(form.amount), dueDate: form.dueDate })
-    createOpen.value = false
-    message.success('付款计划已保存')
+    const saved = await savePaymentPlan(form.contractNo!, { stage: form.stage, amount: Number(amount), dueDate: form.dueDate })
+    try {
+      await applyPaymentPlan(saved.id)
+      message.success('付款计划已保存并发起申请，等待审批')
+    } catch (e: any) {
+      // 计划已落库为待申请：验收未过账等条件下发起失败时保留计划，供列表行「发起申请」重试
+      message.warning(`付款计划已保存，但发起申请失败：${e?.message || '请在列表中重试'}`)
+    }
+    applyOpen.value = false
     await load()
   } catch (e: any) { message.error(e?.message || '保存失败') }
   finally { saving.value = false }
 }
-onMounted(load)
+onMounted(() => {
+  load()
+  fetchPublicDict('contract.payment_stage').then((list) => { dictStages.value = list || [] })
+    .catch(() => { message.warning('付款阶段字典加载失败，请检查配置中心') })
+})
 </script>
 
 <template>
@@ -120,13 +160,12 @@ onMounted(load)
       <a-select v-model:value="query.status" :options="statusOptions" placeholder="付款状态" style="width: 130px" allow-clear @change="resetPage" />
       <a-input-search v-model:value="query.keyword" placeholder="阶段 / 单据号" style="width: 200px" allow-clear @search="resetPage" />
       <span class="grow" />
-      <a-button v-if="store.can('contract:payment:edit')" @click="openCreate">＋ 新增计划</a-button>
-      <a-button v-if="store.can('contract:payment:edit')" type="primary" @click="openCreate">＋ 发起付款申请</a-button>
+      <a-button v-if="store.can('contract:payment:edit')" type="primary" @click="openApply">＋ 发起付款申请</a-button>
     </section>
     <section class="ft-scroll ft-bottom">
       <div class="stat-grid">
         <div class="stat-card"><span class="st-label">付款计划</span><strong class="st-value">{{ stats.count }} 笔</strong><span class="st-foot"><b>按筛选条件</b></span></div>
-        <div class="stat-card"><span class="st-label">应付金额</span><strong class="st-value">{{ yuan(stats.amount) }}</strong><span class="st-foot"><b>按筛选条件合计</b></span></div>
+        <div class="stat-card"><span class="st-label">本期付款金额</span><strong class="st-value">{{ yuan(stats.amount) }}</strong><span class="st-foot"><b>按筛选条件合计</b></span></div>
         <div class="stat-card"><span class="st-label">待审批</span><strong class="st-value">{{ stats.pending }} 笔</strong><span class="st-foot"><b>需财务确认</b></span></div>
         <div class="stat-card"><span class="st-label">已发起申请</span><strong class="st-value">{{ stats.applied }} 笔</strong><span class="st-foot"><b>含已入账 / 已付款</b></span></div>
       </div>
@@ -137,6 +176,7 @@ onMounted(load)
           <template v-if="column.key === 'contractName'">
             <a-tooltip :title="record.contractName"><span class="cell-ellipsis">{{ record.contractName || '-' }}</span></a-tooltip>
           </template>
+          <template v-else-if="column.key === 'stage'">{{ stageText(record.stage) }}</template>
           <template v-else-if="column.key === 'amount'">{{ yuan(record.amount) }}</template>
           <template v-else-if="column.key === 'dueDate'">
             <span>{{ record.dueDate || '-' }}</span>
@@ -166,23 +206,31 @@ onMounted(load)
       </a-table>
     </section>
 
-    <a-drawer v-model:open="createOpen" title="新增付款计划 / 发起申请" :width="drawerWidth" placement="right">
+    <a-drawer v-model:open="applyOpen" title="发起付款申请" :width="drawerWidth" placement="right">
       <a-form layout="vertical">
         <a-form-item label="所属合同" required>
-          <a-select v-model:value="form.contractNo" :options="contractOptions" placeholder="请选择合同" show-search style="width: 100%" />
+          <a-select v-model:value="form.contractNo" :options="contractOptions" placeholder="请选择合同" show-search
+                    style="width: 100%" @change="onContractChange" />
         </a-form-item>
-        <a-form-item label="付款阶段"><a-input v-model:value="form.stage" placeholder="如：预付款 / 到货款 / 质保金" /></a-form-item>
-        <a-form-item label="应付金额" required>
-          <a-input-number v-model:value="form.amount" :min="0" :precision="2" style="width: 100%" addon-before="¥" />
+        <a-form-item label="付款阶段" required>
+          <a-select v-model:value="form.stage" :options="stageOptions" placeholder="请选择付款阶段" show-search style="width: 100%" />
         </a-form-item>
-        <a-form-item label="应付日期">
+        <a-form-item label="合同剩余金额" required>
+          <a-input-number :value="form.remainingAmount" :controls="false" :precision="2" readonly
+                          placeholder="选择合同后自动带出" style="width: 100%" addon-before="¥" />
+        </a-form-item>
+        <a-form-item label="本期付款金额" required>
+          <a-input-number v-model:value="form.amount" :min="0" :max="form.remainingAmount ?? undefined" :precision="2"
+                          style="width: 100%" addon-before="¥" />
+        </a-form-item>
+        <a-form-item label="应付日期" required>
           <a-date-picker v-model:value="form.dueDate" value-format="YYYY-MM-DD" format="YYYY-MM-DD" style="width: 100%" />
         </a-form-item>
       </a-form>
       <template #footer>
         <div class="drawer-footer">
-          <a-button @click="createOpen = false">取消</a-button>
-          <a-button type="primary" :loading="saving" @click="submitCreate">保存并发起</a-button>
+          <a-button @click="applyOpen = false">取消</a-button>
+          <a-button type="primary" :loading="saving" @click="submitApply">保存并发起</a-button>
         </div>
       </template>
     </a-drawer>

@@ -279,10 +279,8 @@ async function submit() {
           <a-select v-model:value="form.contractNo" :options="contractOptions" placeholder="请选择关联合同（选填）"
                     show-search :filter-option="filterOption" allow-clear style="width: 100%" />
         </a-form-item>
-        <a-form-item label="凭证附件">
-          <AttachmentUpload v-model="form.fileIds" label="凭证附件" button-text="上传凭证附件"
-                            :upload="uploadVoucherAttachment" />
-        </a-form-item>
+        <AttachmentUpload v-model="form.fileIds" label="凭证附件" button-text="上传凭证附件"
+                          :upload="uploadVoucherAttachment" />
       </a-form>
       <template #footer>
         <div class="drawer-footer">
