@@ -88,7 +88,7 @@ public class ContractItemServiceImpl implements ContractItemService {
                 .eq(ContractMaterial::getCode, materialCode).last(" LIMIT 1");
         dataScopeService.applyOrgScope(materialQw, ContractMaterial::getOrgCode);
         ContractMaterial material = materialMapper.selectOne(materialQw);
-        if (material == null || !"MATERIAL".equals(material.getKind())) {
+        if (material == null) {
             throw new BizException(ContractErrorCode.MATERIAL_NOT_FOUND);
         }
         ContractItem entity;

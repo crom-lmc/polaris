@@ -39,12 +39,24 @@ public final class ContractRequests {
         private String orgCode;
     }
 
+    /** 分类新增/编辑：parentId 为父分类，编码服务端按层级续位 */
     @Data
-    public static class MaterialSave {
-        /** 新增时按父级续位自动生成，编辑时保持原编码 */
+    public static class MaterialCategorySave {
         private Long parentId;
         private String code;
         private String name;
+        private String orgCode;
+    }
+
+    /** 物料新增/编辑：categoryId 为所属三级分类，编码服务端续位 */
+    @Data
+    public static class MaterialSave {
+        private Long categoryId;
+        /** 兼容旧调用：分类父级 ID，服务端以 categoryId 为准 */
+        private Long parentId;
+        private String code;
+        private String name;
+        /** 兼容旧调用，服务端固定 MATERIAL */
         private String kind;
         private String spec;
         private String unit;

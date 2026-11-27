@@ -222,7 +222,7 @@ public class PurchasePlanServiceImpl implements PurchasePlanService {
                 .eq(ContractMaterial::getCode, code).last(" LIMIT 1");
         dataScopeService.applyOrgScope(materialQw, ContractMaterial::getOrgCode);
         ContractMaterial material = materialMapper.selectOne(materialQw);
-        if (material == null || !"MATERIAL".equals(material.getKind())) {
+        if (material == null) {
             throw new BizException(ContractErrorCode.MATERIAL_NOT_FOUND);
         }
         ContractPurchasePlanItem entity = new ContractPurchasePlanItem();

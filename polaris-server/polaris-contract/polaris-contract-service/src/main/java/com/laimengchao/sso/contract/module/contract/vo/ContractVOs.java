@@ -45,14 +45,33 @@ public final class ContractVOs {
         private String orgCode;
     }
 
+    /** 物料三级分类树节点：分类独立表，树里只有分类，不挂物料 */
     @Data
-    public static class MaterialVO {
+    public static class MaterialCategoryVO {
         @JsonSerialize(using = ToStringSerializer.class)
         private Long id;
         @JsonSerialize(using = ToStringSerializer.class)
         private Long parentId;
         private String code;
         private String name;
+        private String orgCode;
+        private List<MaterialCategoryVO> children;
+    }
+
+    /** 物料：categoryId 指向三级分类；kind/children 仅供内部拼合树兼容使用 */
+    @Data
+    public static class MaterialVO {
+        @JsonSerialize(using = ToStringSerializer.class)
+        private Long id;
+        /** 所属三级分类 ID */
+        @JsonSerialize(using = ToStringSerializer.class)
+        private Long categoryId;
+        /** 兼容字段：分类节点为父分类 ID，物料节点为所属三级分类 ID */
+        @JsonSerialize(using = ToStringSerializer.class)
+        private Long parentId;
+        private String code;
+        private String name;
+        /** 兼容字段：CATEGORY / MATERIAL */
         private String kind;
         private String spec;
         private String unit;
