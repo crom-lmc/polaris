@@ -91,6 +91,7 @@ level: L2
 ## 闭环字段完整性
 
 - MUST 设计稿明确画出的字段全部落到实体/表/DTO/VO，禁止只做流程不落字段；合同 `plan_no`/付款计划 `summary`/`voucher_no`、财务 `voucher_type`/`reviewer`/`poster`/付款单 7 字段等均为已确认必补字段。
+- MUST 合同状态写入只走状态机，新建/编辑保存接口 MUST NOT 接受 `status` 覆盖（新建固定 DRAFT，编辑保持原状态）；`changeStatus` MUST 按当前状态 + 合同类型校验目标白名单，终态不可流转；采购合同 PENDING 只能由审批回调推进，未达审批线提交直接 EFFECTIVE。
 - MUST 跨服回写（合同付款计划状态/凭证号、验收凭证号）走 internal token 端点，业务域不自造对方域单号；字典字段存 value，前端跨应用读取的字典 MUST 加入 `PublicReferenceController.DICT_ALLOWED`。
 
 ## 交付验证

@@ -38,6 +38,13 @@ agent_created: true
 6. **验证**：`mvn -o -q -pl <模块> -am -DskipTests compile` 通过；失败先修复再进入下一步。
 7. **收尾**：在仓库外 `F:\code\迭代文档\polaris-server\update.md` 顶部追加记录；最终回复列明需重启应用与未提交/未部署状态；未经明确指令不提交不部署。提交时备注用中文（格式 `类型(范围): 中文概述`），前后端改动必须分开提交——后端代码及平台侧配套（SQL/Nacos/网关/部署）一个 commit，前端代码另一个 commit，不混提。生产后端发布 MUST 用 `deploy/rolling-restart.sh` 滚动重启：一次一个服务、等 healthy/running、间隔 30 秒，失败即停；MUST NOT 用 `docker compose up -d` 一次拉起全部。
 
+## 合同状态写入收口口径（2026-11-27 落地，MUST）
+
+- 合同状态 MUST 只能由状态机推进：`DRAFT→PENDING→(EFFECTIVE|DRAFT)→EXECUTING→COMPLETED`，中途可 `EFFECTIVE|EXECUTING→TERMINATED`；终态不可再流转。采购合同 `PENDING→EFFECTIVE|DRAFT` 只能由审批中心回调 `handleApprovalResult` 写入，MUST NOT 允许手工接口改。
+- 新建/编辑保存接口 MUST NOT 接受请求体 `status` 覆盖：新建固定 `DRAFT`，编辑保持原状态；状态只能走 `POST /api/contract/contracts/{id}/status`。
+- `changeStatus` MUST 校验当前状态 + 合同类型对应的目标白名单，非法迁移抛 `CONTRACT_STATUS_INVALID`；前端按钮集合只是可见入口，不是唯一防线。
+- 采购合同提交时清单金额达到 `contract.purchase.approval-amount` 才发起审批并停在 `PENDING`；未达线 MUST 直接置 `EFFECTIVE`，不得让单据永远停在审批中。
+
 ## 合同主信息必填与往来单位角色口径（2026-11-27 落地）
 
 - 新建合同（`POST /api/contract/contracts`）除备注外全部必填：合同名称、往来单位、所属项目、归属部门、负责人、签订/生效/到期日期；服务端 MUST 校验，前端校验不是唯一防线。

@@ -57,6 +57,15 @@ public class ContractServiceImpl implements ContractService {
 
     private static final Set<String> STATUSES = Set.of(
             "DRAFT", "PENDING", "EFFECTIVE", "EXECUTING", "COMPLETED", "TERMINATED");
+
+    /** 手工按钮允许的状态迁移；审批回调直接走 handleApprovalResult，不经过这里。 */
+    private static final Map<String, Set<String>> MANUAL_TRANSITIONS = Map.of(
+            "DRAFT", Set.of("PENDING"),
+            "PENDING", Set.of("EFFECTIVE", "DRAFT"),
+            "EFFECTIVE", Set.of("EXECUTING", "TERMINATED"),
+            "EXECUTING", Set.of("COMPLETED", "TERMINATED"),
+            "COMPLETED", Set.of(),
+            "TERMINATED", Set.of());
     private static final Set<String> PAID_STATUS = Set.of("PAID", "POSTED");
     private static final Set<String> IN_FLIGHT_STATUS = Set.of("PENDING", "APPROVED");
 
@@ -207,6 +216,8 @@ public class ContractServiceImpl implements ContractService {
         entity.setNo(bizNoService.next(PURCHASE.equals(type)
                 ? BizNoServiceImpl.TABLE_CONTRACT_PURCHASE : BizNoServiceImpl.TABLE_CONTRACT_SALES));
         apply(entity, req, type, projectNo, orgCode);
+        // 新建合同只能是草稿；状态后续由审批/执行动作推进，不接受请求体传入
+        entity.setStatus("DRAFT");
         entity.setFileIds(ContractAttachments.join(req.getFileIds()));
         entity.setContractSource("DIRECT");
         entity.setCreatedAt(LocalDateTime.now());
@@ -325,31 +336,46 @@ public class ContractServiceImpl implements ContractService {
     }
 
     /**
-     * 状态流转。采购合同转 PENDING（提交审批）且清单金额达到埋点 contract.purchase.approval-amount 时，
-     * 走统一审批引擎（双 bizType 模板分流）；其余状态或金额维持原样直接流转。
+     * 状态流转（按钮驱动，目标必须命中状态机白名单）。采购合同提交时清单金额达到埋点
+     * contract.purchase.approval-amount 才进审批中心等回调；未达线直接 EFFECTIVE。
      */
     public void changeStatus(Long id, String status) {
-        if (status == null || !STATUSES.contains(status.trim())) {
+        String target = status == null ? null : status.trim();
+        if (target == null || !STATUSES.contains(target)) {
             throw new BizException(ContractErrorCode.CONTRACT_STATUS_INVALID);
         }
         ContractHeader entity = require(id);
-        if ("COMPLETED".equals(entity.getStatus()) || "TERMINATED".equals(entity.getStatus())) {
-            throw new BizException(ContractErrorCode.CONTRACT_STATUS_INVALID);
-        }
-        String target = status.trim();
+        assertManualTransition(entity, target);
         // 销售合同提交审批前做信用额度校验（埋点开启才生效，credit_limit=0 表示不限制）
         if ("PENDING".equals(target) && SALES.equals(entity.getType())) {
             requireCreditOk(entity);
         }
-        entity.setStatus(target);
-        entity.setUpdatedAt(LocalDateTime.now());
-        mapper.updateById(entity);
-
         boolean needApproval = "PENDING".equals(target) && PURCHASE.equals(entity.getType())
                 && contractAmount(entity.getNo()).compareTo(
                         BigDecimal.valueOf(embedPointService.purchaseApprovalAmount())) >= 0;
+        // 采购合同金额未达审批线时无需审批中心，提交即生效；达线才停在 PENDING 等回调
+        String finalStatus = "PENDING".equals(target) && PURCHASE.equals(entity.getType()) && !needApproval
+                ? "EFFECTIVE" : target;
+        entity.setStatus(finalStatus);
+        entity.setUpdatedAt(LocalDateTime.now());
+        mapper.updateById(entity);
+
         if (needApproval) {
             approvalLauncher.launch(() -> buildApprovalStart(entity));
+        }
+    }
+
+    /** 手工状态流转必须命中当前状态允许的目标；采购合同审批中只能由审批回调推进。 */
+    private void assertManualTransition(ContractHeader entity, String target) {
+        String current = entity.getStatus();
+        Set<String> allowed = MANUAL_TRANSITIONS.getOrDefault(current, Set.of());
+        if (!allowed.contains(target)) {
+            throw new BizException(ContractErrorCode.CONTRACT_STATUS_INVALID,
+                    "合同状态不支持从 " + current + " 改为 " + target);
+        }
+        if (PURCHASE.equals(entity.getType()) && "PENDING".equals(current)) {
+            throw new BizException(ContractErrorCode.CONTRACT_STATUS_INVALID,
+                    "采购合同审批中状态由审批中心回调更新，不能手工修改");
         }
     }
 
@@ -597,7 +623,7 @@ public class ContractServiceImpl implements ContractService {
         e.setSignedDate(req.getSignedDate());
         e.setEffectiveDate(req.getEffectiveDate());
         e.setEndDate(req.getEndDate());
-        e.setStatus(nvl(req.getStatus(), "DRAFT"));
+        // 状态只能由 changeStatus 按状态机推进，保存/局部更新不得覆盖
         e.setPaymentTerms(nvl(req.getPaymentTerms(), ""));
         e.setSubject(nvl(req.getSubject(), ""));
         // 备注：局部更新（如只改所属项目）未传时保留原值；新建时落空串
