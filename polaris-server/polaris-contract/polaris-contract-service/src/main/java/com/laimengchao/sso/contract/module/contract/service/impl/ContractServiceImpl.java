@@ -264,6 +264,10 @@ public class ContractServiceImpl implements ContractService {
     @Transactional(rollbackFor = Exception.class)
     public void update(Long id, ContractRequests.ContractSave req) {
         ContractHeader entity = require(id);
+        // 仅草稿可编辑合同主信息；生效后清单金额锁定、状态由流程推进，变更须走变更流程
+        if (!"DRAFT".equals(entity.getStatus())) {
+            throw new BizException(ContractErrorCode.CONTRACT_STATUS_INVALID, "仅草稿状态的合同可编辑");
+        }
         if (req == null || req.getName() == null || req.getName().isBlank()) {
             throw new BizException(ErrorCode.PARAM_ERROR, "合同名称不能为空");
         }
@@ -508,6 +512,10 @@ public class ContractServiceImpl implements ContractService {
     @Transactional(rollbackFor = Exception.class)
     public void delete(Long id) {
         ContractHeader entity = require(id);
+        // 仅草稿可删除；已生效/执行中/完成/终止的合同是业务凭证，禁止删除
+        if (!"DRAFT".equals(entity.getStatus())) {
+            throw new BizException(ContractErrorCode.CONTRACT_STATUS_INVALID, "仅草稿状态的合同可删除");
+        }
         Long items = itemMapper.selectCount(new LambdaQueryWrapper<ContractItem>()
                 .eq(ContractItem::getContractNo, entity.getNo()));
         Long plans = planMapper.selectCount(new LambdaQueryWrapper<ContractPaymentPlan>()

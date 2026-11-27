@@ -24,6 +24,7 @@ public class EmbedPointServiceImpl implements EmbedPointService {
     public static final String PAYMENT_REMIND_DAYS = "contract.payment.remind-days";
     public static final String MATERIAL_CODE_PATTERN = "contract.material.code-pattern";
     public static final String PURCHASE_APPROVAL_AMOUNT = "contract.purchase.approval-amount";
+    public static final String PAYMENT_APPROVAL_AMOUNT = "contract.payment.approval-amount";
     public static final String SALES_CREDIT_CHECK = "contract.sales.credit-check";
     public static final String CHANGE_MAX_TIMES = "contract.change.max-times";
 
@@ -34,6 +35,12 @@ public class EmbedPointServiceImpl implements EmbedPointService {
     public int purchaseApprovalAmount() {
         int amount = number(PURCHASE_APPROVAL_AMOUNT, 100000);
         return amount >= 0 ? amount : 100000;
+    }
+
+    /** 付款计划审批升级线（元），默认 50000；非法回退默认 */
+    public int paymentApprovalAmount() {
+        int amount = number(PAYMENT_APPROVAL_AMOUNT, 50000);
+        return amount >= 0 ? amount : 50000;
     }
 
     /** 销售合同是否开启信用额度校验，默认 false（保护存量，开启后才拦截） */

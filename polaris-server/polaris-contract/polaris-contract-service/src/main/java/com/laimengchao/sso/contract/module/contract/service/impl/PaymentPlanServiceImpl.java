@@ -16,21 +16,26 @@ import com.laimengchao.sso.contract.module.contract.entity.ContractPaymentPlan;
 import com.laimengchao.sso.contract.module.contract.mapper.ContractAcceptanceMapper;
 import com.laimengchao.sso.contract.module.contract.mapper.ContractItemMapper;
 import com.laimengchao.sso.contract.module.contract.mapper.ContractPaymentPlanMapper;
+import com.laimengchao.sso.contract.module.contract.support.ContractApprovalLauncher;
 import com.laimengchao.sso.contract.module.contract.support.ContractAttachments;
 import com.laimengchao.sso.contract.module.contract.vo.ContractVOs;
+import com.laimengchao.sso.settings.client.dto.ApprovalStartDTO;
 import com.laimengchao.sso.contract.security.DataScopeService;
 import com.laimengchao.sso.file.client.api.FileApi;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
-/** 合同付款计划：发起付款申请置为待审批；来源单据号由财务域生成后回写。 */
+/** 合同付款计划：发起付款申请进审批中心，终审通过后置已审批待付；来源单据号由财务域生成后回写。 */
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -39,6 +44,10 @@ public class PaymentPlanServiceImpl implements PaymentPlanService {
     private static final Set<String> PAID_STATUS = Set.of("PAID", "POSTED");
     private static final Set<String> IN_FLIGHT_STATUS = Set.of("PENDING", "APPROVED");
 
+    /** 付款计划审批 bizType；超升级线用 senior 模板多一级审批 */
+    public static final String BIZ_PAYMENT = "contract.payment";
+    public static final String BIZ_PAYMENT_SENIOR = "contract.payment.senior";
+
     private final ContractPaymentPlanMapper mapper;
     private final ContractAcceptanceMapper acceptanceMapper;
     private final ContractItemMapper itemMapper;
@@ -46,6 +55,10 @@ public class PaymentPlanServiceImpl implements PaymentPlanService {
     private final EmbedPointService embedPointService;
     private final DataScopeService dataScopeService;
     private final FileApi fileApi;
+    private final ContractApprovalLauncher approvalLauncher;
+
+    @Value("${contract.internal-base-url:http://127.0.0.1:9015}")
+    private String internalBaseUrl;
 
     public List<ContractVOs.PaymentPlanVO> list(String contractNo) {
         ContractHeader header = contractService.requireByNo(contractNo);
@@ -147,13 +160,13 @@ public class PaymentPlanServiceImpl implements PaymentPlanService {
     }
 
     /**
-     * 发起付款申请：仅推进状态；sourceDocNo 由财务域建应付/付款单后回写，
-     * 合同域不自造 YS/FK 单号。
+     * 发起付款申请：置 PENDING 并进审批中心；终审通过后由回调推进 APPROVED。
+     * 此处不用事务：审批中心回调可能同步到达，必须保证申请行先落库再发起审批。
      */
-    @Transactional(rollbackFor = Exception.class)
     public ContractVOs.PaymentPlanVO apply(Long id, ContractRequests.PaymentApplyRequest req) {
         ContractPaymentPlan entity = require(id);
-        if (!"WAITING".equals(entity.getStatus()) && !"REJECTED".equals(entity.getStatus())) {
+        String beforeStatus = entity.getStatus();
+        if (!"WAITING".equals(beforeStatus) && !"REJECTED".equals(beforeStatus)) {
             throw new BizException(ContractErrorCode.PAYMENT_PLAN_NOT_FOUND, "当前付款计划状态不支持发起申请");
         }
         // 合同必须已生效并执行中；草稿/审批中/完成/终止均不能发起付款
@@ -171,17 +184,19 @@ public class PaymentPlanServiceImpl implements PaymentPlanService {
             throw new BizException(ContractErrorCode.ACCEPTANCE_REQUIRED,
                     "合同清单尚未全部验收完成，验收完成后才能发起付款申请");
         }
-        // 埋点 contract.acceptance.required-before-pay 默认 true：付款申请前必须有合格且已过账的验收单。
+        // 埋点 contract.acceptance.required-before-pay 默认 true：付款申请前必须有合格验收单。
         // 埋点读取失败时按 true 兜底（fail-closed），与财务 internal token 口径一致。
+        // 注意：不校验验收单 status=POSTED——过账回写(markPosted)在应付单过账之后才发生，
+        // 而付款申请在过账之前，要求先过账是流程倒置且会形成死锁（验收单永远停在 DRAFT）。
+        // 验收完成的硬门槛由上面 allAccepted（全部清单 deliveredQty>=qty）保证。
         if (embedPointService.acceptanceRequiredBeforePay()) {
             Long accepted = acceptanceMapper.selectCount(new LambdaQueryWrapper<ContractAcceptance>()
                     .eq(ContractAcceptance::getContractNo, entity.getContractNo())
-                    .eq(ContractAcceptance::getResult, "合格")
-                    .eq(ContractAcceptance::getStatus, "POSTED")
+                    .in(ContractAcceptance::getResult, "合格", "PASS", "OK")
                     .last("limit 1"));
             if (accepted == null || accepted == 0) {
                 throw new BizException(ContractErrorCode.ACCEPTANCE_REQUIRED,
-                        "埋点要求付款前完成验收：合同 " + entity.getContractNo() + " 尚无合格且已过账的验收单");
+                        "埋点要求付款前完成验收：合同 " + entity.getContractNo() + " 尚无合格验收单");
             }
         }
         if (req != null) {
@@ -198,7 +213,72 @@ public class PaymentPlanServiceImpl implements PaymentPlanService {
         entity.setStatus("PENDING");
         entity.setUpdatedAt(LocalDateTime.now());
         mapper.updateById(entity);
+        // 先落库再发起：审批终审可能同步回调，避免回调读到未提交行
+        try {
+            approvalLauncher.launch(() -> buildApprovalStart(entity, header));
+        } catch (RuntimeException e) {
+            // 审批发起失败必须退回原状态，否则会卡在 PENDING 且不允许重试
+            mapper.update(null, new com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper<ContractPaymentPlan>()
+                    .eq(ContractPaymentPlan::getId, entity.getId())
+                    .eq(ContractPaymentPlan::getStatus, "PENDING")
+                    .set(ContractPaymentPlan::getStatus, beforeStatus));
+            entity.setStatus(beforeStatus);
+            throw e;
+        }
         return toVO(entity);
+    }
+
+    /** 构造付款计划审批发起请求；dept 取自合同归口部门（组织名或编码均可） */
+    private ApprovalStartDTO buildApprovalStart(ContractPaymentPlan entity, ContractHeader header) {
+        ApprovalStartDTO dto = new ApprovalStartDTO();
+        boolean senior = entity.getAmount().compareTo(
+                BigDecimal.valueOf(embedPointService.paymentApprovalAmount())) > 0;
+        dto.setBizType(senior ? BIZ_PAYMENT_SENIOR : BIZ_PAYMENT);
+        dto.setBizId(String.valueOf(entity.getId()));
+        dto.setBizNo(entity.getContractNo() + "-" + entity.getId());
+        dto.setTitle("付款计划 " + entity.getContractNo() + " " + nvl(entity.getStage(), "") + " "
+                + entity.getAmount() + " 元");
+        dto.setSubjectId(String.valueOf(header.getId()));
+        dto.setBizIdKind("DOC");
+        Map<String, Object> form = new LinkedHashMap<>();
+        form.put("paymentId", String.valueOf(entity.getId()));
+        form.put("contractNo", entity.getContractNo());
+        form.put("contractName", header.getName());
+        form.put("amount", entity.getAmount());
+        form.put("stage", entity.getStage());
+        form.put("dueDate", entity.getDueDate() == null ? "" : entity.getDueDate().toString());
+        form.put("dept", header.getDept() == null || header.getDept().isBlank()
+                ? header.getOrgCode() : header.getDept());
+        form.put("partnerCode", header.getPartnerCode());
+        dto.setFormData(form);
+        dto.setCallbackUrl(internalBaseUrl + "/internal/contract/approval-callback");
+        return dto;
+    }
+
+    /**
+     * 审批中心终审回调：通过 PENDING→APPROVED，驳回/撤回/终止 PENDING→REJECTED。
+     * internal 调用无登录上下文，不套 dataScope；仅 PENDING 才更新，重复投递返回 false。
+     */
+    @Transactional(rollbackFor = Exception.class)
+    public boolean handleApprovalResult(String bizId, Boolean approved, Integer result) {
+        Long id;
+        try {
+            id = Long.valueOf(bizId);
+        } catch (NumberFormatException e) {
+            log.warn("付款计划审批回调 bizId 非数字：{}", bizId);
+            return false;
+        }
+        ContractPaymentPlan entity = mapper.selectById(id);
+        if (entity == null || !"PENDING".equals(entity.getStatus())) {
+            log.info("付款计划审批回调忽略：id={} status={}", id,
+                    entity == null ? "deleted" : entity.getStatus());
+            return false;
+        }
+        boolean pass = Boolean.TRUE.equals(approved) || Integer.valueOf(1).equals(result);
+        return mapper.update(null, new com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper<ContractPaymentPlan>()
+                .eq(ContractPaymentPlan::getId, id)
+                .eq(ContractPaymentPlan::getStatus, "PENDING")
+                .set(ContractPaymentPlan::getStatus, pass ? "APPROVED" : "REJECTED")) > 0;
     }
 
     /**

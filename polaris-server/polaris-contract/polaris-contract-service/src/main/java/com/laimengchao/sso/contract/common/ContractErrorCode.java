@@ -39,7 +39,8 @@ public enum ContractErrorCode implements IErrorCode {
     CREDIT_LIMIT_EXCEEDED(8426, "销售合同金额超出客户授信额度，请调整金额或提高授信"),
     CHANGE_TIMES_EXCEEDED(8427, "合同变更次数已达埋点上限，不能再变更"),
     MATERIAL_STATUS_INVALID(8428, "分类状态不支持该操作"),
-    ATTACHMENT_UPLOAD_FAILED(8429, "附件上传失败，请稍后重试");
+    ATTACHMENT_UPLOAD_FAILED(8429, "附件上传失败，请稍后重试"),
+    ACCEPTANCE_DATE_REQUIRED(8430, "验收日期不能为空");
 
     private final int code;
     private final String message;

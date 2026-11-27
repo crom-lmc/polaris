@@ -38,14 +38,22 @@ agent_created: true
 6. **验证**：`mvn -o -q -pl <模块> -am -DskipTests compile` 通过；失败先修复再进入下一步。
 7. **收尾**：在仓库外 `F:\code\迭代文档\polaris-server\update.md` 顶部追加记录；最终回复列明需重启应用与未提交/未部署状态；未经明确指令不提交不部署。提交时备注用中文（格式 `类型(范围): 中文概述`），前后端改动必须分开提交——后端代码及平台侧配套（SQL/Nacos/网关/部署）一个 commit，前端代码另一个 commit，不混提。生产后端发布 MUST 用 `deploy/rolling-restart.sh` 滚动重启：一次一个服务、等 healthy/running、间隔 30 秒，失败即停；MUST NOT 用 `docker compose up -d` 一次拉起全部。
 
+## 合同台账菜单拆分口径（2026-11-27 落地）
+
+- 合同台账在 SSO 权限树拆为父菜单 `contract:ledger:list` + 二级菜单 `contract:ledger:purchase:list` / `contract:ledger:sales:list`（`PermissionCodes` 与 `PermissionConstants.CONTRACT_BUILTIN` 四处齐，迁移 `deploy/sql/53-contract-ledger-menu-split.sql` 立即补权限并授权 `CONTRACT_ADMIN`/`CONTRACT_USER`/`SUPER_ADMIN`）。合同列表/详情/状态接口 `@Permit` 仍用父码，MUST NOT 把子菜单码直接拿去替换接口权限；授权 MUST 同时含父子码，否则子菜单可见但接口 403。
+- 类型筛选/标签只影响前端展示与查询参数，服务端列表已支持 `type=PURCHASE|SALES`，MUST NOT 为两个菜单复制接口或表。
+
 ## 合同状态写入收口口径（2026-11-27 落地，MUST）
 
 - 合同状态 MUST 只能由状态机推进：`DRAFT→PENDING→(EFFECTIVE|DRAFT)→EXECUTING→COMPLETED`，中途可 `EFFECTIVE|EXECUTING→TERMINATED`；终态不可再流转。采购合同 `PENDING→EFFECTIVE|DRAFT` 只能由审批中心回调 `handleApprovalResult` 写入，MUST NOT 允许手工接口改；销售合同 PENDING→EFFECTIVE 保留手工审批通过按钮。
 - **EXECUTING / COMPLETED 由业务动作自动推进，MUST NOT 提供手工按钮（2026-11-27 定稿）**：`MANUAL_TRANSITIONS` 中 EFFECTIVE/EXECUTING 只允许 →TERMINATED，移除 `EFFECTIVE→EXECUTING`、`EXECUTING→COMPLETED`。首次到货验收由 `ContractItemServiceImpl.accept()` 调 `contractService.advanceIfStatus(no,"EFFECTIVE","EXECUTING")` 推进；合同全部付款计划 PAID/POSTED 且清单全部验收完成时 `PaymentPlanServiceImpl.tryCompleteOnSettled()` 调 `advanceIfStatus(no,"EXECUTING","COMPLETED")` 推进。`advanceIfStatus` 用 `eq(no)+eq(status,expected)` 乐观锁保证幂等与并发安全，不走手工白名单。
-- **清单/验收/付款按状态设硬门槛（2026-11-27 定稿）**：清单增删改用 `ensureEditable`（仅 DRAFT，审批后金额锁定，变更走变更流程，MUST NOT 直接改清单）；验收 `accept()` 用 `ensureAcceptable`（仅 EFFECTIVE/EXECUTING，草稿/审批中/完成/终止禁止验收，旧 `ensureContractOpen` 只拦完成/终止且 accept 根本没调，属漏洞）；付款申请 `PaymentPlanServiceImpl.apply()` 校验合同状态 EFFECTIVE/EXECUTING 且全部清单行 `deliveredQty>=qty`（验收完成才付款），与埋点 `contract.acceptance.required-before-pay` 的「合格且过账验收单」校验并存。前端按钮显隐只是可见入口，服务端校验才是防线。
+- **清单/验收/付款按状态设硬门槛（2026-11-27 定稿）**：清单增删改用 `ensureEditable`（仅 DRAFT，审批后金额锁定，变更走变更流程，MUST NOT 直接改清单）；验收 `accept()` 用 `ensureAcceptable`（仅 EFFECTIVE/EXECUTING，草稿/审批中/完成/终止禁止验收，旧 `ensureContractOpen` 只拦完成/终止且 accept 根本没调，属漏洞）；付款申请 `PaymentPlanServiceImpl.apply()` 校验合同状态 EFFECTIVE/EXECUTING 且全部清单行 `deliveredQty>=qty`（验收完成才付款），与埋点 `contract.acceptance.required-before-pay` 的「合格验收单」校验并存。埋点 MUST NOT 校验验收单 `status=POSTED`——`markPosted` 只在应付单过账后由财务域回写（且当前销售推应收路径只读不写），付款申请发生在过账之前，要求先过账是流程倒置且必然死锁（验收单永远 DRAFT）；验收完成由 `allAccepted` 保证。埋点查验收结果 MUST 兼容历史 `PASS/OK` 与中文「合格」。前端按钮显隐只是可见入口，服务端校验才是防线。
+- 到货验收 `accept()` 的验收日期 MUST 必填：`AcceptRequest.date` 为空抛 `ACCEPTANCE_DATE_REQUIRED`（8430），MUST NOT 像旧逻辑那样 `date==null ? LocalDate.now() : date` 自动补当天（2026-11-27 用户定稿）。验收结果统一「合格/不合格」（PASS/FAIL 归一化入库），否则付款埋点查 `result='合格'` 永远命中 0。
+- 合同主信息编辑 `update()` 与删除 `delete()` MUST 仅允许 `DRAFT`（2026-11-27 用户定稿）：非草稿抛 `CONTRACT_STATUS_INVALID`「仅草稿状态的合同可编辑/删除」。生效后清单金额锁定、合同是业务凭证，变更须走变更流程；前端按钮显隐只是可见入口，服务端校验才是防线。
 - 新建/编辑保存接口 MUST NOT 接受请求体 `status` 覆盖：新建固定 `DRAFT`，编辑保持原状态；状态只能走 `POST /api/contract/contracts/{id}/status`。
 - `changeStatus` MUST 校验当前状态 + 合同类型对应的目标白名单，非法迁移抛 `CONTRACT_STATUS_INVALID`；前端按钮集合只是可见入口，不是唯一防线。
 - 提交审批（`target=PENDING`）MUST 校验合同清单非空（查 `ContractItem` 按 `contract_no` count），空清单抛 `CONTRACT_STATUS_INVALID`「请先维护合同清单，再提交审批」——合同金额由清单派生，空清单金额恒为 0，审批线与授信校验均失去意义。付款计划可后建（合同编辑页可先建 WAITING、付款计划页有独立发起申请入口），MUST NOT 作为提交审批的前置条件。
+- **付款计划待审批 MUST 是真审批（2026-11-27 定稿）**：`PaymentPlanServiceImpl.apply()` 置 PENDING 后 MUST 调 `ContractApprovalLauncher` 发起审批中心实例（bizType `contract.payment` / `contract.payment.senior`，升级线埋点 `contract.payment.approval-amount` 默认 50000），MUST NOT 只改状态却不建审批实例（否则无人可审、流程死锁）。apply 不加 `@Transactional`，先落库再发起；发起失败必须把状态退回申请前的值，避免卡在 PENDING 不可重试。终审回调按 bizType 分流，通过 PENDING→APPROVED、驳回/撤回/终止 PENDING→REJECTED，仅 PENDING 更新且不留 dataScope。APPROVED=已审批待付，对接应付/付款单 MUST 在审批通过之后进行。
 - 采购合同提交时清单金额达到 `contract.purchase.approval-amount` 才发起审批并停在 `PENDING`；未达线 MUST 直接置 `EFFECTIVE`，不得让单据永远停在审批中。
 - 采购计划转入的清单行以备注前缀「由采购计划 」标记来源（不新增表字段）：`ContractItemServiceImpl.delete()` MUST 对来源行拒绝删除（抛 `CONTRACT_STATUS_INVALID`「采购计划转入的清单行不允许删除」），`save()` 编辑已有来源行时 MUST 强制保留原备注前缀，避免用户抹掉备注绕过禁删；已验收行仍按原规则禁删。前端隐藏删除按钮只是可见入口，服务端校验才是防线。
 

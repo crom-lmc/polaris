@@ -9,6 +9,9 @@ public interface EmbedPointService {
     /** 采购合同审批升级线（元），默认 100000；非法回退默认 */
     int purchaseApprovalAmount();
 
+    /** 付款计划审批升级线（元），默认 50000；非法回退默认 */
+    int paymentApprovalAmount();
+
     /** 销售合同是否开启信用额度校验，默认 false（保护存量，开启后才拦截） */
     boolean salesCreditCheck();
 

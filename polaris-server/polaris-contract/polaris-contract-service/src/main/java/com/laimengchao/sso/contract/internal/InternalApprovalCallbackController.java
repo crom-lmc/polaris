@@ -3,6 +3,7 @@ package com.laimengchao.sso.contract.internal;
 import com.laimengchao.sso.common.R;
 import com.laimengchao.sso.contract.module.contract.dto.ApprovalCallbackRequest;
 import com.laimengchao.sso.contract.module.contract.service.ContractService;
+import com.laimengchao.sso.contract.module.contract.service.PaymentPlanService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
@@ -24,17 +25,23 @@ public class InternalApprovalCallbackController {
 
     private static final String BIZ_PURCHASE = "contract.purchase";
     private static final String BIZ_PURCHASE_SENIOR = "contract.purchase.senior";
+    private static final String BIZ_PAYMENT = "contract.payment";
+    private static final String BIZ_PAYMENT_SENIOR = "contract.payment.senior";
 
     private final ContractService contractService;
+    private final PaymentPlanService paymentPlanService;
 
     @PostMapping("/approval-callback")
     public ResponseEntity<R<Void>> approvalCallback(@RequestBody ApprovalCallbackRequest req) {
         log.info("收到合同审批终审回调 instance={} bizType={} bizId={} result={}",
                 req.getInstanceId(), req.getBizType(), req.getBizId(), req.getResult());
         try {
-            if ((BIZ_PURCHASE.equals(req.getBizType()) || BIZ_PURCHASE_SENIOR.equals(req.getBizType()))
-                    && req.getBizId() != null) {
+            if (req.getBizId() == null) {
+                log.warn("合同审批回调缺 bizType/bizId：{}", req.getBizType());
+            } else if (BIZ_PURCHASE.equals(req.getBizType()) || BIZ_PURCHASE_SENIOR.equals(req.getBizType())) {
                 contractService.handleApprovalResult(req.getBizId(), req.getApproved(), req.getResult());
+            } else if (BIZ_PAYMENT.equals(req.getBizType()) || BIZ_PAYMENT_SENIOR.equals(req.getBizType())) {
+                paymentPlanService.handleApprovalResult(req.getBizId(), req.getApproved(), req.getResult());
             } else {
                 log.warn("合同审批回调 bizType 未识别：{}", req.getBizType());
             }

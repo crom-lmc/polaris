@@ -30,7 +30,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
-import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -158,6 +157,10 @@ public class ContractItemServiceImpl implements ContractItemService {
         if (req == null || req.getQty() == null || req.getQty().compareTo(BigDecimal.ZERO) <= 0) {
             throw new BizException(ContractErrorCode.ACCEPTANCE_QTY_INVALID);
         }
+        // 验收日期必填：前端只是可见入口，服务端硬校验防止绕过（历史 date 为空默认今天的逻辑已废弃）
+        if (req.getDate() == null) {
+            throw new BizException(ContractErrorCode.ACCEPTANCE_DATE_REQUIRED);
+        }
         BigDecimal delivered = item.getDeliveredQty() == null ? BigDecimal.ZERO : item.getDeliveredQty();
         BigDecimal ordered = item.getQty() == null ? BigDecimal.ZERO : item.getQty();
         if (delivered.add(req.getQty()).compareTo(ordered) > 0) {
@@ -172,7 +175,7 @@ public class ContractItemServiceImpl implements ContractItemService {
         acceptance.setItemId(item.getId());
         acceptance.setMaterialCode(item.getMaterialCode());
         acceptance.setQty(req.getQty());
-        acceptance.setDate(req.getDate() == null ? LocalDate.now() : req.getDate());
+        acceptance.setDate(req.getDate());
         // 验收结果口径统一为「合格/不合格」：历史前端传 PASS/FAIL，归一化入库，
         // 否则付款埋点查 result='合格' 永远命中 0（验收完成也无法发起付款）
         String result = nvl(req.getResult(), "合格");

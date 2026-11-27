@@ -594,6 +594,8 @@ public final class PermissionCodes {
     public static final String CONTRACT_PROJECT_LIST = "contract:project:list";
     public static final String CONTRACT_PROJECT_EDIT = "contract:project:edit";
     public static final String CONTRACT_LEDGER_LIST = "contract:ledger:list";
+    public static final String CONTRACT_PURCHASE_LEDGER_LIST = "contract:ledger:purchase:list";
+    public static final String CONTRACT_SALES_LEDGER_LIST = "contract:ledger:sales:list";
     public static final String CONTRACT_LEDGER_EDIT = "contract:ledger:edit";
     public static final String CONTRACT_ITEM_EDIT = "contract:item:edit";
     public static final String CONTRACT_PAYMENT_LIST = "contract:payment:list";

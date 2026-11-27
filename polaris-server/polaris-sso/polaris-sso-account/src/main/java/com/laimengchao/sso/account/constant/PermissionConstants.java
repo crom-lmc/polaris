@@ -424,6 +424,8 @@ public final class PermissionConstants {
     public static final String CONTRACT_PROJECT_LIST = "contract:project:list";
     public static final String CONTRACT_PROJECT_EDIT = "contract:project:edit";
     public static final String CONTRACT_LEDGER_LIST = "contract:ledger:list";
+    public static final String CONTRACT_PURCHASE_LEDGER_LIST = "contract:ledger:purchase:list";
+    public static final String CONTRACT_SALES_LEDGER_LIST = "contract:ledger:sales:list";
     public static final String CONTRACT_LEDGER_EDIT = "contract:ledger:edit";
     public static final String CONTRACT_ITEM_EDIT = "contract:item:edit";
     public static final String CONTRACT_PAYMENT_LIST = "contract:payment:list";
@@ -441,6 +443,8 @@ public final class PermissionConstants {
             new PermDef("物料维护", CONTRACT_MATERIAL_MAINTAIN_LIST, PermissionType.MENU, null, 4),
             new PermDef("项目维护", CONTRACT_PROJECT_LIST, PermissionType.MENU, null, 5),
             new PermDef("合同台账", CONTRACT_LEDGER_LIST, PermissionType.MENU, null, 6),
+            new PermDef("采购合同", CONTRACT_PURCHASE_LEDGER_LIST, PermissionType.MENU, CONTRACT_LEDGER_LIST, 1),
+            new PermDef("销售合同", CONTRACT_SALES_LEDGER_LIST, PermissionType.MENU, CONTRACT_LEDGER_LIST, 2),
             new PermDef("合同付款计划", CONTRACT_PAYMENT_LIST, PermissionType.MENU, null, 7),
             new PermDef("新增/审批采购计划", CONTRACT_PLAN_EDIT, PermissionType.BUTTON, CONTRACT_PLAN_LIST, 1),
             new PermDef("维护往来单位", CONTRACT_PARTNER_EDIT, PermissionType.BUTTON, CONTRACT_PARTNER_LIST, 1),
