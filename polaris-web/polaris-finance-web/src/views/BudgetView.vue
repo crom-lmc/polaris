@@ -7,12 +7,21 @@ import {
 } from '@/api/finance'
 import { useUserStore } from '@/stores/user'
 import { useOrgDirectory, filterOption as orgFilterOption } from '@/composables/useOrgDirectory'
+import { paginatePicker, financeDeptColumns, orgRows } from '@/composables/useEntityPickers'
+import EntityPickerModal, { type PickerLoadParams, type PickerResult, type PickerRow } from '@shared/components/EntityPickerModal.vue'
 import { yuan } from '@/utils/format'
 
 const store = useUserStore()
 const canEdit = () => store.can('finance:budget:edit')
-const { deptOptions, load: loadOrgDirectory } = useOrgDirectory()
+const { orgNodes, pathOf, deptOptions, load: loadOrgDirectory } = useOrgDirectory()
 const filterOption = orgFilterOption
+
+/* 归属部门弹窗 */
+const deptPickerOpen = ref(false)
+async function loadDeptPicker(params: PickerLoadParams): Promise<PickerResult> {
+  return paginatePicker(orgRows(orgNodes.value, pathOf), params)
+}
+function onDeptPicked(row: PickerRow) { form.dept = row.name }
 
 const loading = ref(false)
 const rows = ref<BudgetVO[]>([])
@@ -171,8 +180,8 @@ function onDelete(row: BudgetVO) {
     <a-drawer v-model:open="drawerOpen" :title="editing ? '编辑预算' : '新增预算'" :width="520" placement="right">
       <a-form layout="vertical">
         <a-form-item label="归属部门" required>
-          <a-select v-model:value="form.dept" :options="deptOptions" placeholder="从组织架构选择" show-search
-                    :filter-option="filterOption" allow-clear style="width: 100%" />
+          <a-input :value="form.dept" readonly placeholder="点击选择" style="width: 100%; cursor: pointer"
+                   @click="deptPickerOpen = true" />
         </a-form-item>
         <a-form-item label="预算年度" required>
           <a-select v-model:value="form.year" :options="yearOptions" />
@@ -206,5 +215,9 @@ function onDelete(row: BudgetVO) {
         </div>
       </template>
     </a-drawer>
+
+    <EntityPickerModal v-model:open="deptPickerOpen" title="选择归属部门" :columns="financeDeptColumns"
+                       row-key="name" :initial-value="form.dept" placeholder="部门名称 / 编码"
+                       :load="loadDeptPicker" @confirm="onDeptPicked" />
   </section>
 </template>

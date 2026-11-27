@@ -6,7 +6,7 @@ import { useIsMobile } from '@/composables/useIsMobile'
 import { useOrgDirectory, filterOption as orgFilterOption } from '@/composables/useOrgDirectory'
 import {
   listPurchasePlans, getPurchasePlan, savePurchasePlan, approvePurchasePlan, rejectPurchasePlan,
-  convertPurchasePlan, listPartners, uploadContractAttachment, type PurchasePlanVO
+  convertPurchasePlan, listPartners, uploadContractAttachment, fetchPurchasePlanProfile, type PurchasePlanVO
 } from '@/api/contract'
 import { loadMaterialChildren, loadMaterialPage } from '@/composables/useMaterialPicker'
 import MaterialPickerModal, { type MaterialPick } from '@shared/components/MaterialPickerModal.vue'
@@ -122,7 +122,7 @@ const createForm = reactive({
   items: [] as DraftItem[], fileIds: [] as string[]
 })
 const createTotal = computed(() => createForm.items.reduce((s, i) => s + (Number(i.qty) || 0) * (Number(i.price) || 0), 0))
-/** 当前登录人及其部门：从组织架构反查（accountId → 员工 → orgId → 部门名），与审批按名称取负责人一致 */
+/** 旧逻辑兜底：EHR 未返回默认部门时，仍尽量用本地组织目录推导（accountId 雪花 ID 可能丢精度） */
 const currentApplicant = computed(() => {
   const me = store.me
   const id = me?.accountId == null ? '' : String(me.accountId)
@@ -135,10 +135,13 @@ const currentDept = computed(() => {
   const emp = employees.value.find((e) => e.id === id)
   return emp?.orgId ? (orgNodes.value.find((n) => n.id === emp.orgId)?.name || '') : ''
 })
-function openCreate() {
+async function openCreate() {
+  // 申请人/需求部门以服务端按 AccountContext 从 EHR 反查为准（雪花 ID 在浏览器会丢精度），本地目录仅兜底
+  let profile: { applicant: string; dept: string } | null = null
+  try { profile = await fetchPurchasePlanProfile() } catch { /* EHR 不可用时回退本地目录 */ }
   createForm.title = ''
-  createForm.dept = currentDept.value
-  createForm.applicant = currentApplicant.value
+  createForm.dept = profile?.dept || currentDept.value
+  createForm.applicant = profile?.applicant || currentApplicant.value
   createForm.date = undefined
   createForm.needDate = undefined
   createForm.items = []

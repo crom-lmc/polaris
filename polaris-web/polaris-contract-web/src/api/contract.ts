@@ -321,6 +321,8 @@ export interface ContractVO {
   paymentTerms: string
   /** 合同标的 */
   subject: string
+  /** 备注（非必填，200 字） */
+  note?: string
   /** 来源 DIRECT 直接新建 / FROM_PLAN 采购计划转入 */
   contractSource: string
   /** 来源采购计划号（FROM_PLAN 时带入） */
@@ -355,6 +357,8 @@ export interface ContractSave {
   paymentTerms?: string
   /** 合同标的 */
   subject?: string
+  /** 备注（非必填，200 字） */
+  note?: string
   orgCode?: string
   /** 变更原因（仅用于变更留痕） */
   remark?: string
@@ -609,6 +613,14 @@ export interface PlanConvertRequest {
   subject?: string
   orgCode?: string
 }
+
+/** 发起采购计划默认申请人/需求部门：服务端按账号从 EHR 反查，避免前端雪花 ID 丢精度 */
+export interface PurchasePlanProfileVO {
+  applicant: string
+  dept: string
+}
+export const fetchPurchasePlanProfile = () =>
+  request.get<never, PurchasePlanProfileVO>('/api/contract/purchase-plans/my-profile')
 
 export const listPurchasePlans = (params: {
   no?: string; status?: string; keyword?: string; page: number; size: number

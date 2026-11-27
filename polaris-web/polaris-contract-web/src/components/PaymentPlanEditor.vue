@@ -58,6 +58,11 @@ const form = reactive({
   dueDate: undefined as string | undefined,
   summary: '', fileIds: [] as string[]
 })
+/** 剩余未付金额 = 合同剩余金额 - 本期付款金额，纯展示派生字段，不落库 */
+const unpaidAmount = computed(() => {
+  if (form.remainingAmount == null) return undefined
+  return Math.round((Number(form.remainingAmount) - Number(form.amount ?? 0)) * 100) / 100
+})
 function openCreate() {
   form.stage = undefined
   form.remainingAmount = props.remainingAmount
@@ -174,6 +179,10 @@ onMounted(() => {
         <a-form-item label="本期付款金额" required>
           <a-input-number v-model:value="form.amount" :min="0" :max="form.remainingAmount ?? undefined" :precision="2"
                           style="width: 100%" addon-before="¥" />
+        </a-form-item>
+        <a-form-item label="剩余未付金额">
+          <a-input-number :value="unpaidAmount" :controls="false" :precision="2" readonly
+                          placeholder="自动计算：合同剩余金额 - 本期付款金额" style="width: 100%" addon-before="¥" />
         </a-form-item>
         <a-form-item label="应付日期" required>
           <a-date-picker v-model:value="form.dueDate" value-format="YYYY-MM-DD" format="YYYY-MM-DD" style="width: 100%" />

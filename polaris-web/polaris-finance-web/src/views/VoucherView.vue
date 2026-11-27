@@ -9,15 +9,25 @@ import {
   type VoucherVO, type VoucherSave, type SubjectVO, type ContractOptionVO, type DictOption
 } from '@/api/finance'
 import AttachmentUpload from '@shared/components/AttachmentUpload.vue'
+import EntityPickerModal, { type PickerLoadParams, type PickerResult, type PickerRow } from '@shared/components/EntityPickerModal.vue'
 import { useUserStore } from '@/stores/user'
 import { useOrgDirectory, filterOption as orgFilterOption } from '@/composables/useOrgDirectory'
+import { paginatePicker, financeDeptColumns, orgRows } from '@/composables/useEntityPickers'
 import { dateOf, fmtDate, sourceLabel, statusColor, statusLabel, yuan } from '@/utils/format'
+
+const filterOption = orgFilterOption
 
 const route = useRoute()
 const store = useUserStore()
 const canEdit = () => store.can('finance:voucher:edit')
-const { deptOptions, load: loadOrgDirectory } = useOrgDirectory()
-const filterOption = orgFilterOption
+const { orgNodes, pathOf, load: loadOrgDirectory } = useOrgDirectory()
+
+/* 归属部门弹窗 */
+const deptPickerOpen = ref(false)
+async function loadDeptPicker(params: PickerLoadParams): Promise<PickerResult> {
+  return paginatePicker(orgRows(orgNodes.value, pathOf), params)
+}
+function onDeptPicked(row: PickerRow) { form.dept = row.name }
 
 const loading = ref(false)
 const rows = ref<VoucherVO[]>([])
@@ -272,8 +282,8 @@ async function submit() {
           <a-input :value="form.creator || store.displayName" readonly placeholder="默认当前登录人，不可修改" />
         </a-form-item>
         <a-form-item label="归属部门">
-          <a-select v-model:value="form.dept" :options="deptOptions" placeholder="从组织架构选择" show-search
-                    :filter-option="filterOption" allow-clear style="width: 100%" />
+          <a-input :value="form.dept" readonly placeholder="点击选择（选填）" style="width: 100%; cursor: pointer"
+                   @click="deptPickerOpen = true" />
         </a-form-item>
         <a-form-item label="关联合同号">
           <a-select v-model:value="form.contractNo" :options="contractOptions" placeholder="请选择关联合同（选填）"
@@ -318,5 +328,9 @@ async function submit() {
         <div class="drawer-footer"><a-button type="primary" @click="traceOpen = false">关闭</a-button></div>
       </template>
     </a-drawer>
+
+    <EntityPickerModal v-model:open="deptPickerOpen" title="选择归属部门" :columns="financeDeptColumns"
+                       row-key="name" :initial-value="form.dept" placeholder="部门名称 / 编码"
+                       :load="loadDeptPicker" @confirm="onDeptPicked" />
   </section>
 </template>

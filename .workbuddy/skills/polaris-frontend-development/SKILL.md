@@ -41,6 +41,21 @@ agent_created: true
 6. **验证**：`vue-tsc --noEmit` + `vite build` 通过；改 `_shared/` 时 11 个应用全量验证；本地清理守卫拦截时用 `--outDir /tmp/<唯一目录> --emptyOutDir false`。
 7. **收尾**：在仓库外 `F:\code\迭代文档\polaris-server\update.md` 顶部追加记录；最终回复列明需发布的应用、无需重启后端、未提交/未部署状态；未经明确指令不提交不部署。提交时备注用中文（格式 `类型(范围): 中文概述`），前后端改动必须分开提交——前端代码一个 commit，后端代码及平台侧配套（SQL/Nacos/网关/部署）另一个 commit，不混提。
 
+## 主数据弹窗选择口径（合同/财务所有模块统一，MUST）
+
+- 往来单位、所属项目、负责人、归属部门等主数据字段 MUST 用弹窗选择（表格 + 搜索 + 分页 + 单选），MUST NOT 用 `a-select` 下拉或 `a-input` 手输。统一用 `_shared/components/EntityPickerModal.vue`：组件 API 无关，调用方注入 `load(params) => {records,total}` 与动态列 `columns`，`rowKey` 指定唯一字段，`confirm` 回传完整行对象（便于联动带出其它字段）。
+- 表单里用 `a-input readonly`（`cursor:pointer`）点击打开弹窗，不再渲染下拉箭头；选中后把所需字段写入表单（value 存名称/编码与库中一致）。
+- 合同类型联动：采购合同的往来单位只能选 SUPPLIER/BOTH（label 显示「供应商」），销售合同只能选 CUSTOMER/BOTH（label 显示「客户」）；切换类型时清空已选避免角色错配。服务端也做同样校验，前端过滤不是唯一防线。
+- 负责人选中后 MUST 自动带出其所属部门写入归属部门（只读、不可手改）；部门为空时给出提示不允许保存。
+- 财务侧选项多为一次性加载的候选，用 `useEntityPickers.ts` 的 `paginatePicker`/`orgRows` 做本地过滤分页；合同侧可直连后端分页接口。
+- 字典枚举字段（企业类型、结算账期、账期天数、付款阶段、评级等）不属于主数据实体，MUST 用 settings 字典下拉，MUST NOT 手输；与主数据弹窗口径不冲突。往来单位档案「结算账期」复用 `finance.credit_period`（30/60/90/180/365），存量「30 天账期」文本在展示/编辑时归一化为档位值（提取数字匹配字典 value）后再保存；提交时若字典已加载 MUST 校验选中值为字典档位，字典加载失败可降级放行。
+
+## 当前登录人/部门默认带出口径（合同/财务所有模块统一，MUST）
+
+- 「申请人/需求部门/归属部门」默认当前登录人及其部门时，MUST 先调服务端 `my-profile` 端点（finance `/api/finance/expenses/my-profile`、contract `/api/contract/purchase-plans/my-profile`）取服务端按 `AccountContext` 从 EHR 反查的值；本地用 `store.me.accountId` 匹配 `employees` 推导仅作 EHR 不可用时的兜底。
+- **MUST NOT 只用 `accountId` 本地匹配带出部门**：19 位雪花 ID 在浏览器以 number 解析会丢精度，匹配失败时部门静默为空（2026-11-27 采购计划「需求部门」带不出来即此根因）；申请人有 `store.displayName` 兜底才显示正常，容易掩盖部门缺失。
+- `openCreate` 类方法改为 async 先等 profile 返回再打开抽屉，避免 readonly 输入框在 profile 到达前先渲染空值。
+
 ## 财务报销特有口径（2026-11-27 落地）
 
 - 发起报销先调 `/api/finance/expenses/my-profile` 取服务端反查的申请人/归属部门，禁止再用 `store.me.accountId` 本地匹配 EHR 员工（19 位雪花 ID 会丢精度导致部门为空）。
@@ -65,6 +80,7 @@ agent_created: true
 - 表单字段以设计稿为准，设计稿画出的字段 MUST 全部有录入位与列表/详情展示，不能只做流程；长文本列 `.cell-ellipsis` + `a-tooltip`，加列同步加宽 `scroll.x` 与 `--ft-min-width`。
 - 合同付款计划：新增付款事由、关联凭证、附件列与录入（`uploadContractAttachment(file, 'payment-plan')`）；合同详情加执行步骤条，来源计划转入展示 `planNo`；变更所属项目时支持填变更原因（`updateContract(..., { remark })`）。
 - 付款申请表单（2026-11-27 追加）：付款阶段 MUST 读 settings 字典 `contract.payment_stage` 下拉（列表/详情显示 label，不显示裸 value）；「应付金额」改名为「合同剩余金额」，选中合同后用合同 VO 的 `pendingAmount`（合同金额 - 已付 - 在途）只读自动带出；另加必填「本期付款金额」与必填「应付日期」，本期金额 MUST <= 合同剩余金额。合同详情内嵌编辑器通过父级传入 `remainingAmount`，不另造查询接口。
+- 付款申请派生金额口径（2026-11-27 追加）：付款申请/付款计划表单 MUST 有只读「剩余未付金额」= 合同剩余金额 - 本期付款金额，随两者变化实时重算（金额按 2 位小数四舍五入，避免浮点误差）；该字段为纯展示派生值，MUST NOT 落库或作为提交参数，服务端仍以本期付款金额 <= 合同剩余金额为准校验。
 - 付款计划列表页按钮口径（2026-11-27 追加）：MUST NOT 同时放「新增计划」与「发起付款申请」两个都打开同一抽屉的按钮；列表页只保留「发起付款申请」，点击后保存计划并立即发起申请（保存到 WAITING 后调 apply），抽屉标题/按钮文案与行为一致。仅生成待申请计划（WAITING）的入口放合同详情的付款计划编辑器，再由列表行「发起申请」推进；发起失败（如验收未过账）时保留已存的 WAITING 计划供重试。
 - 凭证：凭证类型读字典 `finance.voucher_type`，状态草稿/待审核/已入账（DRAFT/REVIEW/POSTED），列表展示审核人/过账人、附件列，新增/详情可上传凭证附件；操作列按状态给 提交审核/审核/过账。
 - 报销（2026-11-27 追加）：报销类型读 `finance.expense_type` 并映射会计科目；「报销事由（字典）」`finance.expense_reason` 与类型重复，MUST NOT 出现在新建表单（历史列与字典保留兼容存量数据），自由文本「费用事由」保留用于凭证摘要/搜索。发票类型/税率读公共字典；**税额 = 金额 × 税率（字典值为百分数）自动计算且只读**，金额或税率变化即重算，MUST NOT 提供手输位。字典项走 `fetchPublicDict(typeCode)`，新增字典 MUST 已在 `PublicReferenceController.DICT_ALLOWED` 白名单，否则返回空数组。

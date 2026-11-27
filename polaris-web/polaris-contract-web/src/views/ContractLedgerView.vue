@@ -1,23 +1,23 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { message, Modal } from 'ant-design-vue'
 import { useUserStore } from '@/stores/user'
 import { useIsMobile } from '@/composables/useIsMobile'
-import { useOrgDirectory, filterOption as orgFilterOption } from '@/composables/useOrgDirectory'
+import { useOrgDirectory } from '@/composables/useOrgDirectory'
 import {
   listContracts, getContractStats, getContract, saveContract, updateContract, deleteContract, changeContractStatus,
-  listContractChanges, getProjectOptions, listPartners, uploadContractAttachment,
-  type ContractVO, type ContractSave, type ContractStats, type ProjectOptionVO, type ChangeLogVO
+  listContractChanges, getProjectOptions, listPartners, uploadContractAttachment, fetchActiveEmployees,
+  type ContractVO, type ContractSave, type ContractStats, type ProjectOptionVO, type ChangeLogVO, type PartnerVO, type OrgEmployeeVO
 } from '@/api/contract'
 import { yuan } from '@/utils/format'
 import ContractItemsEditor from '@/components/ContractItemsEditor.vue'
 import PaymentPlanEditor from '@/components/PaymentPlanEditor.vue'
 import AttachmentUpload from '@shared/components/AttachmentUpload.vue'
+import EntityPickerModal, { type PickerColumn, type PickerRow, type PickerLoadParams, type PickerResult } from '@shared/components/EntityPickerModal.vue'
 
 const store = useUserStore()
 const isMobile = useIsMobile()
-const { deptOptions, employeeOptions, load: loadOrgDirectory } = useOrgDirectory()
-const filterOption = orgFilterOption
+const { orgNodes, load: loadOrgDirectory } = useOrgDirectory()
 const drawerWidth = computed(() => (isMobile.value ? '100%' : 900))
 const descColumn = computed(() => (isMobile.value ? 1 : 2))
 
@@ -113,24 +113,124 @@ const columns = [
   { title: '操作', key: 'action', width: 130 }
 ]
 
+/* ========== 主数据弹窗选择（往来单位 / 所属项目 / 负责人） ========== */
+const partnerPickerOpen = ref(false)
+const projectPickerOpen = ref(false)
+const ownerPickerOpen = ref(false)
+
+const partnerColumns: PickerColumn[] = [
+  { title: '编码', dataIndex: 'code', width: 150 },
+  { title: '名称', dataIndex: 'name', ellipsis: true },
+  { title: '角色', dataIndex: 'roleLabel', width: 90 },
+  { title: '状态', dataIndex: 'statusLabel', width: 90 }
+]
+const projectColumns: PickerColumn[] = [
+  { title: '项目编号', dataIndex: 'code', width: 160 },
+  { title: '项目名称', dataIndex: 'name', ellipsis: true },
+  { title: '状态', dataIndex: 'statusLabel', width: 90 }
+]
+const ownerColumns: PickerColumn[] = [
+  { title: '姓名', dataIndex: 'name', width: 110 },
+  { title: '工号', dataIndex: 'empNo', width: 130 },
+  { title: '所属部门', dataIndex: 'orgName', ellipsis: true }
+]
+const roleLabel: Record<string, string> = { SUPPLIER: '供应商', CUSTOMER: '客户', BOTH: '供应商/客户' }
+const projectStatusLabel: Record<string, string> = { ACTIVE: '启用', DRAFT: '草稿', PAUSED: '暂停', CLOSED: '关闭', CANCELLED: '取消' }
+
+/** 往来单位按合同类型过滤角色：采购合同只给供应商/两者，销售合同只给客户/两者 */
+async function loadPartnerPicker(params: PickerLoadParams): Promise<PickerResult> {
+  const role = createForm.type === 'SALES' ? 'CUSTOMER' : 'SUPPLIER'
+  try {
+    const res = await listPartners({ role, status: 'COOPERATING', keyword: params.keyword || undefined, page: params.page, size: params.size })
+    const records = (res.records || []).map((p: PartnerVO) => ({
+      code: p.code, name: p.name, roleLabel: roleLabel[p.role] || p.role,
+      statusLabel: '合作中', raw: p
+    }))
+    return { records, total: res.total || 0 }
+  } catch { return { records: [], total: 0 } }
+}
+
+/** 所属项目：可用项目（启用状态）本地过滤 + 分页 */
+async function loadProjectPicker(params: PickerLoadParams): Promise<PickerResult> {
+  try {
+    const all = await getProjectOptions() || []
+    const kw = params.keyword.trim().toLowerCase()
+    const filtered = all.filter((p) => p.status === 'ACTIVE' &&
+      (!kw || p.code.toLowerCase().includes(kw) || p.name.toLowerCase().includes(kw)))
+    const start = (params.page - 1) * params.size
+    return {
+      records: filtered.slice(start, start + params.size).map((p) => ({
+        code: p.code, name: p.name, statusLabel: projectStatusLabel[p.status] || p.status, raw: p
+      })),
+      total: filtered.length
+    }
+  } catch { return { records: [], total: 0 } }
+}
+
+/** 负责人：在职员工本地过滤 + 分页，带所属部门供自动带出 */
+async function loadOwnerPicker(params: PickerLoadParams): Promise<PickerResult> {
+  try {
+    const all = await fetchActiveEmployees() || []
+    const kw = params.keyword.trim().toLowerCase()
+    const orgNameOf = (orgId?: string) => orgId ? (orgNodes.value.find((n) => n.id === orgId)?.name || '') : ''
+    const filtered = all.filter((e) => !kw || e.name.toLowerCase().includes(kw) || (e.empNo || '').toLowerCase().includes(kw))
+    const start = (params.page - 1) * params.size
+    return {
+      records: filtered.slice(start, start + params.size).map((e: OrgEmployeeVO) => ({
+        name: e.name, empNo: e.empNo, orgName: orgNameOf(e.orgId), orgId: e.orgId, raw: e
+      })),
+      total: filtered.length
+    }
+  } catch { return { records: [], total: 0 } }
+}
+
+function onPartnerPicked(row: PickerRow) {
+  createForm.partnerCode = row.code
+  createForm.partnerName = row.name
+}
+function onProjectPicked(row: PickerRow) {
+  createForm.projectNo = row.code
+  createForm.projectName = row.name
+}
+function onOwnerPicked(row: PickerRow) {
+  createForm.owner = row.name
+  // 选负责人自动带出所属部门，且不允许修改
+  createForm.dept = row.orgName || ''
+}
+
+/** 合同类型切换：往来单位角色随类型变化，清空已选避免角色错配 */
+watch(() => createForm.type, () => {
+  createForm.partnerCode = ''
+  createForm.partnerName = ''
+})
+const partnerLabel = computed(() => createForm.type === 'SALES' ? '客户' : '供应商')
+
 /* 新增合同 */
 const createOpen = ref(false)
 const saving = ref(false)
-const createForm = reactive<ContractSave>({
-  type: 'PURCHASE', name: '', partnerCode: '', projectNo: undefined, dept: '', owner: '',
-  signedDate: undefined, effectiveDate: undefined, endDate: undefined, paymentTerms: '', subject: '',
+const createForm = reactive<ContractSave & { partnerName?: string; projectName?: string }>({
+  type: 'PURCHASE', name: '', partnerCode: '', partnerName: '', projectNo: undefined, projectName: '', dept: '', owner: '',
+  signedDate: undefined, effectiveDate: undefined, endDate: undefined, paymentTerms: '', subject: '', note: '',
   fileIds: []
 })
 function resetCreate() {
   Object.assign(createForm, {
-    type: 'PURCHASE', name: '', partnerCode: '', projectNo: undefined, dept: '', owner: '',
-    signedDate: undefined, effectiveDate: undefined, endDate: undefined, paymentTerms: '', subject: '',
+    type: 'PURCHASE', name: '', partnerCode: '', partnerName: '', projectNo: undefined, projectName: '', dept: '', owner: '',
+    signedDate: undefined, effectiveDate: undefined, endDate: undefined, paymentTerms: '', subject: '', note: '',
     fileIds: []
   })
 }
 function openCreate() { resetCreate(); createOpen.value = true }
 async function submitCreate() {
-  if (!createForm.name?.trim() || !createForm.partnerCode) { message.warning('请填写合同名称并选择往来单位'); return }
+  if (!createForm.name?.trim()) { message.warning('请填写合同名称'); return }
+  if (!createForm.partnerCode) { message.warning(`请选择${partnerLabel.value}`); return }
+  if (!createForm.projectNo) { message.warning('请选择所属项目'); return }
+  if (!createForm.owner) { message.warning('请选择负责人'); return }
+  if (!createForm.dept) { message.warning('负责人未维护所属部门，无法带出归属部门'); return }
+  if (!createForm.signedDate || !createForm.effectiveDate || !createForm.endDate) {
+    message.warning('请选择签订日期、生效日期与到期日期'); return
+  }
+  if (createForm.note && createForm.note.length > 200) { message.warning('备注最多 200 字'); return }
   saving.value = true
   try {
     await saveContract({ ...createForm, name: createForm.name.trim() })
@@ -284,6 +384,7 @@ onMounted(() => { load(); loadOptions(); loadOrgDirectory() })
               <a-descriptions-item label="签订 / 生效 / 到期">{{ detail.signedDate || '-' }} / {{ detail.effectiveDate || '-' }} / {{ detail.endDate || '-' }}</a-descriptions-item>
               <a-descriptions-item label="付款条款">{{ detail.paymentTerms || '-' }}</a-descriptions-item>
               <a-descriptions-item label="合同标的">{{ detail.subject || '-' }}</a-descriptions-item>
+              <a-descriptions-item label="备注">{{ detail.note || '-' }}</a-descriptions-item>
               <a-descriptions-item label="来源">
                 <a-tag :color="detail.contractSource === 'FROM_PLAN' ? 'blue' : 'default'">
                   {{ sourceLabel[detail.contractSource] || detail.contractSource || '直接新建' }}
@@ -358,49 +459,51 @@ onMounted(() => { load(); loadOptions(); loadOrgDirectory() })
           </a-row>
           <a-row :gutter="12">
             <a-col :span="12">
-              <a-form-item label="往来单位" required>
-                <a-select v-model:value="createForm.partnerCode" :options="partnerOptions" placeholder="请选择" show-search style="width: 100%" />
+              <a-form-item :label="partnerLabel" required>
+                <a-input :value="createForm.partnerName" readonly placeholder="点击选择"
+                         style="width: 100%; cursor: pointer" @click="partnerPickerOpen = true" />
               </a-form-item>
             </a-col>
             <a-col :span="12">
-              <a-form-item label="所属项目">
-                <a-select v-model:value="createForm.projectNo" :options="projectOptions" placeholder="选填，仅可用项目" allow-clear show-search style="width: 100%" />
+              <a-form-item label="所属项目" required>
+                <a-input :value="createForm.projectName" readonly placeholder="点击选择"
+                         style="width: 100%; cursor: pointer" @click="projectPickerOpen = true" />
               </a-form-item>
             </a-col>
           </a-row>
           <a-row :gutter="12">
             <a-col :span="12">
-              <a-form-item label="归属部门">
-                <a-select v-model:value="createForm.dept" :options="deptOptions" placeholder="从组织架构选择" show-search
-                          :filter-option="filterOption" allow-clear style="width: 100%" />
+              <a-form-item label="归属部门" required>
+                <a-input v-model:value="createForm.dept" readonly placeholder="选择负责人后自动带出，不可修改" style="width: 100%" />
               </a-form-item>
             </a-col>
             <a-col :span="12">
-              <a-form-item label="负责人">
-                <a-select v-model:value="createForm.owner" :options="employeeOptions" placeholder="从组织架构选择" show-search
-                          :filter-option="filterOption" allow-clear style="width: 100%" />
+              <a-form-item label="负责人" required>
+                <a-input :value="createForm.owner" readonly placeholder="点击选择"
+                         style="width: 100%; cursor: pointer" @click="ownerPickerOpen = true" />
               </a-form-item>
             </a-col>
           </a-row>
           <a-row :gutter="12">
             <a-col :span="8">
-              <a-form-item label="签订日期">
+              <a-form-item label="签订日期" required>
                 <a-date-picker v-model:value="createForm.signedDate" value-format="YYYY-MM-DD" format="YYYY-MM-DD" style="width: 100%" />
               </a-form-item>
             </a-col>
             <a-col :span="8">
-              <a-form-item label="生效日期">
+              <a-form-item label="生效日期" required>
                 <a-date-picker v-model:value="createForm.effectiveDate" value-format="YYYY-MM-DD" format="YYYY-MM-DD" style="width: 100%" />
               </a-form-item>
             </a-col>
             <a-col :span="8">
-              <a-form-item label="到期日期">
+              <a-form-item label="到期日期" required>
                 <a-date-picker v-model:value="createForm.endDate" value-format="YYYY-MM-DD" format="YYYY-MM-DD" style="width: 100%" />
               </a-form-item>
             </a-col>
           </a-row>
           <a-form-item label="付款条款"><a-input v-model:value="createForm.paymentTerms" /></a-form-item>
           <a-form-item label="合同标的"><a-input v-model:value="createForm.subject" /></a-form-item>
+          <a-form-item label="备注"><a-input v-model:value="createForm.note" placeholder="选填，最多 200 字" :maxlength="200" show-count /></a-form-item>
           <AttachmentUpload v-if="store.can('contract:ledger:attachment:upload')" v-model="createForm.fileIds" label="合同附件" button-text="上传合同附件"
                             :upload="(file) => uploadContractAttachment(file, 'contract')" @error="message.error" />
         </a-card>
@@ -412,5 +515,15 @@ onMounted(() => { load(); loadOptions(); loadOrgDirectory() })
         </div>
       </template>
     </a-drawer>
+
+    <EntityPickerModal v-model:open="partnerPickerOpen" :title="`选择${partnerLabel}`" :columns="partnerColumns"
+                       row-key="code" :initial-value="createForm.partnerCode" placeholder="编码 / 名称"
+                       :load="loadPartnerPicker" @confirm="onPartnerPicked" />
+    <EntityPickerModal v-model:open="projectPickerOpen" title="选择所属项目" :columns="projectColumns"
+                       row-key="code" :initial-value="createForm.projectNo" placeholder="项目编号 / 名称"
+                       :load="loadProjectPicker" @confirm="onProjectPicked" />
+    <EntityPickerModal v-model:open="ownerPickerOpen" title="选择负责人" :columns="ownerColumns"
+                       row-key="name" :initial-value="createForm.owner" placeholder="姓名 / 工号（自动带出部门）"
+                       :load="loadOwnerPicker" @confirm="onOwnerPicked" />
   </section>
 </template>

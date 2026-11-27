@@ -8,13 +8,14 @@ import {
   type ArApVO, type ArApSave, type AgingBucketVO, type WriteOffRequest, type DictOption
 } from '@/api/finance'
 import { useUserStore } from '@/stores/user'
-import { useOrgDirectory, filterOption as orgFilterOption } from '@/composables/useOrgDirectory'
+import { useOrgDirectory } from '@/composables/useOrgDirectory'
+import { paginatePicker, financeDeptColumns, orgRows } from '@/composables/useEntityPickers'
+import EntityPickerModal, { type PickerColumn, type PickerLoadParams, type PickerResult, type PickerRow } from '@shared/components/EntityPickerModal.vue'
 import { arApTypeColor, arApTypeLabel, dateOf, fmtDate, statusColor, statusLabel, yuan, yuanOrMasked } from '@/utils/format'
 
 const store = useUserStore()
 const canWrite = () => store.can('finance:ar-ap:write')
-const { deptOptions, load: loadOrgDirectory } = useOrgDirectory()
-const filterOption = orgFilterOption
+const { orgNodes, pathOf, load: loadOrgDirectory } = useOrgDirectory()
 
 const loading = ref(false)
 const rows = ref<ArApVO[]>([])
@@ -185,7 +186,29 @@ const form = reactive<ArApSave>({
   date: dayjs().format('YYYY-MM-DD'), dept: ''
 })
 /** 类型切换后往来单位候选跟着切客户 / 供应商，已选单位清空避免串类型 */
-watch(() => form.type, () => { form.party = ''; loadPartners() })
+watch(() => form.type, () => { form.party = '' })
+
+/* ===== 主数据弹窗选择：往来单位 / 归属部门 ===== */
+const partnerPickerOpen = ref(false)
+const deptPickerOpen = ref(false)
+const partnerLabel = computed(() => form.type === 'AR' ? '客户' : '供应商')
+const partnerColumns: PickerColumn[] = [
+  { title: '编码', dataIndex: 'code', width: 150 },
+  { title: '名称', dataIndex: 'name', ellipsis: true }
+]
+
+async function loadPartnerPicker(params: PickerLoadParams): Promise<PickerResult> {
+  const role = form.type === 'AR' ? 'CUSTOMER' : 'SUPPLIER'
+  try {
+    const opts = await fetchPartnerOptions(role) || []
+    return paginatePicker(opts.map((p) => ({ code: p.code, name: p.name, raw: p })), params)
+  } catch { return { records: [], total: 0 } }
+}
+async function loadDeptPicker(params: PickerLoadParams): Promise<PickerResult> {
+  return paginatePicker(orgRows(orgNodes.value, pathOf), params)
+}
+function onPartnerPicked(row: PickerRow) { form.party = row.name }
+function onDeptPicked(row: PickerRow) { form.dept = row.name }
 /** 账期或发生日期变化即推算到期日；账期清空时到期日一并清空，由后端再做最终派生 */
 watch([() => form.creditDays, () => form.date], () => {
   form.dueDate = form.creditDays == null || !form.date
@@ -327,9 +350,9 @@ async function submitCreate() {
 
     <a-drawer v-model:open="createOpen" title="新增应收应付单" :width="520" placement="right">
       <a-form layout="vertical">
-        <a-form-item label="往来单位" required>
-          <a-select v-model:value="form.party" :options="partnerOptions" placeholder="从主数据选择"
-                    show-search option-filter-prop="label" style="width: 100%" />
+        <a-form-item :label="partnerLabel" required>
+          <a-input :value="form.party" readonly placeholder="点击选择" style="width: 100%; cursor: pointer"
+                   @click="partnerPickerOpen = true" />
         </a-form-item>
         <a-form-item label="类型" required><a-select v-model:value="form.type" :options="typeOptions" /></a-form-item>
         <a-form-item label="金额" required>
@@ -376,8 +399,8 @@ async function submitCreate() {
           </a-col>
           <a-col :span="12">
             <a-form-item label="归属部门">
-              <a-select v-model:value="form.dept" :options="deptOptions" placeholder="从组织架构选择" show-search
-                        :filter-option="filterOption" allow-clear style="width: 100%" />
+              <a-input :value="form.dept" readonly placeholder="点击选择（选填）" style="width: 100%; cursor: pointer"
+                       @click="deptPickerOpen = true" />
             </a-form-item>
           </a-col>
         </a-row>
@@ -389,5 +412,12 @@ async function submitCreate() {
         </div>
       </template>
     </a-drawer>
+
+    <EntityPickerModal v-model:open="partnerPickerOpen" :title="`选择${partnerLabel}`" :columns="partnerColumns"
+                       row-key="code" :initial-value="form.party" placeholder="编码 / 名称"
+                       :load="loadPartnerPicker" @confirm="onPartnerPicked" />
+    <EntityPickerModal v-model:open="deptPickerOpen" title="选择归属部门" :columns="financeDeptColumns"
+                       row-key="name" :initial-value="form.dept" placeholder="部门名称 / 编码"
+                       :load="loadDeptPicker" @confirm="onDeptPicked" />
   </section>
 </template>

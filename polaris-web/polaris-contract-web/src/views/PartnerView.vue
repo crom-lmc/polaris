@@ -35,6 +35,19 @@ const taxpayerOptions = [{ label: '一般纳税人', value: '一般纳税人' },
 /** 企业类型字典（settings contract.enterprise_type）；个人主体固定 PERSON */
 const enterpriseTypeOptions = ref<DictOption[]>([])
 const enterpriseTypeLabel = (v?: string) => enterpriseTypeOptions.value.find((o) => o.value === v)?.label || v || '-'
+/** 结算账期字典（复用 finance.credit_period：30/60/90/180/365），存量「30 天账期」文本兼容映射 */
+const termsOptions = ref<DictOption[]>([])
+function normalizeTerms(v?: string) {
+  if (!v) return ''
+  const raw = String(v).trim()
+  if (termsOptions.value.some((o) => o.value === raw)) return raw
+  const days = raw.match(/\d+/)?.[0]
+  return days && termsOptions.value.some((o) => o.value === days) ? days : raw
+}
+const termsLabel = (v?: string) => {
+  const normalized = normalizeTerms(v)
+  return termsOptions.value.find((o) => o.value === normalized)?.label || v || '-'
+}
 const bankEditable = computed(() => store.can('contract:partner:bank:view'))
 /** 后端不提供 type 查询参数，企业类型按当前页数据本地过滤 */
 const displayRows = computed(() => (query.type ? rows.value.filter((r) => r.type === query.type) : rows.value))
@@ -115,7 +128,7 @@ const saving = ref(false)
 const emptyForm = (): PartnerSave => ({
   code: '', name: '', subjectType: 'COMPANY', role: 'SUPPLIER', type: '',
   creditCode: '', legalPerson: '', registeredCapital: '', establishDate: undefined, taxpayerType: '一般纳税人',
-  address: '', remark: '', contact: '', phone: '', terms: '30 天账期', rating: 'B',
+  address: '', remark: '', contact: '', phone: '', terms: '30', rating: 'B',
   creditLimit: 0, creditUsed: 0, status: 'PENDING',
   bank: '', accountName: '', bankAccount: ''
 })
@@ -136,7 +149,7 @@ function openEdit(row?: PartnerVO) {
       code: row.code, name: row.name, subjectType: row.subjectType, role: row.role, type: row.type,
       creditCode: row.creditCode || '', legalPerson: row.legalPerson || '', registeredCapital: row.registeredCapital || '',
       establishDate: row.establishDate || undefined, taxpayerType: row.taxpayerType || '', address: row.address || '',
-      remark: row.remark || '', contact: row.contact || '', phone: row.phone || '', terms: row.terms || '',
+      remark: row.remark || '', contact: row.contact || '', phone: row.phone || '', terms: normalizeTerms(row.terms),
       rating: row.rating || 'B', creditLimit: row.creditLimit ?? 0, creditUsed: row.creditUsed ?? 0,
       status: row.status || 'PENDING', bank: row.bank || '', accountName: row.accountName || '',
       // 无明文权限时后端返回脱敏串，不可回写，留空且禁用
@@ -166,6 +179,7 @@ async function submit() {
   requireText(form.contact, '联系人')
   requireText(form.phone, '联系电话')
   requireText(form.terms, '结算账期')
+  if (termsOptions.value.length && !termsOptions.value.some((o) => o.value === form.terms)) missing.push('结算账期（需选字典档位）')
   requireText(form.rating, '评级')
   requireText(form.status, '合作状态')
   // 授信额度/已占用额度是数字，0 合法，用 == null 判空
@@ -195,6 +209,8 @@ onMounted(() => {
   load()
   fetchPublicDict('contract.enterprise_type').then((list) => { enterpriseTypeOptions.value = list || [] })
     .catch(() => { message.warning('企业类型字典加载失败，请检查配置中心') })
+  fetchPublicDict('finance.credit_period').then((list) => { termsOptions.value = list || [] })
+    .catch(() => { message.warning('结算账期字典加载失败，请检查配置中心') })
 })
 </script>
 
@@ -234,6 +250,7 @@ onMounted(() => {
             <a-tag :color="record.subjectType === 'PERSON' ? 'purple' : 'default'">{{ subjectTypeLabel[record.subjectType] || '企业' }}</a-tag>
           </template>
           <template v-else-if="column.key === 'type'">{{ enterpriseTypeLabel(record.type) }}</template>
+          <template v-else-if="column.key === 'terms'">{{ termsLabel(record.terms) }}</template>
           <template v-else-if="column.key === 'rating'"><a-tag>{{ record.rating }} 级</a-tag></template>
           <template v-else-if="column.key === 'status'">
             <a-tag :color="statusColor[record.status] || 'default'">{{ statusLabel[record.status] || record.status }}</a-tag>
@@ -276,7 +293,7 @@ onMounted(() => {
         <a-card class="panel-card" size="small" title="联系与结算信息">
           <a-descriptions :column="descColumn" bordered size="small">
             <a-descriptions-item label="联系人 / 电话">{{ detail.contact || '-' }} · {{ detail.phone || '-' }}</a-descriptions-item>
-            <a-descriptions-item label="结算账期">{{ detail.terms || '-' }}</a-descriptions-item>
+            <a-descriptions-item label="结算账期">{{ termsLabel(detail.terms) }}</a-descriptions-item>
             <a-descriptions-item label="评级">{{ detail.rating || '-' }} 级</a-descriptions-item>
             <a-descriptions-item label="合作状态">{{ statusLabel[detail.status] || detail.status }}</a-descriptions-item>
             <template v-if="detail.role === 'CUSTOMER' || detail.role === 'BOTH'">
@@ -356,7 +373,10 @@ onMounted(() => {
             <a-col :span="12"><a-form-item label="联系人" required><a-input v-model:value="form.contact" /></a-form-item></a-col>
             <a-col :span="12"><a-form-item label="联系电话" required><a-input v-model:value="form.phone" /></a-form-item></a-col>
           </a-row>
-          <a-form-item label="结算账期" required><a-input v-model:value="form.terms" /></a-form-item>
+          <a-form-item label="结算账期" required>
+            <a-select v-model:value="form.terms" :options="termsOptions" placeholder="从字典选择" show-search
+                      option-filter-prop="label" style="width: 100%" />
+          </a-form-item>
           <a-row :gutter="12">
             <a-col :span="12"><a-form-item label="评级" required><a-select v-model:value="form.rating" :options="ratingOptions" /></a-form-item></a-col>
             <a-col :span="12"><a-form-item label="合作状态" required><a-select v-model:value="form.status" :options="statusOptions" /></a-form-item></a-col>

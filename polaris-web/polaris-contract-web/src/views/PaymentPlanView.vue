@@ -101,6 +101,11 @@ const form = reactive({
   amount: undefined as number | undefined,
   dueDate: undefined as string | undefined
 })
+/** 剩余未付金额 = 合同剩余金额 - 本期付款金额，纯展示派生字段，不落库 */
+const unpaidAmount = computed(() => {
+  if (form.remainingAmount == null) return undefined
+  return Math.round((Number(form.remainingAmount) - Number(form.amount ?? 0)) * 100) / 100
+})
 /** 合同剩余金额取合同 VO 的待付款金额（合同金额 - 已付 - 在途），选择合同后自动带出 */
 function onContractChange(no?: string) {
   form.remainingAmount = contracts.value.find((c) => c.no === no)?.pendingAmount
@@ -222,6 +227,10 @@ onMounted(() => {
         <a-form-item label="本期付款金额" required>
           <a-input-number v-model:value="form.amount" :min="0" :max="form.remainingAmount ?? undefined" :precision="2"
                           style="width: 100%" addon-before="¥" />
+        </a-form-item>
+        <a-form-item label="剩余未付金额">
+          <a-input-number :value="unpaidAmount" :controls="false" :precision="2" readonly
+                          placeholder="自动计算：合同剩余金额 - 本期付款金额" style="width: 100%" addon-before="¥" />
         </a-form-item>
         <a-form-item label="应付日期" required>
           <a-date-picker v-model:value="form.dueDate" value-format="YYYY-MM-DD" format="YYYY-MM-DD" style="width: 100%" />
