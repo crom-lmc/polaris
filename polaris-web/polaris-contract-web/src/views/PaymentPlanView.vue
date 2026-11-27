@@ -310,8 +310,6 @@ onMounted(() => {
             <a v-for="(u, i) in viewRow.attachmentUrls" :key="i" :href="u" target="_blank" rel="noopener">附件 {{ i + 1 }}</a>
           </div>
         </div>
-        <a-alert v-if="viewRow.status === 'PENDING'" type="info" show-icon style="margin-top:16px"
-                 :message="approvalHint" />
       </template>
       <template #footer>
         <div class="drawer-footer"><a-button @click="viewOpen = false">关闭</a-button></div>
