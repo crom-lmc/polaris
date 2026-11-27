@@ -12,7 +12,7 @@ import MaterialPickerModal, { type MaterialPick } from '@shared/components/Mater
 import AttachmentUpload from '@shared/components/AttachmentUpload.vue'
 import { yuan } from '@/utils/format'
 
-const props = defineProps<{ contractNo: string }>()
+const props = defineProps<{ contractNo: string; readonly?: boolean }>()
 const store = useUserStore()
 const isMobile = useIsMobile()
 const drawerWidth = computed(() => (isMobile.value ? '100%' : 620))
@@ -21,17 +21,20 @@ const smallDrawerWidth = computed(() => (isMobile.value ? '100%' : 620))
 const loading = ref(false)
 const rows = ref<ItemVO[]>([])
 
-const columns = [
-  { title: '行号', dataIndex: 'lineNo', key: 'lineNo', align: 'center' as const, width: 60 },
-  { title: '物料', key: 'materialName', width: 150 },
-  { title: '规格型号', dataIndex: 'spec', key: 'spec', width: 140 },
-  { title: '单位', dataIndex: 'unit', key: 'unit', align: 'center' as const, width: 60 },
-  { title: '数量', dataIndex: 'qty', key: 'qty', align: 'right' as const, width: 80 },
-  { title: '单价', key: 'price', align: 'right' as const, width: 100 },
-  { title: '金额', key: 'amount', align: 'right' as const, width: 110 },
-  { title: '交付进度', key: 'delivered', width: 130 },
-  { title: '操作', key: 'action', width: 140 }
-]
+const columns = computed(() => {
+  const base = [
+    { title: '行号', dataIndex: 'lineNo', key: 'lineNo', align: 'center' as const, width: 60 },
+    { title: '物料', key: 'materialName', width: 150 },
+    { title: '规格型号', dataIndex: 'spec', key: 'spec', width: 140 },
+    { title: '单位', dataIndex: 'unit', key: 'unit', align: 'center' as const, width: 60 },
+    { title: '数量', dataIndex: 'qty', key: 'qty', align: 'right' as const, width: 80 },
+    { title: '单价', key: 'price', align: 'right' as const, width: 100 },
+    { title: '金额', key: 'amount', align: 'right' as const, width: 110 },
+    { title: '交付进度', key: 'delivered', width: 130 },
+    { title: '操作', key: 'action', width: 140 }
+  ]
+  return props.readonly ? base.filter((c) => c.key !== 'action') : base
+})
 
 async function load() {
   loading.value = true
@@ -204,7 +207,7 @@ onMounted(() => { load() })
 
 <template>
   <div class="contract-items-editor">
-    <div class="items-toolbar">
+    <div v-if="!readonly" class="items-toolbar">
       <span class="grow" />
       <a-tag color="blue">清单 {{ rows.length }} 行</a-tag>
       <a-button v-if="store.can('contract:ledger:list')" size="small" @click="openAcceptRecords">验收记录</a-button>

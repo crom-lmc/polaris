@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, onMounted, reactive, ref, watch } from 'vue'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { message, Modal } from 'ant-design-vue'
 import { useUserStore } from '@/stores/user'
 import { useIsMobile } from '@/composables/useIsMobile'
@@ -42,6 +42,7 @@ const typeOptions = [{ label: '采购合同', value: 'PURCHASE' }, { label: '销
 const statusOptions = Object.entries(statusLabel).map(([value, label]) => ({ value, label }))
 
 interface StatusAction { label: string; target: string; kind?: 'primary' | 'danger' }
+/** 状态流转确认文案；危险动作先确认，再调状态机接口 */
 const statusActionTips: Record<string, string> = {
   PENDING: '提交后将按合同金额与类型进入审批流程（未达审批线的采购合同直接生效），确认吗？',
   EFFECTIVE: '确认审批通过并将合同置为已生效？',
@@ -54,7 +55,6 @@ const statusActionTips: Record<string, string> = {
 const projectOptions = ref<{ label: string; value: string }[]>([])
 const partnerOptions = ref<{ label: string; value: string }[]>([])
 const sourceLabel: Record<string, string> = { DIRECT: '直接新建', FROM_PLAN: '计划转入' }
-const changeReason = ref('')
 
 /** 合同执行闭环步骤条（与设计稿 contractFlowSteps / salesFlowSteps 对齐） */
 const flowSteps = computed(() => detail.value?.type === 'SALES'
@@ -69,24 +69,22 @@ const flowCurrent = computed(() => {
   return 4
 })
 
-/** 状态只读展示，流转只能走这里定义的按钮；采购合同 PENDING 由审批中心回调推进，不给手工按钮 */
-const statusActions = computed<StatusAction[]>(() => {
-  const d = detail.value
-  if (!d) return []
-  if (d.status === 'DRAFT') return [{ label: '提交审批', target: 'PENDING', kind: 'primary' }]
-  if (d.status === 'PENDING') {
-    return d.type === 'SALES'
+/** 状态是流程结果，详情只读；流转按钮收敛到列表操作行，按当前状态给出明确动作 */
+function statusActionsOf(row: ContractVO): StatusAction[] {
+  if (row.status === 'DRAFT') return [{ label: '提交审批', target: 'PENDING', kind: 'primary' }]
+  if (row.status === 'PENDING') {
+    return row.type === 'SALES'
       ? [{ label: '审批通过', target: 'EFFECTIVE', kind: 'primary' }, { label: '退回草稿', target: 'DRAFT' }]
       : []
   }
-  if (d.status === 'EFFECTIVE') {
+  if (row.status === 'EFFECTIVE') {
     return [{ label: '开始执行', target: 'EXECUTING', kind: 'primary' }, { label: '终止合同', target: 'TERMINATED', kind: 'danger' }]
   }
-  if (d.status === 'EXECUTING') {
+  if (row.status === 'EXECUTING') {
     return [{ label: '完成合同', target: 'COMPLETED', kind: 'primary' }, { label: '终止合同', target: 'TERMINATED', kind: 'danger' }]
   }
   return []
-})
+}
 
 const pagination = computed(() => ({
   current: query.page, pageSize: query.size, total: total.value, showSizeChanger: true,
@@ -139,7 +137,7 @@ const columns = [
   { title: '状态', key: 'status', align: 'center' as const, width: 100 },
   { title: '到期日期', dataIndex: 'endDate', key: 'endDate', width: 110 },
   { title: '附件', key: 'attachments', align: 'center' as const, width: 110 },
-  { title: '操作', key: 'action', width: 200 }
+  { title: '操作', key: 'action', width: 270 }
 ]
 
 /* ========== 主数据弹窗选择（往来单位 / 所属项目 / 负责人） ========== */
@@ -237,6 +235,8 @@ const partnerLabel = computed(() => createForm.type === 'SALES' ? '客户' : '�
 /* 新增 / 编辑草稿合同（复用同一抽屉） */
 const createOpen = ref(false)
 const editingId = ref<string | null>(null)
+const editingNo = ref('')
+const editingRemaining = ref(0)
 const saving = ref(false)
 const createForm = reactive<ContractSave & { partnerName?: string; projectName?: string }>({
   type: 'PURCHASE', name: '', partnerCode: '', partnerName: '', projectNo: undefined, projectName: '', dept: '', owner: '',
@@ -250,10 +250,12 @@ function resetCreate() {
     fileIds: []
   })
 }
-function openCreate() { editingId.value = null; resetCreate(); createOpen.value = true }
+function openCreate() { editingId.value = null; editingNo.value = ''; resetCreate(); createOpen.value = true }
 /** 仅草稿可编辑主信息；类型不允许改，避免与往来单位角色错配 */
 function openEdit(row: ContractVO) {
   editingId.value = row.id
+  editingNo.value = row.no
+  editingRemaining.value = Number(row.pendingAmount || 0)
   Object.assign(createForm, {
     type: row.type, name: row.name, partnerCode: row.partnerCode, partnerName: row.partnerName,
     projectNo: row.projectNo, projectName: row.projectName, dept: row.dept, owner: row.owner,
@@ -263,16 +265,20 @@ function openEdit(row: ContractVO) {
   })
   createOpen.value = true
 }
-async function submitCreate() {
-  if (!createForm.name?.trim()) { message.warning('请填写合同名称'); return }
-  if (!createForm.partnerCode) { message.warning(`请选择${partnerLabel.value}`); return }
-  if (!createForm.projectNo) { message.warning('请选择所属项目'); return }
-  if (!createForm.owner) { message.warning('请选择负责人'); return }
-  if (!createForm.dept) { message.warning('负责人未维护所属部门，无法带出归属部门'); return }
+function validateCreate(): boolean {
+  if (!createForm.name?.trim()) { message.warning('请填写合同名称'); return false }
+  if (!createForm.partnerCode) { message.warning(`请选择${partnerLabel.value}`); return false }
+  if (!createForm.projectNo) { message.warning('请选择所属项目'); return false }
+  if (!createForm.owner) { message.warning('请选择负责人'); return false }
+  if (!createForm.dept) { message.warning('负责人未维护所属部门，无法带出归属部门'); return false }
   if (!createForm.signedDate || !createForm.effectiveDate || !createForm.endDate) {
-    message.warning('请选择签订日期、生效日期与到期日期'); return
+    message.warning('请选择签订日期、生效日期与到期日期'); return false
   }
-  if (createForm.note && createForm.note.length > 200) { message.warning('备注最多 200 字'); return }
+  if (createForm.note && createForm.note.length > 200) { message.warning('备注最多 200 字'); return false }
+  return true
+}
+async function submitCreate() {
+  if (!validateCreate()) return
   saving.value = true
   try {
     const payload = { ...createForm, name: createForm.name.trim() }
@@ -284,32 +290,45 @@ async function submitCreate() {
     } else {
       const saved = await saveContract(payload)
       createOpen.value = false
-      message.success('合同已创建，已打开详情，请维护清单与付款计划')
+      message.success('合同已创建，请在编辑页维护清单与付款计划')
       resetAndLoad()
-      await openDetail(saved.id, true)
+      openEdit(saved)
     }
   } catch (e: any) { message.error(e?.message || '保存失败') }
   finally { saving.value = false }
 }
+/** 编辑页提交审批：先保存主信息，再走状态机提交；采购合同未达审批线由服务端直接置为已生效 */
+function submitCreateAndApprove() {
+  if (!editingId.value || !validateCreate()) return
+  Modal.confirm({
+    centered: true,
+    title: '提交审批',
+    content: statusActionTips.PENDING,
+    onOk: async () => {
+      saving.value = true
+      try {
+        const id = editingId.value!
+        await updateContract(id, { ...createForm, name: createForm.name.trim() })
+        await changeContractStatus(id, 'PENDING')
+        createOpen.value = false
+        message.success('合同已提交审批')
+        resetAndLoad()
+      } catch (e: any) { message.error(e?.message || '提交审批失败') }
+      finally { saving.value = false }
+    }
+  })
+}
 
-/* 详情 */
+/* 详情：纯查看，无任何写操作按钮 */
 const detailOpen = ref(false)
 const detailLoading = ref(false)
 const detail = ref<ContractVO | null>(null)
-/** focusItems=true 时，详情加载后滚动到合同清单区（新建合同后引导维护清单/付款计划） */
-const itemsSectionRef = ref<HTMLElement | null>(null)
-async function openDetail(id: string, focusItems = false) {
+async function openDetail(id: string) {
   detailOpen.value = true
   detailLoading.value = true
   try { detail.value = await getContract(id) }
   catch (e: any) { message.error(e?.message || '加载详情失败') }
-  finally {
-    detailLoading.value = false
-    if (focusItems) {
-      await nextTick()
-      itemsSectionRef.value?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-    }
-  }
+  finally { detailLoading.value = false }
 }
 /* 变更记录 */
 const changeOpen = ref(false)
@@ -323,35 +342,21 @@ async function openChanges() {
   catch (e: any) { message.error(e?.message || '加载变更记录失败') }
   finally { changeLoading.value = false }
 }
-async function changeProject(projectNo: string | undefined) {
-  if (!detail.value) return
+async function doStatus(id: string, status: string) {
   try {
-    await updateContract(detail.value.id, {
-      projectNo: projectNo || undefined, name: detail.value.name, partnerCode: detail.value.partnerCode,
-      remark: changeReason.value || undefined
-    })
-    detail.value = await getContract(detail.value.id)
-    changeReason.value = ''
-    message.success('所属项目已更新')
-    load()
-  } catch (e: any) { message.error(e?.message || '更新所属项目失败') }
-}
-async function doStatus(status: string) {
-  if (!detail.value) return
-  try {
-    await changeContractStatus(detail.value.id, status)
-    detail.value = await getContract(detail.value.id)
+    await changeContractStatus(id, status)
     message.success('合同状态已更新')
     load()
+    if (detailOpen.value && detail.value?.id === id) detail.value = await getContract(id)
   } catch (e: any) { message.error(e?.message || '状态更新失败') }
 }
-function requestStatusAction(action: StatusAction) {
+function requestStatusAction(action: StatusAction, row: ContractVO) {
   Modal.confirm({
     centered: true,
     title: action.label,
     content: statusActionTips[action.target] || '确认更新合同状态？',
     okButtonProps: action.kind === 'danger' ? { danger: true } : undefined,
-    onOk: () => doStatus(action.target)
+    onOk: () => doStatus(row.id, action.target)
   })
 }
 function remove(row: ContractVO) {
@@ -384,7 +389,7 @@ onMounted(() => { load(); loadOptions(); loadOrgDirectory() })
       </div>
       <a-table class="ft-table" row-key="id" :columns="columns" :data-source="rows" :loading="loading"
                :pagination="pagination" :class="{ 'tbl-empty-mode': !loading && !rows.length }"
-               :scroll="rows.length ? { x: 2220 } : undefined" style="--ft-min-width: 2220px">
+               :scroll="rows.length ? { x: 2290 } : undefined" style="--ft-min-width: 2290px">
         <template #bodyCell="{ column, record }">
           <template v-if="column.key === 'name'">
             <a-tooltip :title="record.name"><span class="cell-ellipsis">{{ record.name }}</span></a-tooltip>
@@ -426,8 +431,11 @@ onMounted(() => { load(); loadOptions(); loadOrgDirectory() })
           </template>
           <template v-else-if="column.key === 'action'">
             <a-space :size="4">
-              <a @click="openDetail(record.id)">详情 / 清单</a>
+              <a @click="openDetail(record.id)">查看</a>
               <a v-if="store.can('contract:ledger:edit') && record.status === 'DRAFT'" @click="openEdit(record)">编辑</a>
+              <template v-if="store.can('contract:ledger:edit')">
+                <a v-for="action in statusActionsOf(record)" :key="action.target" @click="requestStatusAction(action, record)">{{ action.label }}</a>
+              </template>
               <a v-if="store.can('contract:ledger:edit')" @click="remove(record)">删除</a>
             </a-space>
           </template>
@@ -448,6 +456,7 @@ onMounted(() => { load(); loadOptions(); loadOrgDirectory() })
               <a-descriptions-item label="类型">{{ typeLabel[detail.type] || detail.type }}</a-descriptions-item>
               <a-descriptions-item label="供应商/客户">{{ detail.partnerName || detail.partnerCode }}</a-descriptions-item>
               <a-descriptions-item label="归属部门">{{ detail.dept || '-' }} · {{ detail.owner || '-' }}</a-descriptions-item>
+              <a-descriptions-item label="所属项目">{{ detail.projectName || '未关联' }}</a-descriptions-item>
               <a-descriptions-item label="签订 / 生效 / 到期">{{ detail.signedDate || '-' }} / {{ detail.effectiveDate || '-' }} / {{ detail.endDate || '-' }}</a-descriptions-item>
               <a-descriptions-item label="备注">{{ detail.note || '-' }}</a-descriptions-item>
               <a-descriptions-item label="来源">
@@ -465,13 +474,6 @@ onMounted(() => { load(); loadOptions(); loadOrgDirectory() })
               </a-descriptions-item>
               <a-descriptions-item label="状态">
                 <a-tag :color="statusColor[detail.status] || 'default'">{{ statusLabel[detail.status] || detail.status }}</a-tag>
-                <span v-if="store.can('contract:ledger:edit') && statusActions.length" class="status-actions">
-                  <a-button v-for="action in statusActions" :key="action.target" size="small"
-                            :type="action.kind === 'primary' ? 'primary' : 'default'"
-                            :danger="action.kind === 'danger'" @click="requestStatusAction(action)">
-                    {{ action.label }}
-                  </a-button>
-                </span>
               </a-descriptions-item>
               <a-descriptions-item label="合同附件">
                 <template v-if="detail.fileIds?.length">
@@ -481,21 +483,13 @@ onMounted(() => { load(); loadOptions(); loadOrgDirectory() })
                 <span v-else class="muted">无附件</span>
               </a-descriptions-item>
             </a-descriptions>
-            <a-form-item label="所属项目" style="margin-top: 12px; margin-bottom: 0">
-              <a-select v-if="store.can('contract:ledger:edit')" :value="detail.projectNo || undefined" :options="projectOptions"
-                        placeholder="请选择所属项目" allow-clear show-search style="width: 100%" @change="changeProject" />
-              <span v-else>{{ detail.projectName || '未关联' }}</span>
-            </a-form-item>
-            <a-form-item v-if="store.can('contract:ledger:edit')" label="变更原因" style="margin-bottom: 0">
-              <a-input v-model:value="changeReason" placeholder="变更所属项目时填写，用于留痕（选填）" allow-clear />
-            </a-form-item>
           </a-card>
 
-          <div ref="itemsSectionRef" class="drawer-section-title">合同清单</div>
-          <ContractItemsEditor v-if="detail" :contract-no="detail.no" />
+          <div class="drawer-section-title">合同清单</div>
+          <ContractItemsEditor v-if="detail" :contract-no="detail.no" readonly />
 
           <div class="drawer-section-title">付款计划</div>
-          <PaymentPlanEditor v-if="detail" :contract-no="detail.no" :remaining-amount="detail.pendingAmount" />
+          <PaymentPlanEditor v-if="detail" :contract-no="detail.no" :remaining-amount="detail.pendingAmount" readonly />
         </template>
       </a-spin>
       <template #footer>
@@ -575,10 +569,19 @@ onMounted(() => { load(); loadOptions(); loadOrgDirectory() })
           <AttachmentUpload v-if="store.can('contract:ledger:attachment:upload')" v-model="createForm.fileIds" label="合同附件" button-text="上传合同附件"
                             :upload="(file) => uploadContractAttachment(file, 'contract')" @error="message.error" />
         </a-card>
+
+        <template v-if="editingId">
+          <div class="drawer-section-title">合同清单</div>
+          <ContractItemsEditor :contract-no="editingNo" />
+
+          <div class="drawer-section-title">付款计划</div>
+          <PaymentPlanEditor :contract-no="editingNo" :remaining-amount="editingRemaining" />
+        </template>
       </a-form>
       <template #footer>
         <div class="drawer-footer">
           <a-button @click="createOpen = false">取消</a-button>
+          <a-button v-if="editingId" :loading="saving" @click="submitCreateAndApprove">提交审批</a-button>
           <a-button type="primary" :loading="saving" @click="submitCreate">{{ editingId ? '保存修改' : '保存合同' }}</a-button>
         </div>
       </template>
@@ -595,14 +598,3 @@ onMounted(() => { load(); loadOptions(); loadOrgDirectory() })
                        :load="loadOwnerPicker" @confirm="onOwnerPicked" />
   </section>
 </template>
-
-<style scoped>
-.status-actions {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  margin-left: 8px;
-  flex-wrap: wrap;
-  vertical-align: middle;
-}
-</style>

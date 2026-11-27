@@ -10,7 +10,7 @@ import {
 import { yuan } from '@/utils/format'
 import AttachmentUpload from '@shared/components/AttachmentUpload.vue'
 
-const props = defineProps<{ contractNo: string; remainingAmount?: number }>()
+const props = defineProps<{ contractNo: string; remainingAmount?: number; readonly?: boolean }>()
 const store = useUserStore()
 const isMobile = useIsMobile()
 const drawerWidth = computed(() => (isMobile.value ? '100%' : 520))
@@ -30,17 +30,20 @@ function stageText(value?: string) {
   return dictStages.value.find((d) => d.value === value)?.label || value
 }
 
-const columns = [
-  { title: '付款阶段', dataIndex: 'stage', key: 'stage', width: 140 },
-  { title: '本期付款金额', key: 'amount', align: 'right' as const, width: 140 },
-  { title: '应付日期', dataIndex: 'dueDate', key: 'dueDate', width: 110 },
-  { title: '付款事由', dataIndex: 'summary', key: 'summary', width: 180 },
-  { title: '付款状态', key: 'status', align: 'center' as const, width: 120 },
-  { title: '来源单据', dataIndex: 'sourceDocNo', key: 'sourceDocNo', width: 170 },
-  { title: '关联凭证', dataIndex: 'voucherNo', key: 'voucherNo', width: 160 },
-  { title: '附件', key: 'attachments', width: 110 },
-  { title: '操作', key: 'action', width: 150 }
-]
+const columns = computed(() => {
+  const base = [
+    { title: '付款阶段', dataIndex: 'stage', key: 'stage', width: 140 },
+    { title: '本期付款金额', key: 'amount', align: 'right' as const, width: 140 },
+    { title: '应付日期', dataIndex: 'dueDate', key: 'dueDate', width: 110 },
+    { title: '付款事由', dataIndex: 'summary', key: 'summary', width: 180 },
+    { title: '付款状态', key: 'status', align: 'center' as const, width: 120 },
+    { title: '来源单据', dataIndex: 'sourceDocNo', key: 'sourceDocNo', width: 170 },
+    { title: '关联凭证', dataIndex: 'voucherNo', key: 'voucherNo', width: 160 },
+    { title: '附件', key: 'attachments', width: 110 },
+    { title: '操作', key: 'action', width: 150 }
+  ]
+  return props.readonly ? base.filter((c) => c.key !== 'action') : base
+})
 
 async function load() {
   loading.value = true
@@ -120,7 +123,7 @@ onMounted(() => {
 
 <template>
   <div class="payment-plan-editor">
-    <div class="items-toolbar">
+    <div v-if="!readonly" class="items-toolbar">
       <span class="grow" />
       <a-button v-if="store.can('contract:payment:edit')" type="primary" size="small" @click="openCreate">＋ 新增付款计划</a-button>
     </div>
