@@ -552,6 +552,42 @@ export const applyPaymentPlan = (id: string, sourceDocNo?: string) =>
 export const deletePaymentPlan = (id: string) =>
   request.delete<never, void>(`/api/contract/payment-plans/${id}`)
 
+/** 付款计划审批信息（只读，来自 settings 审批中心；未发起时返回 null） */
+export interface ApprovalTaskInfo {
+  id: string
+  stepSeq: number
+  stepName?: string
+  nodeName?: string
+  approverName?: string
+  status: number
+  statusName?: string
+  opinion?: string
+  actedAt?: string
+}
+export interface ApprovalInfo {
+  id: string
+  bizType: string
+  bizNo?: string
+  title?: string
+  status: number
+  statusName?: string
+  applicantName?: string
+  createdAt?: string
+  finishedAt?: string
+  tasks: ApprovalTaskInfo[]
+}
+export const fetchPaymentApprovalInfo = (id: string) =>
+  request.get<never, ApprovalInfo | null>(`/api/contract/payment-plans/${id}/approval`)
+
+/** 审批实例状态：0 进行中 / 1 已通过 / 2 已驳回 / 3 已撤回 / 4 已终止 */
+export const APPROVAL_STATUS_NAME: Record<number, string> = {
+  0: '审批中', 1: '已通过', 2: '已驳回', 3: '已撤回', 4: '已终止'
+}
+/** 审批任务状态：0 待办 / 1 通过 / 2 驳回 / 3 跳过 / 4 作废 / 9 转办 */
+export const TASK_STATUS_NAME: Record<number, string> = {
+  0: '待审批', 1: '已通过', 2: '已驳回', 3: '已跳过', 4: '已取消', 9: '已转办'
+}
+
 /* ==================== 采购计划 ==================== */
 
 export interface PurchasePlanItemVO {

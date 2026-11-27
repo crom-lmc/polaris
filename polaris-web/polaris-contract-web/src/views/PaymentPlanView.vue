@@ -5,7 +5,8 @@ import { useUserStore } from '@/stores/user'
 import { useIsMobile } from '@/composables/useIsMobile'
 import {
   listContracts, listPaymentPlans, savePaymentPlan, updatePaymentPlan, deletePaymentPlan, applyPaymentPlan, fetchPublicDict,
-  type PaymentPlanVO, type ContractVO, type DictOption
+  fetchPaymentApprovalInfo, APPROVAL_STATUS_NAME, TASK_STATUS_NAME,
+  type PaymentPlanVO, type ContractVO, type DictOption, type ApprovalInfo
 } from '@/api/contract'
 import { yuan } from '@/utils/format'
 
@@ -86,7 +87,7 @@ const columns = [
   { title: '本期付款金额', key: 'amount', align: 'right' as const, width: 140 },
   { title: '应付日期', dataIndex: 'dueDate', key: 'dueDate', width: 110 },
   { title: '付款状态', key: 'status', align: 'center' as const, width: 120 },
-  { title: '操作', key: 'action', width: 280 }
+  { title: '操作', key: 'action', width: 340 }
 ]
 
 async function apply(row: PaymentPlanVO) {
@@ -98,6 +99,29 @@ async function apply(row: PaymentPlanVO) {
 const viewOpen = ref(false)
 const viewRow = ref<PaymentPlanVO | null>(null)
 function openView(row: PaymentPlanVO) { viewRow.value = row; viewOpen.value = true }
+
+/* 查看审批信息：已发起审批的付款计划从 settings 审批中心反查，只读 */
+const approvalOpen = ref(false)
+const approvalLoading = ref(false)
+const approvalInfo = ref<ApprovalInfo | null>(null)
+async function openApproval(row: PaymentPlanVO) {
+  approvalOpen.value = true
+  approvalLoading.value = true
+  approvalInfo.value = null
+  try {
+    approvalInfo.value = await fetchPaymentApprovalInfo(row.id)
+  } catch (e: any) {
+    message.error(e?.message || '审批信息加载失败')
+  } finally {
+    approvalLoading.value = false
+  }
+}
+function approvalTaskColor(status?: number): string {
+  if (status === 1) return 'green'
+  if (status === 2) return 'red'
+  if (status === 0) return 'blue'
+  return 'default'
+}
 
 /* 发起付款申请：一步完成「新建计划 + 发起申请」。仅生成待申请计划的入口在合同详情的付款计划编辑器。 */
 const applyOpen = ref(false)
@@ -213,7 +237,7 @@ onMounted(() => {
       </div>
       <a-table class="ft-table" row-key="id" :columns="columns" :data-source="paged" :loading="loading"
                :pagination="pagination" :class="{ 'tbl-empty-mode': !loading && !paged.length }"
-               :scroll="paged.length ? { x: 1350 } : undefined">
+               :scroll="paged.length ? { x: 1410 } : undefined">
           <template #bodyCell="{ column, record }">
           <template v-if="column.key === 'no'">
             <a-tooltip v-if="record.no" :title="record.no"><span class="cell-ellipsis">{{ record.no }}</span></a-tooltip>
@@ -240,6 +264,7 @@ onMounted(() => {
           <template v-else-if="column.key === 'action'">
             <a-space :size="4" class="action-links">
               <a @click="openView(record)">查看</a>
+              <a v-if="record.status !== 'WAITING'" @click="openApproval(record)">审批信息</a>
               <template v-if="store.can('contract:payment:edit') && record.status === 'WAITING'">
                 <a @click="openEdit(record)">编辑</a>
                 <a-popconfirm title="确认删除该待申请付款计划？" ok-text="删除" cancel-text="取消" @confirm="remove(record)">
@@ -315,11 +340,56 @@ onMounted(() => {
         <div class="drawer-footer"><a-button @click="viewOpen = false">关闭</a-button></div>
       </template>
     </a-drawer>
+
+    <a-drawer v-model:open="approvalOpen" title="审批信息" :width="drawerWidth" placement="right">
+      <a-spin :spinning="approvalLoading">
+        <template v-if="approvalInfo">
+          <a-descriptions :column="1" bordered size="small">
+            <a-descriptions-item label="标题">{{ approvalInfo.title || '-' }}</a-descriptions-item>
+            <a-descriptions-item label="状态">
+              <a-tag :color="approvalInfo.status === 1 ? 'green' : approvalInfo.status === 2 ? 'red' : 'blue'">
+                {{ APPROVAL_STATUS_NAME[approvalInfo.status] || approvalInfo.statusName || approvalInfo.status }}
+              </a-tag>
+            </a-descriptions-item>
+            <a-descriptions-item label="发起人">{{ approvalInfo.applicantName || '-' }}</a-descriptions-item>
+            <a-descriptions-item label="发起时间">{{ approvalInfo.createdAt || '-' }}</a-descriptions-item>
+            <a-descriptions-item label="完成时间">{{ approvalInfo.finishedAt || '-' }}</a-descriptions-item>
+          </a-descriptions>
+          <h4 class="approval-sec-title">审批记录</h4>
+          <a-timeline v-if="approvalInfo.tasks?.length">
+            <a-timeline-item v-for="t in approvalInfo.tasks" :key="t.id"
+                             :color="approvalTaskColor(t.status)">
+              <div class="approval-task-line">
+                <b>{{ t.stepName || `第 ${t.stepSeq} 步` }}</b>
+                <span v-if="t.nodeName"> · {{ t.nodeName }}</span>
+                <a-tag :color="approvalTaskColor(t.status)" class="approval-task-tag">
+                  {{ t.statusName || TASK_STATUS_NAME[t.status] || '未知' }}
+                </a-tag>
+              </div>
+              <div class="approval-task-meta">
+                审批人：{{ t.approverName || '-' }}<span v-if="t.actedAt"> · {{ t.actedAt }}</span>
+              </div>
+              <div v-if="t.opinion" class="approval-task-opinion">意见：{{ t.opinion }}</div>
+            </a-timeline-item>
+          </a-timeline>
+          <a-empty v-else description="暂无审批任务记录" />
+        </template>
+        <a-empty v-else-if="!approvalLoading" description="未找到审批单" />
+      </a-spin>
+      <template #footer>
+        <div class="drawer-footer"><a-button @click="approvalOpen = false">关闭</a-button></div>
+      </template>
+    </a-drawer>
   </section>
 </template>
 
 <style scoped>
 .link-danger { color: var(--danger, #dc2626); }
+.approval-sec-title { margin: 20px 0 12px; font-weight: 600; }
+.approval-task-line { display: flex; align-items: center; flex-wrap: wrap; gap: 4px; }
+.approval-task-tag { margin-left: 6px; }
+.approval-task-meta { font-size: 12px; opacity: 0.72; margin-top: 4px; }
+.approval-task-opinion { margin-top: 4px; font-size: 13px; }
 .view-attachments { margin-top: 16px; }
 .view-attachments-title { font-weight: 600; margin-bottom: 8px; }
 .view-attachments-list { display: flex; flex-wrap: wrap; gap: 8px 16px; }

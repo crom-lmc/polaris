@@ -80,6 +80,7 @@ agent_created: true
 - 提交审批（`target=PENDING`）前端 MUST 先校验已有清单：列表操作列用 `row.itemCount`，编辑抽屉用 `listItems(contract.no)` 实时查，为空则 `message.warning('请先维护合同清单，再提交审批')` 并中止，不弹确认框。付款计划可后建（合同编辑页可先建 WAITING、付款计划页有独立「发起付款申请」入口），MUST NOT 作为提交审批的前置校验。
 - 采购合同未达审批线提交后服务端直接置「已生效」，前端 MUST 以接口返回的最新详情刷新状态，不得假设一定停在审批中。
 - 到货验收弹窗的「验收日期」MUST 必填：`a-form-item` 带 `required` 星号，`submitAccept` 未选日期时 `message.warning('请选择验收日期')` 并中止；后端 `accept()` 同步硬校验 `ACCEPTANCE_DATE_REQUIRED`，前端校验只是可见入口（2026-11-27 用户定稿）。验收结果选项值 MUST 用中文「合格/不合格」，与后端入库及付款埋点口径一致。
+- **已发起审批的单据 MUST 在操作列提供「审批信息」入口（2026-11-27 用户定稿，全站通用）**：任何接入审批中心的业务列表（付款计划、采购合同、报销等），凡是进入过审批流程（`status !== 'WAITING'/'DRAFT'` 等初始态）的行，操作列 MUST 有只读「审批信息」按钮，打开只读抽屉展示审批单状态、发起人/时间、审批记录 timeline（节点/审批人/状态/意见/时间）。口径：审批数据真相源是 settings 审批中心，业务域后端按 `bizType+bizId` 反查（`approvalApi.latest`，两模板都查取最新），返回雪花 ID 按 String 下发防前端精度丢失；前端禁止直连账号中心 `/api/accounts/approvals/**`（详情接口有参与者校验会 403），统一走本业务域的薄查询接口。合同域范式：`PaymentPlanService.approvalInfo()` + `GET /api/contract/payment-plans/{id}/approval` + `ApprovalInfoDrawer`。
 
 ## 当前登录人/部门默认带出口径（合同/财务所有模块统一，MUST）
 
