@@ -43,7 +43,8 @@ const filtered = computed(() => {
     (!query.contractNo || p.contractNo === query.contractNo) &&
     (!query.status || p.status === query.status) &&
     (!kw || p.contractNo.toLowerCase().includes(kw) || (p.contractName || '').toLowerCase().includes(kw)
-      || stageText(p.stage).toLowerCase().includes(kw) || (p.sourceDocNo || '').toLowerCase().includes(kw)))
+      || stageText(p.stage).toLowerCase().includes(kw) || (p.no || '').toLowerCase().includes(kw)
+      || (p.sourceDocNo || '').toLowerCase().includes(kw)))
 })
 const paged = computed(() => filtered.value.slice((localPage.value - 1) * localSize.value, localPage.value * localSize.value))
 const pagination = computed(() => ({
@@ -78,20 +79,25 @@ async function load() {
 function resetPage() { localPage.value = 1 }
 
 const columns = [
+  { title: '付款申请单号', dataIndex: 'no', key: 'no', width: 170 },
   { title: '合同编号', dataIndex: 'contractNo', key: 'contractNo', width: 170 },
   { title: '合同名称', key: 'contractName', width: 220 },
   { title: '付款阶段', dataIndex: 'stage', key: 'stage', width: 140 },
   { title: '本期付款金额', key: 'amount', align: 'right' as const, width: 140 },
   { title: '应付日期', dataIndex: 'dueDate', key: 'dueDate', width: 110 },
   { title: '付款状态', key: 'status', align: 'center' as const, width: 120 },
-  { title: '来源单据', dataIndex: 'sourceDocNo', key: 'sourceDocNo', width: 170 },
-  { title: '操作', key: 'action', width: 130 }
+  { title: '操作', key: 'action', width: 180 }
 ]
 
 async function apply(row: PaymentPlanVO) {
   try { await applyPaymentPlan(row.id); message.success('付款申请已发起，等待审批'); await load() }
   catch (e: any) { message.error(e?.message || '发起申请失败') }
 }
+
+/* 查看：复用列表行数据（VO 已含单号/财务单据号/凭证号/附件），无需额外接口 */
+const viewOpen = ref(false)
+const viewRow = ref<PaymentPlanVO | null>(null)
+function openView(row: PaymentPlanVO) { viewRow.value = row; viewOpen.value = true }
 
 /* 发起付款申请：一步完成「新建计划 + 发起申请」。仅生成待申请计划的入口在合同详情的付款计划编辑器。 */
 const applyOpen = ref(false)
@@ -176,9 +182,13 @@ onMounted(() => {
       </div>
       <a-table class="ft-table" row-key="id" :columns="columns" :data-source="paged" :loading="loading"
                :pagination="pagination" :class="{ 'tbl-empty-mode': !loading && !paged.length }"
-               :scroll="paged.length ? { x: 1200 } : undefined">
-        <template #bodyCell="{ column, record }">
-          <template v-if="column.key === 'contractName'">
+               :scroll="paged.length ? { x: 1250 } : undefined">
+          <template #bodyCell="{ column, record }">
+          <template v-if="column.key === 'no'">
+            <a-tooltip v-if="record.no" :title="record.no"><span class="cell-ellipsis">{{ record.no }}</span></a-tooltip>
+            <span v-else class="muted">-</span>
+          </template>
+          <template v-else-if="column.key === 'contractName'">
             <a-tooltip :title="record.contractName"><span class="cell-ellipsis">{{ record.contractName || '-' }}</span></a-tooltip>
           </template>
           <template v-else-if="column.key === 'stage'">{{ stageText(record.stage) }}</template>
@@ -196,17 +206,11 @@ onMounted(() => {
             </a-tooltip>
             <a-tag v-else :color="statusColor[record.status] || 'default'">{{ statusLabel[record.status] || record.status }}</a-tag>
           </template>
-          <template v-else-if="column.key === 'sourceDocNo'">
-            <a-tooltip v-if="record.sourceDocNo" :title="record.sourceDocNo">
-              <span class="cell-ellipsis">{{ record.sourceDocNo }}</span>
-            </a-tooltip>
-            <span v-else class="muted">待申请</span>
-          </template>
           <template v-else-if="column.key === 'action'">
             <a-space :size="4">
+              <a @click="openView(record)">查看</a>
               <a v-if="store.can('contract:payment:edit') && (record.status === 'WAITING' || record.status === 'REJECTED')"
                  @click="apply(record)">发起申请</a>
-              <span v-else class="muted">-</span>
             </a-space>
           </template>
         </template>
@@ -246,5 +250,41 @@ onMounted(() => {
         </div>
       </template>
     </a-drawer>
+
+    <a-drawer v-model:open="viewOpen" title="付款申请详情" :width="drawerWidth" placement="right">
+      <template v-if="viewRow">
+        <a-descriptions :column="1" bordered size="small">
+          <a-descriptions-item label="付款申请单号"><b>{{ viewRow.no || '-' }}</b></a-descriptions-item>
+          <a-descriptions-item label="合同编号">{{ viewRow.contractNo }}</a-descriptions-item>
+          <a-descriptions-item label="合同名称">{{ viewRow.contractName || '-' }}</a-descriptions-item>
+          <a-descriptions-item label="付款阶段">{{ stageText(viewRow.stage) }}</a-descriptions-item>
+          <a-descriptions-item label="本期付款金额">{{ yuan(viewRow.amount) }}</a-descriptions-item>
+          <a-descriptions-item label="应付日期">{{ viewRow.dueDate || '-' }}</a-descriptions-item>
+          <a-descriptions-item label="付款状态">
+            <a-tag :color="statusColor[viewRow.status] || 'default'">{{ statusLabel[viewRow.status] || viewRow.status }}</a-tag>
+          </a-descriptions-item>
+          <a-descriptions-item label="付款事由">{{ viewRow.summary || '-' }}</a-descriptions-item>
+          <a-descriptions-item label="财务单据号">{{ viewRow.sourceDocNo || '尚未生成（审批通过后由财务域建单回写）' }}</a-descriptions-item>
+          <a-descriptions-item label="凭证号">{{ viewRow.voucherNo || '尚未生成' }}</a-descriptions-item>
+        </a-descriptions>
+        <div v-if="viewRow.attachmentUrls?.length" class="view-attachments">
+          <div class="view-attachments-title">合同与验收凭证</div>
+          <div class="view-attachments-list">
+            <a v-for="(u, i) in viewRow.attachmentUrls" :key="i" :href="u" target="_blank" rel="noopener">附件 {{ i + 1 }}</a>
+          </div>
+        </div>
+        <a-alert v-if="viewRow.status === 'PENDING'" type="info" show-icon style="margin-top:16px"
+                 :message="approvalHint" />
+      </template>
+      <template #footer>
+        <div class="drawer-footer"><a-button @click="viewOpen = false">关闭</a-button></div>
+      </template>
+    </a-drawer>
   </section>
 </template>
+
+<style scoped>
+.view-attachments { margin-top: 16px; }
+.view-attachments-title { font-weight: 600; margin-bottom: 8px; }
+.view-attachments-list { display: flex; flex-wrap: wrap; gap: 8px 16px; }
+</style>

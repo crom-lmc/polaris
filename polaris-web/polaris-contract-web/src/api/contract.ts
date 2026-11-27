@@ -501,6 +501,8 @@ export const uploadContractAttachment = (file: File, owner: ContractAttachmentOw
 
 export interface PaymentPlanVO {
   id: string
+  /** 付款申请单号 FK-yyyy-XXXXXX */
+  no?: string
   contractNo: string
   contractName: string
   stage: string
