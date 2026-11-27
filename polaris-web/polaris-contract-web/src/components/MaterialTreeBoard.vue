@@ -4,7 +4,7 @@ import { message, Modal } from 'ant-design-vue'
 import { useUserStore } from '@/stores/user'
 import { useIsMobile } from '@/composables/useIsMobile'
 import {
-  getMaterialTree, saveMaterial, updateMaterial, deleteMaterial, type MaterialVO, type MaterialSave
+  getMaterialTree, saveCategory, saveMaterial, updateMaterial, deleteMaterial, type MaterialVO, type MaterialSave
 } from '@/api/contract'
 import { yuan } from '@/utils/format'
 
@@ -13,6 +13,11 @@ const manage = computed(() => !!props.manage)
 const store = useUserStore()
 const isMobile = useIsMobile()
 const drawerWidth = computed(() => (isMobile.value ? '100%' : 560))
+
+/** 新增分类挂「物料库」菜单，新增物料与编辑/删除挂「物料维护」菜单，各用独立权限码 */
+const canAddCategoryPerm = computed(() => store.can('contract:material:category:add'))
+const canAddMaterialPerm = computed(() => manage.value && store.can('contract:material:add'))
+const canEditPerm = computed(() => manage.value && store.can('contract:material:edit'))
 
 const loading = ref(false)
 const flat = ref<MaterialVO[]>([])
@@ -24,7 +29,7 @@ const expandedKeys = ref<string[]>([])
 function toTreeData(nodes: MaterialVO[]): any[] {
   return nodes.map((n) => ({
     key: n.id,
-    title: `${n.name}（${n.code}）`,
+    title: n.name,
     children: n.children?.length ? toTreeData(n.children) : undefined
   }))
 }
@@ -51,13 +56,16 @@ const selectedLevel = computed(() => {
   const len = (n.code || '').length
   return len === 2 ? 1 : (len === 4 ? 2 : (len === 6 ? 3 : 0))
 })
-const canAddCategory = computed(() => selectedLevel.value === 1 || selectedLevel.value === 2)
-const canAddMaterial = computed(() => selectedLevel.value === 3)
+const categoryLevelOk = computed(() => selectedLevel.value === 1 || selectedLevel.value === 2)
+const materialLevelOk = computed(() => selectedLevel.value === 3)
 const addHint = computed(() => {
-  if (selectedLevel.value === 1) return '当前一级分类 → 可新增二级分类'
-  if (selectedLevel.value === 2) return '当前二级分类 → 可新增三级分类'
+  if (!manage.value) {
+    if (selectedLevel.value === 1) return '当前一级分类 → 可新增二级分类'
+    if (selectedLevel.value === 2) return '当前二级分类 → 可新增三级分类'
+    return '请选中一级或二级分类后新增分类'
+  }
   if (selectedLevel.value === 3) return '当前三级分类 → 可新增物料'
-  return '请选中一 / 二级分类新增分类，或选中三级分类新增物料'
+  return '请选中三级分类后新增物料'
 })
 const rows = computed(() => {
   const kw = keyword.value.trim().toLowerCase()
@@ -97,15 +105,18 @@ function resetForm() {
   form.unit = ''
   form.referencePrice = undefined
 }
-/** 新增类型由按钮决定，上级节点固定为当前选中项，不再在抽屉里切换 */
+/** 新增类型由所属菜单的按钮固定，上级节点固定为当前选中项，不在抽屉里切换 */
 function openCreate(kind: 'CATEGORY' | 'MATERIAL') {
-  if (kind === 'CATEGORY' && !canAddCategory.value) {
-    message.warning('请选中一级或二级分类后新增分类；三级分类下不允许继续新增分类')
-    return
-  }
-  if (kind === 'MATERIAL' && !canAddMaterial.value) {
-    message.warning('新增物料请先选中三级分类')
-    return
+  if (kind === 'CATEGORY') {
+    if (!canAddCategoryPerm.value || !categoryLevelOk.value) {
+      message.warning('请选中一级或二级分类后新增分类；三级分类下不允许继续新增分类')
+      return
+    }
+  } else {
+    if (!canAddMaterialPerm.value || !materialLevelOk.value) {
+      message.warning('新增物料请先选中三级分类')
+      return
+    }
   }
   resetForm()
   form.kind = kind
@@ -113,6 +124,7 @@ function openCreate(kind: 'CATEGORY' | 'MATERIAL') {
   editOpen.value = true
 }
 function openEdit(row: MaterialVO) {
+  if (!canEditPerm.value) return
   resetForm()
   form.id = row.id
   form.parentId = row.parentId || null
@@ -133,6 +145,7 @@ async function submit() {
       spec: form.spec || '', unit: form.unit || '', referencePrice: form.referencePrice ?? null
     }
     if (form.id) await updateMaterial(form.id, payload)
+    else if (form.kind === 'CATEGORY') await saveCategory(payload)
     else await saveMaterial(payload)
     editOpen.value = false
     message.success('节点已保存，编码由服务端按层级自动生成')
@@ -141,6 +154,7 @@ async function submit() {
   finally { saving.value = false }
 }
 function remove(row: MaterialVO) {
+  if (!canEditPerm.value) return
   Modal.confirm({
     centered: true, title: '删除节点',
     content: `确定删除「${row.name}」吗？有子节点或已被合同清单 / 采购计划引用的节点不可删除。`,
@@ -164,11 +178,17 @@ onMounted(load)
       <a-input-search v-model:value="keyword" placeholder="编码 / 名称 / 规格" style="width: 240px" allow-clear />
       <span class="grow" />
       <span class="hint">{{ manage ? '三级分类 + 叶子物料 · 编码由服务端自动生成' : '三级分类 + 叶子物料 · 采购计划与合同清单统一从这里选料' }}</span>
-      <template v-if="manage && store.can('contract:material:edit')">
+      <template v-if="!manage">
+        <template v-if="canAddCategoryPerm">
+          <span class="hint" :title="addHint">{{ addHint }}</span>
+          <a-button :disabled="!categoryLevelOk" :title="categoryLevelOk ? '' : '请选中一级或二级分类'"
+                    @click="openCreate('CATEGORY')">＋ 新增分类</a-button>
+        </template>
+      </template>
+      <template v-else>
         <span class="hint" :title="addHint">{{ addHint }}</span>
-        <a-button :disabled="!canAddCategory" :title="canAddCategory ? '' : '请选中一级或二级分类'"
-                  @click="openCreate('CATEGORY')">＋ 新增分类</a-button>
-        <a-button type="primary" :disabled="!canAddMaterial" :title="canAddMaterial ? '' : '请选中三级分类'"
+        <a-button v-if="canAddMaterialPerm" type="primary" :disabled="!materialLevelOk"
+                  :title="materialLevelOk ? '' : '请选中三级分类'"
                   @click="openCreate('MATERIAL')">＋ 新增物料</a-button>
       </template>
     </section>
@@ -199,7 +219,7 @@ onMounted(load)
                   {{ record.referencePrice != null ? yuan(record.referencePrice) : '-' }}
                 </template>
                 <template v-else-if="column.key === 'action'">
-                  <a-space v-if="store.can('contract:material:edit')" :size="4">
+                  <a-space v-if="canEditPerm" :size="4">
                     <a @click="openEdit(record)">编辑</a>
                     <a @click="remove(record)">删除</a>
                   </a-space>
@@ -210,18 +230,18 @@ onMounted(load)
             </a-table>
           </a-card>
           <a-alert v-if="manage" type="info" show-icon message="维护口径"
-                   description="选中一级分类新增二级分类、选中二级分类新增三级分类、选中三级分类新增物料；分类最多三级，不允许在三级分类下继续新增分类。编码由服务端自动生成，已被合同清单或采购计划引用的物料不可删除。" />
+                   description="选中三级分类可新增物料，节点编辑与删除也在本页；新增分类请到「物料库」页。分类最多三级，不允许在三级分类下继续新增分类。编码由服务端自动生成，已被合同清单或采购计划引用的物料不可删除。" />
           <a-alert v-else type="info" show-icon message="查看口径"
-                   description="这里只展示分类与物料；新增、编辑与删除请到「物料维护」页。" />
+                   description="选中一级 / 二级分类可在本页新增分类；新增物料、编辑与删除请到「物料维护」页。" />
         </div>
       </div>
     </section>
 
-    <a-drawer v-if="manage && store.can('contract:material:edit')" v-model:open="editOpen"
+    <a-drawer v-model:open="editOpen"
               :title="form.id ? '编辑节点' : (form.kind === 'CATEGORY' ? `新增${selectedLevel + 1}级分类` : '新增物料')"
               :width="drawerWidth" placement="right">
       <a-form layout="vertical">
-        <a-form-item label="节点类型">
+        <a-form-item v-if="form.id" label="节点类型">
           <a-input :value="form.kind === 'CATEGORY' ? '分类' : '物料'" readonly />
         </a-form-item>
         <a-form-item label="上级节点">

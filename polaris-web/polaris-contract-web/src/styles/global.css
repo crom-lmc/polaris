@@ -153,6 +153,8 @@ body {
 .panel-tree-side { width: 260px; flex: 0 0 260px; overflow: auto; padding: 10px; background: var(--panel-bg); border: 1px solid var(--panel-border); border-radius: 8px; }
 .panel-tree-main { flex: 1 1 auto; min-width: 0; overflow: auto; }
 .panel-tree-node { white-space: nowrap; }
+.panel-tree-side .ant-tree-indent-unit { display: inline-block; width: 18px; }
+.panel-tree-side .ant-tree-switcher { width: 18px; }
 .rate-cell, .usage-cell { display: flex; align-items: center; gap: 6px; min-width: 100px; }
 .rate-cell .ant-progress, .usage-cell .ant-progress { flex: 1 1 auto; min-width: 60px; }
 .rate-text { font-size: 12px; white-space: nowrap; }

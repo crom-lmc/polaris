@@ -177,6 +177,7 @@ export interface MaterialSave {
 
 export const getMaterialTree = () => request.get<never, MaterialVO[]>('/api/contract/materials')
 export const getMaterial = (id: string) => request.get<never, MaterialVO>(`/api/contract/materials/${id}`)
+export const saveCategory = (data: MaterialSave) => request.post<never, MaterialVO>('/api/contract/materials/category', data)
 export const saveMaterial = (data: MaterialSave) => request.post<never, MaterialVO>('/api/contract/materials', data)
 export const updateMaterial = (id: string, data: MaterialSave) =>
   request.put<never, void>(`/api/contract/materials/${id}`, data)
