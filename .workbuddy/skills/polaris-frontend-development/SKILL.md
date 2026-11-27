@@ -46,8 +46,8 @@ agent_created: true
 
 - 往来单位、所属项目、负责人、归属部门等主数据字段 MUST 用弹窗选择（表格 + 搜索 + 分页 + 单选），MUST NOT 用 `a-select` 下拉或 `a-input` 手输。统一用 `_shared/components/EntityPickerModal.vue`：组件 API 无关，调用方注入 `load(params) => {records,total}` 与动态列 `columns`，`rowKey` 指定唯一字段，`confirm` 回传完整行对象（便于联动带出其它字段）。
 - 表单里用 `a-input readonly`（`cursor:pointer`）点击打开弹窗，不再渲染下拉箭头；选中后把所需字段写入表单（value 存名称/编码与库中一致）。
-- **弹窗保持紧凑（2026-11-27 截图反馈，MUST）**：`EntityPickerModal` 搜索栏右侧 MUST NOT 放「单击行选中，确定后回填」等常驻提示（`ep-tip`），操作说明只经按钮 `title` 或 hover 呈现；弹窗宽 480、`a-table` 滚动高度 300、搜索输入框最大宽 200，MUST NOT 再放大（物料树+表格双栏的 `MaterialPickerModal` 不适用）。
-- **弹窗宽度 MUST 用数字绑定 `:width="480"`（2026-11-27 bug，MUST）**：AntDV `a-modal` 的 `width` 写成字符串 `width="700"` 会渲染成无效 CSS（`width:700` 无单位被浏览器忽略），弹窗被表格内容撑到 `max-width:94vw`（约 1000px），视觉上远大于设定值。所有 `a-modal` 宽度 MUST 用 `:width="数字"` 绑定，`_shared` 的 `EntityPickerModal`/`MaterialPickerModal` 尤其注意，MUST NOT 写回裸字符串。
+- **弹窗保持紧凑（2026-11-27 截图反馈，MUST）**：`EntityPickerModal` 搜索栏右侧 MUST NOT 放「单击行选中，确定后回填」等常驻提示（`ep-tip`），操作说明只经按钮 `title` 或 hover 呈现；供应商/项目/人员/部门四类弹窗统一宽 800、`a-table` 滚动高度 300、搜索输入框最大宽 260（物料树+表格双栏的 `MaterialPickerModal` 不适用）。
+- **弹窗宽度 MUST 用数字绑定 `:width="数字"`（2026-11-27 bug，MUST）**：AntDV `a-modal` 的 `width` 写成字符串 `width="700"` 会渲染成无效 CSS（`width:700` 无单位被浏览器忽略），弹窗被表格内容撑到 `max-width:94vw`（约 1000px），视觉上远大于设定值。所有 `a-modal` 宽度 MUST 用 `:width="数字"` 绑定，`_shared` 的 `EntityPickerModal`/`MaterialPickerModal` 尤其注意，MUST NOT 写回裸字符串。
 - 合同类型联动：采购合同的往来单位只能选 SUPPLIER/BOTH（label 显示「供应商」），销售合同只能选 CUSTOMER/BOTH（label 显示「客户」）；切换类型时清空已选避免角色错配。服务端也做同样校验，前端过滤不是唯一防线。
 - 负责人选中后 MUST 自动带出其所属部门写入归属部门（只读、不可手改）；部门为空时给出提示不允许保存。
 - 财务侧选项多为一次性加载的候选，用 `useEntityPickers.ts` 的 `paginatePicker`/`orgRows` 做本地过滤分页；合同侧可直连后端分页接口。

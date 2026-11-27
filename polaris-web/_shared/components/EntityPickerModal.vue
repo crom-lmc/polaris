@@ -131,7 +131,7 @@ watch(() => props.open, async (open) => {
 </script>
 
 <template>
-  <a-modal :open="open" :title="title || '选择'" :width="480" style="max-width: 94vw"
+  <a-modal :open="open" :title="title || '选择'" :width="800" style="max-width: 94vw"
            :footer="null" :mask-closable="false" @cancel="close">
     <div class="ep-wrap">
       <div class="ep-search">
@@ -168,7 +168,7 @@ watch(() => props.open, async (open) => {
 <style scoped>
 .ep-wrap { min-height: 360px; }
 .ep-search { display: flex; gap: 8px; align-items: center; margin-bottom: 10px; }
-.ep-search .ant-input { flex: 1 1 auto; max-width: 200px; }
+.ep-search .ant-input { flex: 1 1 auto; max-width: 260px; }
 .ep-table { min-height: 0; }
 .ep-empty { padding: 24px 8px; text-align: center; color: var(--muted, #8a9099); font-size: 12px; }
 .ep-footer {
