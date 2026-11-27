@@ -45,25 +45,60 @@ const editingId = ref<string | null>(null)
 const form = reactive({
   materialCode: '', materialName: '', spec: '', unit: '', qty: 1, price: 0, remark: ''
 })
-/** 清单行选料统一走公共弹窗，编辑时按物料编码回填 */
+/** 清单行选料统一走公共弹窗：新增直接弹窗选料并写入清单行，编辑时在抽屉内回填 */
 const pickerOpen = ref(false)
-const pickerInitial = computed<MaterialPick[]>(() =>
-  form.materialCode ? [{
+const pickerMode = ref<'add' | 'edit'>('edit')
+const pickerInitial = ref<MaterialPick[]>([])
+
+function openAddPicker() {
+  pickerMode.value = 'add'
+  pickerInitial.value = []
+  pickerOpen.value = true
+}
+function openEditPicker() {
+  pickerMode.value = 'edit'
+  pickerInitial.value = form.materialCode ? [{
     code: form.materialCode,
     name: form.materialName || form.materialCode,
     spec: form.spec,
     unit: form.unit,
     price: form.price
-  }] : [])
+  }] : []
+  pickerOpen.value = true
+}
 
-function onMaterialConfirm(picks: MaterialPick[]) {
+async function onMaterialConfirm(picks: MaterialPick[]) {
+  if (!picks.length) return
+  if (pickerMode.value === 'add') {
+    await addFromMaterials(picks)
+    return
+  }
   const m = picks[0]
-  if (!m) return
   form.materialCode = m.code
   form.materialName = m.name
   form.spec = m.spec || ''
   form.unit = m.unit || ''
   if (!form.price && m.price) form.price = m.price
+}
+
+/** 直接由物料生成清单行：数量默认 1、单价取参考价，后续可在表格「编辑」调整 */
+async function addFromMaterials(picks: MaterialPick[]) {
+  saving.value = true
+  let ok = 0
+  try {
+    for (const m of picks) {
+      const price = Number(m.price || 0)
+      const payload: ItemSave = {
+        materialCode: m.code, materialName: m.name, spec: m.spec || undefined, unit: m.unit || undefined,
+        qty: 1, price, amount: Number(price.toFixed(2))
+      }
+      await saveItem(props.contractNo, payload)
+      ok++
+    }
+    if (ok) message.success(`已添加 ${ok} 行清单，可在表格「编辑」调整数量与单价`)
+    await load()
+  } catch (e: any) { message.error(e?.message || '添加清单行失败：' + (e?.message || '')) }
+  finally { saving.value = false }
 }
 const amount = computed(() => Number(((Number(form.qty) || 0) * (Number(form.price) || 0)).toFixed(2)))
 function openEdit(row?: ItemVO) {
@@ -173,7 +208,7 @@ onMounted(() => { load() })
       <span class="hint">合同金额由清单合计派生；超项目预算由服务端校验</span>
       <a-tag color="blue">清单 {{ rows.length }} 行</a-tag>
       <a-button v-if="store.can('contract:ledger:list')" size="small" @click="openAcceptRecords">验收记录</a-button>
-      <a-button v-if="store.can('contract:item:edit')" type="primary" size="small" @click="openEdit()">＋ 新增清单行</a-button>
+      <a-button v-if="store.can('contract:item:edit')" type="primary" size="small" :loading="saving" @click="openAddPicker">＋ 新增清单行</a-button>
     </div>
     <a-table class="ft-table" row-key="id" :columns="columns" :data-source="rows" :loading="loading" :pagination="false"
              :class="{ 'tbl-empty-mode': !loading && !rows.length }" :scroll="rows.length ? { x: 980 } : undefined">
@@ -206,7 +241,7 @@ onMounted(() => { load() })
       <a-form layout="vertical">
         <a-form-item label="所属合同"><a-input :value="contractNo" readonly /></a-form-item>
         <a-form-item label="物料" required>
-          <a-button style="text-align: left" @click="pickerOpen = true">
+          <a-button style="text-align: left" @click="openEditPicker">
             {{ form.materialCode ? `${form.materialCode} · ${form.materialName}` : '从物料库选择物料' }}
           </a-button>
         </a-form-item>
@@ -274,7 +309,8 @@ onMounted(() => { load() })
       </a-spin>
     </a-modal>
 
-    <MaterialPickerModal v-model:open="pickerOpen" title="选择物料" :initial-materials="pickerInitial"
+    <MaterialPickerModal v-model:open="pickerOpen" :title="pickerMode === 'add' ? '选择物料（可多选）' : '选择物料'"
+                         :multiple="pickerMode === 'add'" :initial-materials="pickerInitial"
                          :load-children="loadMaterialChildren" :load-materials="loadMaterialPage"
                          @confirm="onMaterialConfirm" />
   </div>
