@@ -4,6 +4,7 @@ import com.laimengchao.sso.common.R;
 import com.laimengchao.sso.contract.module.contract.dto.ApprovalCallbackRequest;
 import com.laimengchao.sso.contract.module.contract.service.ContractService;
 import com.laimengchao.sso.contract.module.contract.service.PaymentPlanService;
+import com.laimengchao.sso.contract.module.contract.service.PurchasePlanService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
@@ -27,9 +28,12 @@ public class InternalApprovalCallbackController {
     private static final String BIZ_PURCHASE_SENIOR = "contract.purchase.senior";
     private static final String BIZ_PAYMENT = "contract.payment";
     private static final String BIZ_PAYMENT_SENIOR = "contract.payment.senior";
+    private static final String BIZ_SALES = "contract.sales";
+    private static final String BIZ_PLAN = "contract.plan";
 
     private final ContractService contractService;
     private final PaymentPlanService paymentPlanService;
+    private final PurchasePlanService purchasePlanService;
 
     @PostMapping("/approval-callback")
     public ResponseEntity<R<Void>> approvalCallback(@RequestBody ApprovalCallbackRequest req) {
@@ -38,10 +42,13 @@ public class InternalApprovalCallbackController {
         try {
             if (req.getBizId() == null) {
                 log.warn("合同审批回调缺 bizType/bizId：{}", req.getBizType());
-            } else if (BIZ_PURCHASE.equals(req.getBizType()) || BIZ_PURCHASE_SENIOR.equals(req.getBizType())) {
+            } else if (BIZ_PURCHASE.equals(req.getBizType()) || BIZ_PURCHASE_SENIOR.equals(req.getBizType())
+                    || BIZ_SALES.equals(req.getBizType())) {
                 contractService.handleApprovalResult(req.getBizId(), req.getApproved(), req.getResult());
             } else if (BIZ_PAYMENT.equals(req.getBizType()) || BIZ_PAYMENT_SENIOR.equals(req.getBizType())) {
                 paymentPlanService.handleApprovalResult(req.getBizId(), req.getApproved(), req.getResult());
+            } else if (BIZ_PLAN.equals(req.getBizType())) {
+                purchasePlanService.handleApprovalResult(req.getBizId(), req.getApproved(), req.getResult());
             } else {
                 log.warn("合同审批回调 bizType 未识别：{}", req.getBizType());
             }

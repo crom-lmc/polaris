@@ -32,6 +32,11 @@
             <groupId>com.laimengchao.sso</groupId>
             <artifactId>polaris-settings-client</artifactId>
         </dependency>
+        <!-- 销售客户验收通过后推应收：ReceivableApi.create（internal token fail-closed） -->
+        <dependency>
+            <groupId>com.laimengchao.sso</groupId>
+            <artifactId>polaris-finance-client</artifactId>
+        </dependency>
         <dependency>
             <groupId>com.laimengchao.sso</groupId>
             <artifactId>polaris-ehr-client</artifactId>

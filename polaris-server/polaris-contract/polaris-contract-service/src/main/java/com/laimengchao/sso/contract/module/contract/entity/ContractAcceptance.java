@@ -25,8 +25,14 @@ public class ContractAcceptance extends BaseEntity {
     private String materialCode;
     private BigDecimal qty;
     private LocalDate date;
-    /** 合格 / 部分合格 / 不合格 */
+    /** 合格 / 部分合格 / 不合格；销售侧为「通过 / 不通过」 */
     private String result;
+    /** 客户验收单号（销售，选填） */
+    private String customerNo;
+    /** 推送生成的应收单号，非空即已推，防重复 */
+    private String arNo;
+    /** 推应收失败原因，供重试 */
+    private String arError;
     /** DRAFT / POSTED */
     private String status;
     /** 过账生成的凭证号（财务域回写） */

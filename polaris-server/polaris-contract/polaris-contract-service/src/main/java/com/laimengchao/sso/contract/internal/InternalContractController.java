@@ -135,6 +135,16 @@ public class InternalContractController {
     }
 
     /**
+     * 销售合同应收核销完成回调：财务域在应收单全部核销后投递，触发合同 EXECUTING→COMPLETED。
+     * 幂等；条件不满足（清单未全验收/有验收单未推应收）时静默跳过。
+     */
+    @PostMapping("/contracts/{no}/ar-settled")
+    public R<Void> arSettled(@PathVariable("no") String no) {
+        contractItemService.tryCompleteOnArSettled(no);
+        return R.ok();
+    }
+
+    /**
      * 财务域建应付/付款单并过账后回写付款计划：来源单据号、凭证号、状态。
      * 幂等，由财务域在凭证过账后投递。
      */

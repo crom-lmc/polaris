@@ -67,6 +67,13 @@ public class PurchasePlanController {
         return R.ok();
     }
 
+    /** 审批信息只读查询（走审批中心反查，未发起返回 null） */
+    @GetMapping("/{id}/approval")
+    @Permit(PermissionCodes.CONTRACT_PLAN_LIST)
+    public R<?> approvalInfo(@PathVariable("id") Long id) {
+        return R.ok(planService.approvalInfo(id));
+    }
+
     @PostMapping("/{id}/approve")
     @Permit(PermissionCodes.CONTRACT_PLAN_EDIT)
     public R<Void> approve(@PathVariable("id") Long id) {

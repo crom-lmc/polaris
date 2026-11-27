@@ -54,6 +54,7 @@ public class ContractItemServiceImpl implements ContractItemService {
     private final EmbedPointService embedPointService;
     private final FileApi fileApi;
     private final DataScopeService dataScopeService;
+    private final com.laimengchao.sso.finance.client.api.ReceivableApi receivableApi;
 
     public List<ContractVOs.ItemVO> list(String contractNo) {
         ContractHeader header = contractService.requireByNo(contractNo);
@@ -147,7 +148,10 @@ public class ContractItemServiceImpl implements ContractItemService {
         mapper.deleteById(id);
     }
 
-    /** 到货验收：增加 deliveredQty，并生成 JD 验收单（单号走 settings） */
+    /**
+     * 验收：采购=到货验收（合格/不合格，累加交付）；销售=客户验收（通过/不通过，通过才累加交付并推应收）。
+     * 本方法只做本地落库；销售通过的推应收在事务提交后由 afterCommit 回调执行，失败不回滚验收、记录 ar_error 供重试。
+     */
     @Transactional(rollbackFor = Exception.class)
     public ContractVOs.AcceptanceVO accept(Long id, ContractRequests.AcceptRequest req) {
         ContractItem item = require(id);
@@ -172,9 +176,15 @@ public class ContractItemServiceImpl implements ContractItemService {
         if (delivered.add(req.getQty()).compareTo(ordered) > 0) {
             throw new BizException(ContractErrorCode.ACCEPTANCE_QTY_INVALID);
         }
-        item.setDeliveredQty(delivered.add(req.getQty()));
-        item.setUpdatedAt(LocalDateTime.now());
-        mapper.updateById(item);
+        boolean sales = ContractServiceImpl.SALES.equals(header.getType());
+        // 结果归一化：采购「合格/不合格」，销售「通过/不通过」；通过/合格才累加交付
+        String result = normalizeResult(req.getResult(), sales);
+        boolean accepted = isAcceptedResult(result, sales);
+        if (accepted) {
+            item.setDeliveredQty(delivered.add(req.getQty()));
+            item.setUpdatedAt(LocalDateTime.now());
+            mapper.updateById(item);
+        }
         ContractAcceptance acceptance = new ContractAcceptance();
         acceptance.setNo(bizNoService.next(BizNoServiceImpl.TABLE_ACCEPTANCE));
         acceptance.setContractNo(header.getNo());
@@ -182,25 +192,155 @@ public class ContractItemServiceImpl implements ContractItemService {
         acceptance.setMaterialCode(item.getMaterialCode());
         acceptance.setQty(req.getQty());
         acceptance.setDate(req.getDate());
-        // 验收结果口径统一为「合格/不合格」：历史前端传 PASS/FAIL，归一化入库，
-        // 否则付款埋点查 result='合格' 永远命中 0（验收完成也无法发起付款）
-        String result = nvl(req.getResult(), "合格");
-        if ("PASS".equalsIgnoreCase(result) || "OK".equalsIgnoreCase(result)) {
-            result = "合格";
-        } else if ("FAIL".equalsIgnoreCase(result) || "NG".equalsIgnoreCase(result)) {
-            result = "不合格";
-        }
         acceptance.setResult(result);
+        acceptance.setCustomerNo(sales && req.getCustomerNo() != null ? req.getCustomerNo().trim() : "");
         acceptance.setStatus("DRAFT");
         acceptance.setOrgCode(header.getOrgCode());
         acceptance.setFileIds(ContractAttachments.join(req.getFileIds()));
         acceptance.setCreatedAt(LocalDateTime.now());
         acceptanceMapper.insert(acceptance);
-        log.info("合同清单验收：contractNo={} itemId={} qty={} acceptanceNo={}",
-                header.getNo(), item.getId(), req.getQty(), acceptance.getNo());
+        log.info("合同清单验收：contractNo={} itemId={} qty={} acceptanceNo={} result={} sales={}",
+                header.getNo(), item.getId(), req.getQty(), acceptance.getNo(), result, sales);
         // 首次验收自动推进：已生效 → 执行中；乐观锁保证幂等，后续验收不会再触发
         contractService.advanceIfStatus(header.getNo(), "EFFECTIVE", "EXECUTING");
+        // 销售验收通过：事务提交后推应收（不通过不推），失败不回滚验收
+        if (sales && accepted) {
+            final Long acceptanceId = acceptance.getId();
+            org.springframework.transaction.support.TransactionSynchronizationManager.registerSynchronization(
+                    new org.springframework.transaction.support.TransactionSynchronization() {
+                        @Override
+                        public void afterCommit() {
+                            try {
+                                pushReceivable(acceptanceId);
+                            } catch (RuntimeException e) {
+                                // 验收已落库：推应收失败只记录，用户可在验收记录里重试
+                                log.error("销售验收推应收失败：acceptanceId={} no={}", acceptanceId, acceptance.getNo(), e);
+                            }
+                        }
+                    });
+        }
         return toAcceptanceVO(acceptance);
+    }
+
+    /** 结果归一化：采购「合格/不合格」，销售「通过/不通过」；兼容历史 PASS/OK/FAIL/NG 与中文合格 */
+    private String normalizeResult(String raw, boolean sales) {
+        String v = nvl(raw, sales ? "通过" : "合格");
+        boolean positive = "PASS".equalsIgnoreCase(v) || "OK".equalsIgnoreCase(v)
+                || "合格".equals(v) || "通过".equals(v);
+        boolean negative = "FAIL".equalsIgnoreCase(v) || "NG".equalsIgnoreCase(v)
+                || "不合格".equals(v) || "不通过".equals(v);
+        if (positive) return sales ? "通过" : "合格";
+        if (negative) return sales ? "不通过" : "不合格";
+        return sales ? "不通过" : "不合格"; // 未知值按不通过/不合格处理（fail-closed）
+    }
+
+    private boolean isAcceptedResult(String result, boolean sales) {
+        return sales ? "通过".equals(result) : "合格".equals(result);
+    }
+
+    /**
+     * 销售验收通过推应收：调用财务域 ReceivableApi.create（internal token），按该批验收金额生成一张应收单。
+     * 幂等：ar_no 非空直接返回；失败写 ar_error 供重试。no @Transactional——由调用方（afterCommit / 重试端点）控制。
+     */
+    public void pushReceivable(Long acceptanceId) {
+        ContractAcceptance a = acceptanceMapper.selectById(acceptanceId);
+        if (a == null) {
+            return;
+        }
+        if (a.getArNo() != null && !a.getArNo().isBlank()) {
+            return; // 幂等：已推过
+        }
+        if (!"通过".equals(a.getResult())) {
+            return; // 不通过 / 采购验收不推应收，重试端点也拦住
+        }
+        ContractHeader header;
+        ContractItem item;
+        try {
+            header = contractService.requireByNo(a.getContractNo());
+            item = mapper.selectById(a.getItemId());
+        } catch (RuntimeException e) {
+            markArError(acceptanceId, "合同/清单不存在：" + e.getMessage());
+            return;
+        }
+        // 该批验收金额 = 验收数量 × 清单单价
+        BigDecimal price = item == null || item.getPrice() == null ? BigDecimal.ZERO : item.getPrice();
+        BigDecimal amount = a.getQty() == null ? BigDecimal.ZERO : a.getQty().multiply(price);
+        if (amount.signum() <= 0) {
+            markArError(acceptanceId, "验收金额小于等于 0，无法推应收");
+            return;
+        }
+        com.laimengchao.sso.finance.client.dto.ReceivableCreateRequest dto =
+                new com.laimengchao.sso.finance.client.dto.ReceivableCreateRequest();
+        dto.setParty(header.getPartnerCode());
+        dto.setAmount(amount);
+        dto.setContractNo(header.getNo());
+        dto.setSummary("销售客户验收 " + a.getNo() + (a.getCustomerNo() == null || a.getCustomerNo().isBlank()
+                ? "" : "（客户单号 " + a.getCustomerNo() + "）"));
+        dto.setDate(a.getDate() == null ? null : a.getDate().toString());
+        dto.setOrgCode(header.getOrgCode());
+        try {
+            var resp = receivableApi.create(dto);
+            if (resp == null || !resp.ok() || resp.getData() == null
+                    || resp.getData().getNo() == null || resp.getData().getNo().isBlank()) {
+                throw new RuntimeException(resp == null ? "无响应" : "返回空单号");
+            }
+            ContractAcceptance upd = new ContractAcceptance();
+            upd.setId(acceptanceId);
+            upd.setArNo(resp.getData().getNo());
+            upd.setArError("");
+            upd.setUpdatedAt(LocalDateTime.now());
+            acceptanceMapper.updateById(upd);
+            log.info("销售验收推应收成功：acceptanceNo={} arNo={}", a.getNo(), resp.getData().getNo());
+        } catch (RuntimeException e) {
+            markArError(acceptanceId, e.getMessage() == null ? "推应收失败" : e.getMessage());
+            throw e;
+        }
+    }
+
+    private void markArError(Long acceptanceId, String reason) {
+        ContractAcceptance upd = new ContractAcceptance();
+        upd.setId(acceptanceId);
+        upd.setArError(reason == null ? "" : reason.length() > 300 ? reason.substring(0, 300) : reason);
+        upd.setUpdatedAt(LocalDateTime.now());
+        acceptanceMapper.updateById(upd);
+    }
+
+    /**
+     * 销售合同完成推进：财务应收全部核销后回调本方法。
+     * 条件：清单全部验收完成 + 所有通过的验收单都已推应收（arNo 非空）；未达条件幂等跳过。
+     * 注意：财务侧核销回调明天对接，本方法先就位，internal 端点由财务核销完成后投递。
+     */
+    public void tryCompleteOnArSettled(String contractNo) {
+        if (contractNo == null || contractNo.isBlank()) {
+            return;
+        }
+        ContractHeader header;
+        try {
+            header = contractService.requireByNo(contractNo);
+        } catch (RuntimeException e) {
+            return; // internal 调用无 dataScope，合同不存在直接跳过
+        }
+        if (!ContractServiceImpl.SALES.equals(header.getType())) {
+            return; // 仅销售合同走应收闭环
+        }
+        List<ContractItem> items = mapper.selectList(new LambdaQueryWrapper<ContractItem>()
+                .eq(ContractItem::getContractNo, contractNo));
+        if (items == null || items.isEmpty() || !items.stream().allMatch(this::fullyAccepted)) {
+            return;
+        }
+        List<ContractAcceptance> acceptances = acceptanceMapper.selectList(new LambdaQueryWrapper<ContractAcceptance>()
+                .eq(ContractAcceptance::getContractNo, contractNo));
+        if (acceptances == null || acceptances.isEmpty()) {
+            return;
+        }
+        // 所有「通过」的验收单都必须已推应收；有未推的（含失败）不推进
+        boolean allPushed = acceptances.stream()
+                .filter(a -> "通过".equals(a.getResult()))
+                .allMatch(a -> a.getArNo() != null && !a.getArNo().isBlank());
+        if (!allPushed) {
+            return;
+        }
+        contractService.advanceIfStatus(contractNo, "EXECUTING", "COMPLETED");
     }
 
     public List<ContractVOs.AcceptanceVO> acceptances(String contractNo) {
@@ -349,7 +489,10 @@ public class ContractItemServiceImpl implements ContractItemService {
         vo.setMaterialCode(e.getMaterialCode());
         vo.setQty(e.getQty());
         vo.setDate(e.getDate() == null ? null : e.getDate().toString());
+        vo.setCustomerNo(e.getCustomerNo());
         vo.setResult(e.getResult());
+        vo.setArNo(e.getArNo());
+        vo.setArError(e.getArError());
         vo.setStatus(e.getStatus());
         vo.setVoucherNo(e.getVoucherNo());
         vo.setOrgCode(e.getOrgCode());

@@ -91,6 +91,8 @@ public final class ContractRequests {
         private LocalDate signedDate;
         private LocalDate effectiveDate;
         private LocalDate endDate;
+        /** 质保到期日：质保金节点放行依据 */
+        private LocalDate warrantyDueDate;
         private String status;
         private String paymentTerms;
         /** 合同标的 */
@@ -125,6 +127,8 @@ public final class ContractRequests {
         private String result;
         private LocalDate date;
         private String remark;
+        /** 客户验收单号（销售合同，选填） */
+        private String customerNo;
         /** 验收凭证 file_id 列表 */
         private List<String> fileIds;
     }
@@ -132,6 +136,10 @@ public final class ContractRequests {
     @Data
     public static class PaymentPlanSave {
         private String stage;
+        /** 引用的合同付款节点 ID；为空表示存量自由录入，沿用全验收门槛 */
+        private Long termId;
+        /** GOODS 阶段所选清单行 ID，逗号分隔；其他阶段为空 */
+        private String itemIds;
         private LocalDate dueDate;
         private BigDecimal amount;
         /** 付款事由 */
@@ -139,6 +147,25 @@ public final class ContractRequests {
         private String status;
         /** 合同与验收凭证 file_id 列表；null 表示本次未提交，保留原值 */
         private List<String> fileIds;
+    }
+
+    /** 合同付款节点批量保存（一次性替换该合同全部节点） */
+    @Data
+    public static class PaymentTermSaveBatch {
+        private List<PaymentTermSave> terms;
+    }
+
+    @Data
+    public static class PaymentTermSave {
+        /** 已有节点 ID，空表示新增 */
+        private Long id;
+        /** PREPAY / GOODS / ACCEPT / WARRANTY */
+        private String stage;
+        /** 比例% */
+        private BigDecimal ratio;
+        /** 计划付款日（选填） */
+        private LocalDate dueDate;
+        private String remark;
     }
 
     /** 付款申请：sourceDocNo 由财务域建单后回写，这里只接收不生成 */

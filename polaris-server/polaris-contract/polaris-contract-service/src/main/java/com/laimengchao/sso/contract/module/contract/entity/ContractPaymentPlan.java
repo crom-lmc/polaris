@@ -18,6 +18,10 @@ public class ContractPaymentPlan extends BaseEntity {
     private String no;
     private String contractNo;
     private String stage;
+    /** contract_payment_term.id；空表示存量自由录入 */
+    private Long termId;
+    /** GOODS 阶段所选清单行 ID，逗号分隔 */
+    private String itemIds;
     private LocalDate dueDate;
     private BigDecimal amount;
     /** 付款事由 */

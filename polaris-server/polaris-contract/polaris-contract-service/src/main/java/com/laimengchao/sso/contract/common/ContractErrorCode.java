@@ -40,7 +40,12 @@ public enum ContractErrorCode implements IErrorCode {
     CHANGE_TIMES_EXCEEDED(8427, "合同变更次数已达埋点上限，不能再变更"),
     MATERIAL_STATUS_INVALID(8428, "分类状态不支持该操作"),
     ATTACHMENT_UPLOAD_FAILED(8429, "附件上传失败，请稍后重试"),
-    ACCEPTANCE_DATE_REQUIRED(8430, "验收日期不能为空");
+    ACCEPTANCE_DATE_REQUIRED(8430, "验收日期不能为空"),
+    PAYMENT_TERM_NOT_FOUND(8431, "付款节点不存在或已删除"),
+    PAYMENT_TERM_LIMIT(8432, "超出该付款节点可申请金额"),
+    WARRANTY_NOT_DUE(8433, "质保期未满，暂不能申请质保金"),
+    GOODS_ITEMS_REQUIRED(8434, "请选择到货清单行"),
+    AR_PUSH_FAILED(8435, "推应收失败，验收已保留，可稍后重试");
 
     private final int code;
     private final String message;
@@ -53,7 +58,7 @@ public enum ContractErrorCode implements IErrorCode {
     @Override
     public int httpStatus() {
         return switch (code) {
-            case 8401, 8405, 8409, 8412, 8414, 8416, 8417, 8419 -> 404;
+            case 8401, 8405, 8409, 8412, 8414, 8416, 8417, 8419, 8431 -> 404;
             case 8404 -> 403;
             case 8422, 8425 -> 503;
             default -> 400;

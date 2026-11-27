@@ -78,18 +78,21 @@ public class ContractServiceImpl implements ContractService {
     private final ContractChangeLogMapper changeLogMapper;
     private final ContractItemMapper itemMapper;
     private final ContractPaymentPlanMapper planMapper;
+    private final com.laimengchao.sso.contract.module.contract.mapper.ContractPaymentTermMapper paymentTermMapper;
     private final ContractPartnerMapper partnerMapper;
     private final ContractProjectMapper projectMapper;
     private final BizNoService bizNoService;
     private final ProjectService projectService;
     private final EmbedPointService embedPointService;
     private final ContractApprovalLauncher approvalLauncher;
+    private final com.laimengchao.sso.contract.module.contract.support.ContractApprovalInfoSupport approvalInfoSupport;
     private final DataScopeService dataScopeService;
     private final FileApi fileApi;
 
     /** 采购合同审批 bizType；超升级线用 senior 模板多一级审批（同 EHR 招聘双 bizType 模式） */
     public static final String BIZ_CONTRACT_PURCHASE = "contract.purchase";
     public static final String BIZ_CONTRACT_PURCHASE_SENIOR = "contract.purchase.senior";
+    public static final String BIZ_CONTRACT_SALES = "contract.sales";
 
     @Value("${contract.internal-base-url:http://127.0.0.1:9015}")
     private String internalBaseUrl;
@@ -371,10 +374,11 @@ public class ContractServiceImpl implements ContractService {
         if ("PENDING".equals(target) && SALES.equals(entity.getType())) {
             requireCreditOk(entity);
         }
-        boolean needApproval = "PENDING".equals(target) && PURCHASE.equals(entity.getType())
-                && contractAmount(entity.getNo()).compareTo(
-                        BigDecimal.valueOf(embedPointService.purchaseApprovalAmount())) >= 0;
-        // 采购合同金额未达审批线时无需审批中心，提交即生效；达线才停在 PENDING 等回调
+        // 采购合同达审批线 / 销售合同提交审批 → 进审批中心等回调；采购未达线提交即生效。
+        boolean needApproval = "PENDING".equals(target)
+                && (SALES.equals(entity.getType())
+                    || (PURCHASE.equals(entity.getType()) && contractAmount(entity.getNo()).compareTo(
+                        BigDecimal.valueOf(embedPointService.purchaseApprovalAmount())) >= 0));
         String finalStatus = "PENDING".equals(target) && PURCHASE.equals(entity.getType()) && !needApproval
                 ? "EFFECTIVE" : target;
         entity.setStatus(finalStatus);
@@ -394,9 +398,12 @@ public class ContractServiceImpl implements ContractService {
             throw new BizException(ContractErrorCode.CONTRACT_STATUS_INVALID,
                     "合同状态不支持从 " + current + " 改为 " + target);
         }
-        if (PURCHASE.equals(entity.getType()) && "PENDING".equals(current)) {
+        if ("PENDING".equals(current) && approvalInfoSupport.hasRunning(String.valueOf(entity.getId()),
+                PURCHASE.equals(entity.getType())
+                        ? new String[]{BIZ_CONTRACT_PURCHASE, BIZ_CONTRACT_PURCHASE_SENIOR}
+                        : new String[]{BIZ_CONTRACT_SALES})) {
             throw new BizException(ContractErrorCode.CONTRACT_STATUS_INVALID,
-                    "采购合同审批中状态由审批中心回调更新，不能手工修改");
+                    "合同审批中状态由审批中心回调更新，不能手工修改");
         }
     }
 
@@ -438,12 +445,14 @@ public class ContractServiceImpl implements ContractService {
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
     }
 
-    /** 构造采购合同审批发起请求 */
+    /** 构造合同审批发起请求：采购按金额档次选模板，销售走独立模板 */
     private ApprovalStartDTO buildApprovalStart(ContractHeader entity) {
         ApprovalStartDTO dto = new ApprovalStartDTO();
-        boolean senior = contractAmount(entity.getNo()).compareTo(
+        boolean sales = SALES.equals(entity.getType());
+        boolean senior = !sales && contractAmount(entity.getNo()).compareTo(
                 BigDecimal.valueOf(embedPointService.purchaseApprovalAmount())) > 0;
-        dto.setBizType(senior ? BIZ_CONTRACT_PURCHASE_SENIOR : BIZ_CONTRACT_PURCHASE);
+        dto.setBizType(sales ? BIZ_CONTRACT_SALES
+                : (senior ? BIZ_CONTRACT_PURCHASE_SENIOR : BIZ_CONTRACT_PURCHASE));
         dto.setBizId(String.valueOf(entity.getId()));
         dto.setBizNo(entity.getNo());
         // applicant_id 在 appr_instance 非空无默认值；不传会让 settings 侧 INSERT 失败返回 500
@@ -453,7 +462,7 @@ public class ContractServiceImpl implements ContractService {
         }
         dto.setApplicantId(applicantId);
         dto.setApplicantName(com.laimengchao.sso.utils.AccountContext.getUsername());
-        dto.setTitle("采购合同 " + entity.getNo() + " " + entity.getName());
+        dto.setTitle((sales ? "销售合同 " : "采购合同 ") + entity.getNo() + " " + entity.getName());
         dto.setSubjectId(String.valueOf(entity.getId()));
         dto.setBizIdKind("DOC");
         java.util.Map<String, Object> form = new java.util.LinkedHashMap<>();
@@ -491,6 +500,19 @@ public class ContractServiceImpl implements ContractService {
                 .eq(ContractHeader::getId, id).eq(ContractHeader::getStatus, "PENDING")
                 .set(ContractHeader::getStatus, pass ? "EFFECTIVE" : "DRAFT"));
         return true;
+    }
+
+    @Override
+    public ContractVOs.ApprovalInfoVO approvalInfo(Long id) {
+        require(id); // 复用数据权限校验
+        ContractHeader entity = mapper.selectById(id);
+        String bizType = entity != null && SALES.equals(entity.getType())
+                ? BIZ_CONTRACT_SALES
+                : null;
+        com.laimengchao.sso.settings.client.dto.ApprovalInstanceDTO found = bizType == null
+                ? approvalInfoSupport.latest(String.valueOf(id), BIZ_CONTRACT_PURCHASE, BIZ_CONTRACT_PURCHASE_SENIOR)
+                : approvalInfoSupport.latest(String.valueOf(id), bizType);
+        return approvalInfoSupport.toVO(found);
     }
 
     /**
@@ -605,6 +627,24 @@ public class ContractServiceImpl implements ContractService {
                 partnerNames.put(p.getCode(), p.getName());
             }
         }
+        // 付款节点摘要：供详情/列表展示，含比例与锁定金额；已申请金额按需走节点端点
+        Map<String, java.util.List<ContractVOs.PaymentTermVO>> termsByNo = new LinkedHashMap<>();
+        LambdaQueryWrapper<com.laimengchao.sso.contract.module.contract.entity.ContractPaymentTerm> tw =
+                new LambdaQueryWrapper<com.laimengchao.sso.contract.module.contract.entity.ContractPaymentTerm>()
+                        .in(com.laimengchao.sso.contract.module.contract.entity.ContractPaymentTerm::getContractNo, nos)
+                        .orderByAsc(com.laimengchao.sso.contract.module.contract.entity.ContractPaymentTerm::getCreatedAt);
+        for (com.laimengchao.sso.contract.module.contract.entity.ContractPaymentTerm t : paymentTermMapper.selectList(tw)) {
+            ContractVOs.PaymentTermVO tv = new ContractVOs.PaymentTermVO();
+            tv.setId(t.getId());
+            tv.setContractNo(t.getContractNo());
+            tv.setStage(t.getStage());
+            tv.setRatio(t.getRatio());
+            tv.setAmount(t.getAmount());
+            tv.setDueDate(t.getDueDate() == null ? null : t.getDueDate().toString());
+            tv.setRemark(t.getRemark());
+            tv.setOrgCode(t.getOrgCode());
+            termsByNo.computeIfAbsent(t.getContractNo(), k -> new java.util.ArrayList<>()).add(tv);
+        }
         Map<String, Integer> changeCountByNo = new LinkedHashMap<>();
         LambdaQueryWrapper<ContractChangeLog> cw = new LambdaQueryWrapper<ContractChangeLog>()
                 .in(ContractChangeLog::getContractNo, nos)
@@ -641,6 +681,7 @@ public class ContractServiceImpl implements ContractService {
             vo.setAcceptanceDone(countByNo.getOrDefault(h.getNo(), 0) > 0
                     && Boolean.TRUE.equals(acceptanceDoneByNo.get(h.getNo())));
             vo.setPlanCount(planCountByNo.getOrDefault(h.getNo(), 0));
+            vo.setPaymentTermList(termsByNo.getOrDefault(h.getNo(), java.util.List.of()));
             vo.setChangeCount(changeCountByNo.getOrDefault(h.getNo(), 0));
             vo.setPartnerName(partnerNames.get(h.getPartnerCode()));
             vo.setProjectName(projectNames.get(h.getProjectNo()));
@@ -671,6 +712,7 @@ public class ContractServiceImpl implements ContractService {
         vo.setSignedDate(e.getSignedDate() == null ? null : e.getSignedDate().toString());
         vo.setEffectiveDate(e.getEffectiveDate() == null ? null : e.getEffectiveDate().toString());
         vo.setEndDate(e.getEndDate() == null ? null : e.getEndDate().toString());
+        vo.setWarrantyDueDate(e.getWarrantyDueDate() == null ? null : e.getWarrantyDueDate().toString());
         vo.setStatus(e.getStatus());
         vo.setPaymentTerms(e.getPaymentTerms());
         vo.setSubject(e.getSubject());
@@ -695,6 +737,7 @@ public class ContractServiceImpl implements ContractService {
         e.setSignedDate(req.getSignedDate());
         e.setEffectiveDate(req.getEffectiveDate());
         e.setEndDate(req.getEndDate());
+        e.setWarrantyDueDate(req.getWarrantyDueDate());
         // 状态只能由 changeStatus 按状态机推进，保存/局部更新不得覆盖
         e.setPaymentTerms(nvl(req.getPaymentTerms(), ""));
         e.setSubject(nvl(req.getSubject(), ""));

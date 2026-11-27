@@ -15,16 +15,14 @@ import com.laimengchao.sso.contract.module.contract.entity.ContractAcceptance;
 import com.laimengchao.sso.contract.module.contract.entity.ContractHeader;
 import com.laimengchao.sso.contract.module.contract.entity.ContractItem;
 import com.laimengchao.sso.contract.module.contract.entity.ContractPaymentPlan;
+import com.laimengchao.sso.contract.module.contract.entity.ContractPaymentTerm;
 import com.laimengchao.sso.contract.module.contract.mapper.ContractAcceptanceMapper;
 import com.laimengchao.sso.contract.module.contract.mapper.ContractItemMapper;
 import com.laimengchao.sso.contract.module.contract.mapper.ContractPaymentPlanMapper;
 import com.laimengchao.sso.contract.module.contract.support.ContractApprovalLauncher;
 import com.laimengchao.sso.contract.module.contract.support.ContractAttachments;
 import com.laimengchao.sso.contract.module.contract.vo.ContractVOs;
-import com.laimengchao.sso.settings.client.api.ApprovalApi;
-import com.laimengchao.sso.settings.client.dto.ApprovalInstanceDTO;
 import com.laimengchao.sso.settings.client.dto.ApprovalStartDTO;
-import com.laimengchao.sso.settings.client.dto.ApprovalTaskDTO;
 import com.laimengchao.sso.contract.security.DataScopeService;
 import com.laimengchao.sso.file.client.api.FileApi;
 import lombok.RequiredArgsConstructor;
@@ -48,6 +46,8 @@ public class PaymentPlanServiceImpl implements PaymentPlanService {
 
     private static final Set<String> PAID_STATUS = Set.of("PAID", "POSTED");
     private static final Set<String> IN_FLIGHT_STATUS = Set.of("PENDING", "APPROVED");
+    /** 计入付款节点「已申请」的状态：驳回释放额度，其余均占用 */
+    private static final Set<String> TERM_APPLIED_STATUS = Set.of("WAITING", "PENDING", "APPROVED", "POSTED", "PAID");
 
     /** 付款计划审批 bizType；超升级线用 senior 模板多一级审批 */
     public static final String BIZ_PAYMENT = "contract.payment";
@@ -56,12 +56,14 @@ public class PaymentPlanServiceImpl implements PaymentPlanService {
     private final ContractPaymentPlanMapper mapper;
     private final ContractAcceptanceMapper acceptanceMapper;
     private final ContractItemMapper itemMapper;
+    private final com.laimengchao.sso.contract.module.contract.mapper.ContractPaymentTermMapper paymentTermMapper;
     private final ContractService contractService;
+    private final com.laimengchao.sso.contract.module.contract.service.PaymentTermService paymentTermService;
     private final EmbedPointService embedPointService;
     private final DataScopeService dataScopeService;
     private final FileApi fileApi;
     private final ContractApprovalLauncher approvalLauncher;
-    private final ApprovalApi approvalApi;
+    private final com.laimengchao.sso.contract.module.contract.support.ContractApprovalInfoSupport approvalInfoSupport;
     private final BizNoService bizNoService;
 
     @Value("${contract.internal-base-url:http://127.0.0.1:9015}")
@@ -93,7 +95,13 @@ public class PaymentPlanServiceImpl implements PaymentPlanService {
     public ContractVOs.PaymentPlanVO save(String contractNo, ContractRequests.PaymentPlanSave req) {
         ContractHeader header = contractService.requireByNo(contractNo);
         dataScopeService.assertCanAccessOrg(header.getOrgCode());
-        if (req == null || req.getStage() == null || req.getStage().isBlank()) {
+        if (req == null) {
+            throw new BizException(ErrorCode.PARAM_ERROR, "请求体不能为空");
+        }
+        // 引用节点：阶段由节点决定（忽略请求体 stage），金额受节点可用余额约束
+        ContractPaymentTerm term = resolveTerm(header, req.getTermId());
+        String stage = term != null ? term.getStage() : nvl(req.getStage(), "");
+        if (stage.isBlank()) {
             throw new BizException(ErrorCode.PARAM_ERROR, "请选择付款阶段");
         }
         if (req.getDueDate() == null) {
@@ -102,17 +110,25 @@ public class PaymentPlanServiceImpl implements PaymentPlanService {
         if (req.getAmount() == null || req.getAmount().signum() <= 0) {
             throw new BizException(ErrorCode.PARAM_ERROR, "本期付款金额必须大于 0");
         }
-        BigDecimal remaining = remainingAmount(header, null);
-        if (remaining.signum() <= 0) {
-            throw new BizException(ErrorCode.PARAM_ERROR, "合同剩余金额为 0，不能新增付款计划");
+        // GOODS 必须选清单行，且都属本合同；其余阶段忽略 itemIds
+        String itemIds = "";
+        if ("GOODS".equals(stage)) {
+            itemIds = validateGoodsItems(header, req.getItemIds());
         }
-        if (req.getAmount().compareTo(remaining) > 0) {
-            throw new BizException(ErrorCode.PARAM_ERROR, "本期付款金额不能超过合同剩余金额 " + remaining);
+        BigDecimal limit = term != null ? termAvailable(term, null) : remainingAmount(header, null);
+        if (limit.signum() <= 0) {
+            throw new BizException(ContractErrorCode.PAYMENT_TERM_LIMIT, "该付款节点可申请金额为 0，不能新增付款计划");
+        }
+        if (req.getAmount().compareTo(limit) > 0) {
+            throw new BizException(term != null ? ContractErrorCode.PAYMENT_TERM_LIMIT : ErrorCode.PARAM_ERROR,
+                    (term != null ? "超出该付款节点可申请金额 " : "本期付款金额不能超过合同剩余金额 ") + limit);
         }
         ContractPaymentPlan entity = new ContractPaymentPlan();
         entity.setNo(bizNoService.next(BizNoServiceImpl.TABLE_PAYMENT_PLAN));
         entity.setContractNo(header.getNo());
-        entity.setStage(req.getStage().trim());
+        entity.setStage(stage);
+        entity.setTermId(term == null ? null : term.getId());
+        entity.setItemIds(itemIds);
         entity.setDueDate(req.getDueDate());
         entity.setAmount(req.getAmount());
         entity.setSummary(nvl(req.getSummary(), ""));
@@ -122,6 +138,70 @@ public class PaymentPlanServiceImpl implements PaymentPlanService {
         entity.setCreatedAt(LocalDateTime.now());
         mapper.insert(entity);
         return toVO(entity);
+    }
+
+    /** 节点引用校验：termId 为空返回 null（存量自由录入）；非空必须属于该合同 */
+    private ContractPaymentTerm resolveTerm(ContractHeader header, Long termId) {
+        if (termId == null) {
+            return null;
+        }
+        ContractPaymentTerm term = paymentTermService.require(termId);
+        if (!header.getNo().equals(term.getContractNo())) {
+            throw new BizException(ErrorCode.PARAM_ERROR, "付款节点不属于该合同");
+        }
+        return term;
+    }
+
+    /** 节点可用余额 = 节点金额 - 该节点已申请金额（非 REJECTED）；excludePlanId 用于编辑时排除自身 */
+    private BigDecimal termAvailable(ContractPaymentTerm term, Long excludePlanId) {
+        BigDecimal used = BigDecimal.ZERO;
+        List<ContractPaymentPlan> plans = mapper.selectList(new LambdaQueryWrapper<ContractPaymentPlan>()
+                .eq(ContractPaymentPlan::getTermId, term.getId()));
+        if (plans != null) {
+            for (ContractPaymentPlan p : plans) {
+                if ((excludePlanId == null || !excludePlanId.equals(p.getId()))
+                        && p.getAmount() != null && TERM_APPLIED_STATUS.contains(p.getStatus())) {
+                    used = used.add(p.getAmount());
+                }
+            }
+        }
+        BigDecimal amount = term.getAmount() == null ? BigDecimal.ZERO : term.getAmount();
+        return amount.subtract(used).max(BigDecimal.ZERO);
+    }
+
+    /** GOODS 清单行校验：非空、逗号分隔均为数字、都属本合同且交付数量 > 0；返回规范化 ID 串 */
+    private String validateGoodsItems(ContractHeader header, String itemIds) {
+        if (itemIds == null || itemIds.isBlank()) {
+            throw new BizException(ContractErrorCode.GOODS_ITEMS_REQUIRED);
+        }
+        java.util.List<Long> ids = new java.util.ArrayList<>();
+        for (String part : itemIds.split(",")) {
+            if (part == null || part.isBlank()) {
+                continue;
+            }
+            try {
+                ids.add(Long.valueOf(part.trim()));
+            } catch (NumberFormatException e) {
+                throw new BizException(ErrorCode.PARAM_ERROR, "清单行 ID 不合法");
+            }
+        }
+        if (ids.isEmpty()) {
+            throw new BizException(ContractErrorCode.GOODS_ITEMS_REQUIRED);
+        }
+        List<ContractItem> items = itemMapper.selectBatchIds(ids);
+        if (items == null || items.size() != ids.size()) {
+            throw new BizException(ErrorCode.PARAM_ERROR, "所选清单行不存在");
+        }
+        for (ContractItem item : items) {
+            if (!header.getNo().equals(item.getContractNo())) {
+                throw new BizException(ErrorCode.PARAM_ERROR, "所选清单行不属于该合同");
+            }
+            BigDecimal delivered = item.getDeliveredQty() == null ? BigDecimal.ZERO : item.getDeliveredQty();
+            if (delivered.signum() <= 0) {
+                throw new BizException(ContractErrorCode.ACCEPTANCE_REQUIRED, "所选清单行尚未验收合格");
+            }
+        }
+        return ids.stream().map(String::valueOf).collect(java.util.stream.Collectors.joining(","));
     }
 
     @Transactional(rollbackFor = Exception.class)
@@ -134,18 +214,28 @@ public class PaymentPlanServiceImpl implements PaymentPlanService {
         if (req == null) {
             throw new BizException(ErrorCode.PARAM_ERROR, "请求体不能为空");
         }
-        if (req.getStage() != null && req.getStage().isBlank()) {
-            throw new BizException(ErrorCode.PARAM_ERROR, "请选择付款阶段");
-        }
+        ContractHeader header = contractService.requireByNo(entity.getContractNo());
+        // 节点引用以请求为准；未传时沿用原节点（阶段由原节点决定，不接受请求体覆盖 stage）
+        Long termId = req.getTermId() != null ? req.getTermId() : entity.getTermId();
+        ContractPaymentTerm term = resolveTerm(header, termId);
+        String stage = term != null ? term.getStage() : entity.getStage();
         BigDecimal amount = req.getAmount() == null ? entity.getAmount() : req.getAmount();
         if (amount == null || amount.signum() <= 0) {
             throw new BizException(ErrorCode.PARAM_ERROR, "本期付款金额必须大于 0");
         }
-        BigDecimal remaining = remainingAmount(contractService.requireByNo(entity.getContractNo()), id);
-        if (amount.compareTo(remaining) > 0) {
-            throw new BizException(ErrorCode.PARAM_ERROR, "本期付款金额不能超过合同剩余金额 " + remaining);
+        String itemIds = entity.getItemIds() == null ? "" : entity.getItemIds();
+        if ("GOODS".equals(stage)) {
+            String requested = req.getItemIds() != null ? req.getItemIds() : entity.getItemIds();
+            itemIds = validateGoodsItems(header, requested);
         }
-        entity.setStage(nvl(req.getStage(), entity.getStage()));
+        BigDecimal limit = term != null ? termAvailable(term, id) : remainingAmount(header, id);
+        if (amount.compareTo(limit) > 0) {
+            throw new BizException(term != null ? ContractErrorCode.PAYMENT_TERM_LIMIT : ErrorCode.PARAM_ERROR,
+                    (term != null ? "超出该付款节点可申请金额 " : "本期付款金额不能超过合同剩余金额 ") + limit);
+        }
+        entity.setStage(stage);
+        entity.setTermId(term == null ? null : term.getId());
+        entity.setItemIds(itemIds);
         entity.setDueDate(req.getDueDate() == null ? entity.getDueDate() : req.getDueDate());
         entity.setAmount(amount);
         if (req.getSummary() != null) {
@@ -185,28 +275,49 @@ public class PaymentPlanServiceImpl implements PaymentPlanService {
             throw new BizException(ContractErrorCode.CONTRACT_STATUS_INVALID,
                     "合同状态不支持付款，仅已生效或执行中的合同可发起付款申请");
         }
-        // 付款门槛：全部清单行须验收完成（deliveredQty >= qty），未验收完不允许付款
+        // 付款门槛按节点阶段分流；termId 为空的存量计划沿用「全验收」原逻辑
+        ContractPaymentTerm term = entity.getTermId() == null ? null : resolveTerm(header, entity.getTermId());
+        String stage = term != null ? term.getStage() : entity.getStage();
         List<ContractItem> items = itemMapper.selectList(new LambdaQueryWrapper<ContractItem>()
                 .eq(ContractItem::getContractNo, entity.getContractNo()));
         boolean allAccepted = items != null && !items.isEmpty() && items.stream().allMatch(this::fullyAccepted);
-        if (!allAccepted) {
-            throw new BizException(ContractErrorCode.ACCEPTANCE_REQUIRED,
-                    "合同清单尚未全部验收完成，验收完成后才能发起付款申请");
-        }
-        // 埋点 contract.acceptance.required-before-pay 默认 true：付款申请前必须有合格验收单。
-        // 埋点读取失败时按 true 兜底（fail-closed），与财务 internal token 口径一致。
-        // 注意：不校验验收单 status=POSTED——过账回写(markPosted)在应付单过账之后才发生，
-        // 而付款申请在过账之前，要求先过账是流程倒置且会形成死锁（验收单永远停在 DRAFT）。
-        // 验收完成的硬门槛由上面 allAccepted（全部清单 deliveredQty>=qty）保证。
-        if (embedPointService.acceptanceRequiredBeforePay()) {
-            Long accepted = acceptanceMapper.selectCount(new LambdaQueryWrapper<ContractAcceptance>()
-                    .eq(ContractAcceptance::getContractNo, entity.getContractNo())
-                    .in(ContractAcceptance::getResult, "合格", "PASS", "OK")
-                    .last("limit 1"));
-            if (accepted == null || accepted == 0) {
-                throw new BizException(ContractErrorCode.ACCEPTANCE_REQUIRED,
-                        "埋点要求付款前完成验收：合同 " + entity.getContractNo() + " 尚无合格验收单");
+        boolean needsAcceptance = term == null || "GOODS".equals(stage) || "ACCEPT".equals(stage);
+        if (needsAcceptance) {
+            if ("ACCEPT".equals(stage) || term == null) {
+                // 验收款 / 存量：全部清单行验收完成
+                if (!allAccepted) {
+                    throw new BizException(ContractErrorCode.ACCEPTANCE_REQUIRED,
+                            "合同清单尚未全部验收完成，验收完成后才能发起付款申请");
+                }
+            } else {
+                // 到货款：所选清单行已有合格验收（已交付 > 0），按行/按批放行
+                validateGoodsItems(header, entity.getItemIds());
             }
+            // 埋点 contract.acceptance.required-before-pay 仅对 GOODS / ACCEPT（含存量）生效；
+            // 不校验验收单 status=POSTED——过账在应付单之后，要求先过账会死锁。
+            if (embedPointService.acceptanceRequiredBeforePay()) {
+                Long accepted = acceptanceMapper.selectCount(new LambdaQueryWrapper<ContractAcceptance>()
+                        .eq(ContractAcceptance::getContractNo, entity.getContractNo())
+                        .in(ContractAcceptance::getResult, "合格", "通过", "PASS", "OK")
+                        .last("limit 1"));
+                if (accepted == null || accepted == 0) {
+                    throw new BizException(ContractErrorCode.ACCEPTANCE_REQUIRED,
+                            "埋点要求付款前完成验收：合同 " + entity.getContractNo() + " 尚无合格验收单");
+                }
+            }
+        } else if ("WARRANTY".equals(stage)) {
+            // 质保金：质保到期日非空且 <= 今天；不重复要求验收
+            if (header.getWarrantyDueDate() == null
+                    || header.getWarrantyDueDate().isAfter(java.time.LocalDate.now())) {
+                throw new BizException(ContractErrorCode.WARRANTY_NOT_DUE);
+            }
+        }
+        // PREPAY：仅合同状态校验（上面已做），生效即可发起，跳过验收
+        // 金额上限复核（防节点金额/清单变动后旧计划超额）：引用节点按节点余额，存量按合同剩余
+        BigDecimal cap = term != null ? termAvailable(term, entity.getId()) : remainingAmount(header, entity.getId());
+        if (entity.getAmount() != null && entity.getAmount().compareTo(cap) > 0) {
+            throw new BizException(term != null ? ContractErrorCode.PAYMENT_TERM_LIMIT : ErrorCode.PARAM_ERROR,
+                    "本期付款金额 " + entity.getAmount() + " 超出可申请金额 " + cap);
         }
         if (req != null) {
             if (req.getSourceDocNo() != null && !req.getSourceDocNo().isBlank()) {
@@ -300,53 +411,11 @@ public class PaymentPlanServiceImpl implements PaymentPlanService {
     @Override
     public ContractVOs.ApprovalInfoVO approvalInfo(Long id) {
         require(id); // 复用数据权限校验，未发起的付款计划也允许查（返回 null）
-        String bizId = String.valueOf(id);
         // 同一付款计划可能因金额是否超升级线走 contract.payment / contract.payment.senior 两套模板，
-        // 两处都查，取雪花 ID 最大的那张（latest 已按 id 倒序，跨模板需手动比）
-        ApprovalInstanceDTO found = null;
-        for (String bizType : new String[]{BIZ_PAYMENT, BIZ_PAYMENT_SENIOR}) {
-            com.laimengchao.sso.settings.client.dto.R<ApprovalInstanceDTO> resp = approvalApi.latest(bizType, bizId);
-            ApprovalInstanceDTO inst = resp != null && resp.ok() ? resp.getData() : null;
-            if (inst != null && inst.getId() != null
-                    && (found == null || inst.getId() > found.getId())) {
-                found = inst;
-            }
-        }
-        if (found == null) {
-            return null;
-        }
-        ContractVOs.ApprovalInfoVO vo = new ContractVOs.ApprovalInfoVO();
-        vo.setId(String.valueOf(found.getId()));
-        vo.setBizType(found.getBizType());
-        vo.setBizNo(found.getBizNo());
-        vo.setTitle(found.getTitle());
-        vo.setStatus(found.getStatus());
-        vo.setStatusName(found.getStatusName());
-        vo.setApplicantName(found.getApplicantName());
-        vo.setCreatedAt(fmt(found.getCreatedAt()));
-        vo.setFinishedAt(fmt(found.getFinishedAt()));
-        java.util.List<ContractVOs.ApprovalInfoVO.ApprovalTaskVO> tasks = new java.util.ArrayList<>();
-        if (found.getTasks() != null) {
-            for (ApprovalTaskDTO t : found.getTasks()) {
-                ContractVOs.ApprovalInfoVO.ApprovalTaskVO tv = new ContractVOs.ApprovalInfoVO.ApprovalTaskVO();
-                tv.setId(String.valueOf(t.getId()));
-                tv.setStepSeq(t.getStepSeq());
-                tv.setStepName(t.getStepName());
-                tv.setNodeName(t.getNodeName());
-                tv.setApproverName(t.getApproverName());
-                tv.setStatus(t.getStatus());
-                tv.setStatusName(t.getStatusName());
-                tv.setOpinion(t.getOpinion());
-                tv.setActedAt(fmt(t.getActedAt()));
-                tasks.add(tv);
-            }
-        }
-        vo.setTasks(tasks);
-        return vo;
-    }
-
-    private static String fmt(java.time.LocalDateTime t) {
-        return t == null ? null : t.toString();
+        // 共享 Support 两处都查并取雪花 ID 最大的那张。
+        com.laimengchao.sso.settings.client.dto.ApprovalInstanceDTO found =
+                approvalInfoSupport.latest(String.valueOf(id), BIZ_PAYMENT, BIZ_PAYMENT_SENIOR);
+        return approvalInfoSupport.toVO(found);
     }
 
     /**
@@ -415,6 +484,14 @@ public class PaymentPlanServiceImpl implements PaymentPlanService {
         vo.setContractNo(e.getContractNo());
         vo.setStage(e.getStage());
         vo.setDueDate(e.getDueDate() == null ? null : e.getDueDate().toString());
+        if (e.getTermId() != null) {
+            vo.setTermId(String.valueOf(e.getTermId()));
+            ContractPaymentTerm term = paymentTermMapper.selectById(e.getTermId());
+            if (term != null) {
+                vo.setTermName(termName(term.getStage()));
+            }
+        }
+        vo.setItemIds(e.getItemIds());
         vo.setAmount(e.getAmount());
         vo.setSummary(e.getSummary());
         vo.setSourceDocNo(e.getSourceDocNo());
@@ -435,7 +512,9 @@ public class PaymentPlanServiceImpl implements PaymentPlanService {
             vo.setDueSoon(!vo.isOverdue() && !due.isAfter(today.plusDays(remind)));
         }
         try {
-            vo.setContractName(contractService.requireByNo(e.getContractNo()).getName());
+            ContractHeader h = contractService.requireByNo(e.getContractNo());
+            vo.setContractName(h.getName());
+            vo.setWarrantyDueDate(h.getWarrantyDueDate() == null ? null : h.getWarrantyDueDate().toString());
         } catch (BizException ignored) {
             // 合同不在当前数据范围时不泄露名称，仅保留编号
         }
@@ -458,6 +537,12 @@ public class PaymentPlanServiceImpl implements PaymentPlanService {
             }
         }
         return remaining.max(BigDecimal.ZERO);
+    }
+
+    /** 付款节点阶段中文名（与字典 contract.payment_stage 一致） */
+    private String termName(String stage) {
+        return java.util.Map.of("PREPAY", "预付款", "GOODS", "到货款", "ACCEPT", "验收款", "WARRANTY", "质保金")
+                .getOrDefault(stage, stage);
     }
 
     private String nvl(String value, String fallback) {

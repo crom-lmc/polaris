@@ -49,6 +49,15 @@ public class ContractItemController {
         return R.ok(itemService.accept(id, req));
     }
 
+    /** 销售验收推应收失败后重试（幂等；已有 arNo 直接返回） */
+    @PostMapping("/acceptances/{acceptanceId}/push-ar")
+    @Permit(PermissionCodes.CONTRACT_ITEM_EDIT)
+    public R<Void> pushAr(@PathVariable("contractNo") String contractNo,
+                          @PathVariable("acceptanceId") Long acceptanceId) {
+        itemService.pushReceivable(acceptanceId);
+        return R.ok();
+    }
+
     @DeleteMapping("/{id}")
     @Permit(PermissionCodes.CONTRACT_ITEM_EDIT)
     public R<Void> delete(@PathVariable("contractNo") String contractNo, @PathVariable("id") Long id) {

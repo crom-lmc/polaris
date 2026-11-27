@@ -83,6 +83,13 @@ public class ContractController {
         return R.ok(contractService.changeLogs(id));
     }
 
+    /** 审批信息只读查询（按合同 id 反查审批中心，未发起返回 null） */
+    @GetMapping("/{id}/approval")
+    @Permit(PermissionCodes.CONTRACT_LEDGER_LIST)
+    public R<?> approvalInfo(@PathVariable("id") Long id) {
+        return R.ok(contractService.approvalInfo(id));
+    }
+
     @DeleteMapping("/{id}")
     @Permit(PermissionCodes.CONTRACT_LEDGER_EDIT)
     public R<Void> delete(@PathVariable("id") Long id) {

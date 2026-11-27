@@ -20,7 +20,10 @@ import com.laimengchao.sso.contract.module.contract.entity.ContractPurchasePlanI
 import com.laimengchao.sso.contract.module.contract.mapper.ContractMaterialMapper;
 import com.laimengchao.sso.contract.module.contract.mapper.ContractPurchasePlanItemMapper;
 import com.laimengchao.sso.contract.module.contract.mapper.ContractPurchasePlanMapper;
+import com.laimengchao.sso.contract.module.contract.support.ContractApprovalInfoSupport;
+import com.laimengchao.sso.contract.module.contract.support.ContractApprovalLauncher;
 import com.laimengchao.sso.contract.module.contract.support.ContractAttachments;
+import com.laimengchao.sso.settings.client.dto.ApprovalStartDTO;
 import com.laimengchao.sso.contract.module.contract.vo.ContractVOs;
 import com.laimengchao.sso.ehr.client.api.EhrOrgApi;
 import com.laimengchao.sso.file.client.api.FileApi;
@@ -28,6 +31,7 @@ import com.laimengchao.sso.contract.security.DataScopeService;
 import com.laimengchao.sso.utils.AccountContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -35,6 +39,7 @@ import org.springframework.util.StringUtils;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -46,6 +51,9 @@ public class PurchasePlanServiceImpl implements PurchasePlanService {
 
     private static final String APPROVED = "APPROVED";
     private static final String CONVERTED = "CONVERTED";
+    private static final String PENDING = "PENDING";
+    private static final String REJECTED = "REJECTED";
+    public static final String BIZ_PLAN = "contract.plan";
 
     private final ContractPurchasePlanMapper mapper;
     private final ContractPurchasePlanItemMapper itemMapper;
@@ -56,6 +64,11 @@ public class PurchasePlanServiceImpl implements PurchasePlanService {
     private final DataScopeService dataScopeService;
     private final FileApi fileApi;
     private final EhrOrgApi ehrOrgApi;
+    private final ContractApprovalLauncher approvalLauncher;
+    private final ContractApprovalInfoSupport approvalInfoSupport;
+
+    @Value("${contract.internal-base-url:http://127.0.0.1:9015}")
+    private String internalBaseUrl;
 
     /**
      * 发起采购计划的默认申请人/需求部门。服务端按账号 ID 在 EHR 员工与组织树中反查，
@@ -207,23 +220,66 @@ public class PurchasePlanServiceImpl implements PurchasePlanService {
         }
     }
 
-    @Transactional(rollbackFor = Exception.class)
     public void submit(Long id) {
         ContractPurchasePlan entity = require(id);
-        if (!"DRAFT".equals(entity.getStatus()) && !"REJECTED".equals(entity.getStatus())) {
+        if (!"DRAFT".equals(entity.getStatus()) && !REJECTED.equals(entity.getStatus())) {
             throw new BizException(ContractErrorCode.PLAN_STATUS_INVALID);
         }
-        entity.setStatus("PENDING");
+        String before = entity.getStatus();
+        entity.setStatus(PENDING);
         entity.setUpdatedAt(LocalDateTime.now());
         mapper.updateById(entity);
+        // 先落库再发起：终审可能同步回调，避免回调读到未提交行；失败退回原状态，避免卡 PENDING 不可重试
+        try {
+            approvalLauncher.launch(() -> buildApprovalStart(entity));
+        } catch (RuntimeException e) {
+            mapper.update(null, new com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper<ContractPurchasePlan>()
+                    .eq(ContractPurchasePlan::getId, entity.getId())
+                    .eq(ContractPurchasePlan::getStatus, PENDING)
+                    .set(ContractPurchasePlan::getStatus, before));
+            entity.setStatus(before);
+            throw e;
+        }
     }
 
-    /** 审批通过：DRAFT / PENDING → APPROVED，仅 APPROVED 允许转合同 */
+    /** 构造采购计划审批发起请求；dept 用需求部门（审批模板按部门名解析负责人） */
+    private ApprovalStartDTO buildApprovalStart(ContractPurchasePlan entity) {
+        ApprovalStartDTO dto = new ApprovalStartDTO();
+        dto.setBizType(BIZ_PLAN);
+        dto.setBizId(String.valueOf(entity.getId()));
+        dto.setBizNo(entity.getNo());
+        Long applicantId = AccountContext.getAccountId();
+        if (applicantId == null) {
+            throw new BizException(ContractErrorCode.APPROVAL_START_FAILED, "无法获取当前登录人，请重新登录后再发起审批");
+        }
+        dto.setApplicantId(applicantId);
+        dto.setApplicantName(AccountContext.getUsername());
+        dto.setTitle("采购计划 " + entity.getNo() + " " + nvl(entity.getTitle(), "") + " "
+                + (entity.getAmount() == null ? 0 : entity.getAmount()) + " 元");
+        dto.setBizIdKind("DOC");
+        Map<String, Object> form = new LinkedHashMap<>();
+        form.put("planId", String.valueOf(entity.getId()));
+        form.put("planNo", entity.getNo());
+        form.put("title", entity.getTitle());
+        form.put("dept", nvl(entity.getDept(), entity.getOrgCode()));
+        form.put("applicant", entity.getApplicant());
+        form.put("amount", entity.getAmount());
+        form.put("needDate", entity.getNeedDate() == null ? "" : entity.getNeedDate().toString());
+        dto.setFormData(form);
+        dto.setCallbackUrl(internalBaseUrl + "/internal/contract/approval-callback");
+        return dto;
+    }
+
+    /** 审批通过：仅存量无实例单据可用（DRAFT / PENDING → APPROVED），在途审批禁止手工绕过 */
     @Transactional(rollbackFor = Exception.class)
     public void approve(Long id) {
         ContractPurchasePlan entity = require(id);
-        if (!"DRAFT".equals(entity.getStatus()) && !"PENDING".equals(entity.getStatus())) {
+        if (!"DRAFT".equals(entity.getStatus()) && !PENDING.equals(entity.getStatus())) {
             throw new BizException(ContractErrorCode.PLAN_STATUS_INVALID);
+        }
+        if (approvalInfoSupport.hasRunning(String.valueOf(id), BIZ_PLAN)) {
+            throw new BizException(ContractErrorCode.PLAN_STATUS_INVALID,
+                    "该计划正在审批中心审批中，请等待审批结果，不能手工通过");
         }
         entity.setStatus(APPROVED);
         entity.setUpdatedAt(LocalDateTime.now());
@@ -233,12 +289,49 @@ public class PurchasePlanServiceImpl implements PurchasePlanService {
     @Transactional(rollbackFor = Exception.class)
     public void reject(Long id) {
         ContractPurchasePlan entity = require(id);
-        if (!"PENDING".equals(entity.getStatus())) {
+        if (!PENDING.equals(entity.getStatus())) {
             throw new BizException(ContractErrorCode.PLAN_STATUS_INVALID);
         }
-        entity.setStatus("REJECTED");
+        if (approvalInfoSupport.hasRunning(String.valueOf(id), BIZ_PLAN)) {
+            throw new BizException(ContractErrorCode.PLAN_STATUS_INVALID,
+                    "该计划正在审批中心审批中，请等待审批结果，不能手工驳回");
+        }
+        entity.setStatus(REJECTED);
         entity.setUpdatedAt(LocalDateTime.now());
         mapper.updateById(entity);
+    }
+
+    /**
+     * 审批中心终审回调：通过 PENDING→APPROVED，驳回/撤回/终止 PENDING→REJECTED。
+     * internal 调用无登录上下文，不套 dataScope；仅 PENDING 更新，重复投递返回 false。
+     */
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public boolean handleApprovalResult(String bizId, Boolean approved, Integer result) {
+        Long id;
+        try {
+            id = Long.valueOf(bizId);
+        } catch (NumberFormatException e) {
+            log.warn("采购计划审批回调 bizId 非数字：{}", bizId);
+            return false;
+        }
+        ContractPurchasePlan entity = mapper.selectById(id);
+        if (entity == null || !PENDING.equals(entity.getStatus())) {
+            log.info("采购计划审批回调忽略：id={} status={}", id,
+                    entity == null ? "deleted" : entity.getStatus());
+            return false;
+        }
+        boolean pass = Boolean.TRUE.equals(approved) || Integer.valueOf(1).equals(result);
+        return mapper.update(null, new com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper<ContractPurchasePlan>()
+                .eq(ContractPurchasePlan::getId, id)
+                .eq(ContractPurchasePlan::getStatus, PENDING)
+                .set(ContractPurchasePlan::getStatus, pass ? APPROVED : REJECTED)) > 0;
+    }
+
+    @Override
+    public ContractVOs.ApprovalInfoVO approvalInfo(Long id) {
+        require(id); // 复用数据权限校验
+        return approvalInfoSupport.toVO(approvalInfoSupport.latest(String.valueOf(id), BIZ_PLAN));
     }
 
     @Transactional(rollbackFor = Exception.class)

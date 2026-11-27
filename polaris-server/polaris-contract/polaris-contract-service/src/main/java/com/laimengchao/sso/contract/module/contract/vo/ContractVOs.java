@@ -125,8 +125,12 @@ public final class ContractVOs {
         private String signedDate;
         private String effectiveDate;
         private String endDate;
+        /** 质保到期日：质保金节点放行依据 */
+        private String warrantyDueDate;
         private String status;
         private String paymentTerms;
+        /** 付款节点配置（建合同时配置，比例合计 100%） */
+        private List<PaymentTermVO> paymentTermList;
         /** 合同标的 */
         private String subject;
         /** 备注（非必填，200 字） */
@@ -185,6 +189,26 @@ public final class ContractVOs {
         private String orgCode;
     }
 
+    /** 合同付款节点：比例合计 100%，验收款必有 */
+    @Data
+    public static class PaymentTermVO {
+        @JsonSerialize(using = ToStringSerializer.class)
+        private Long id;
+        private String contractNo;
+        /** PREPAY / GOODS / ACCEPT / WARRANTY */
+        private String stage;
+        private BigDecimal ratio;
+        /** 合同额 × 比例，建节点时锁定 */
+        private BigDecimal amount;
+        /** 该节点已申请金额（非 REJECTED） */
+        private BigDecimal appliedAmount;
+        /** 可申请余额 = amount - appliedAmount */
+        private BigDecimal availableAmount;
+        private String dueDate;
+        private String remark;
+        private String orgCode;
+    }
+
     @Data
     public static class PaymentPlanVO {
         @JsonSerialize(using = ToStringSerializer.class)
@@ -194,6 +218,12 @@ public final class ContractVOs {
         private String contractNo;
         private String contractName;
         private String stage;
+        /** 引用的付款节点 ID（雪花 ID 按 String 下发） */
+        private String termId;
+        private String termName;
+        /** GOODS 阶段所选清单行 ID（逗号分隔） */
+        private String itemIds;
+        private String warrantyDueDate;
         private String dueDate;
         private BigDecimal amount;
         /** 付款事由 */
@@ -301,8 +331,14 @@ public final class ContractVOs {
         private String materialCode;
         private BigDecimal qty;
         private String date;
+        /** 客户验收单号（销售，选填） */
+        private String customerNo;
         private String result;
         private String status;
+        /** 推送生成的应收单号（销售，非空即已推） */
+        private String arNo;
+        /** 推应收失败原因（销售，供重试） */
+        private String arError;
         /** 过账凭证号（财务域回写） */
         private String voucherNo;
         private String orgCode;

@@ -28,6 +28,8 @@ public class ContractHeader extends BaseEntity {
     private LocalDate signedDate;
     private LocalDate effectiveDate;
     private LocalDate endDate;
+    /** 质保到期日：质保金节点放行依据 */
+    private LocalDate warrantyDueDate;
     /** DRAFT / PENDING / EFFECTIVE / EXECUTING / COMPLETED / TERMINATED */
     private String status;
     private String paymentTerms;

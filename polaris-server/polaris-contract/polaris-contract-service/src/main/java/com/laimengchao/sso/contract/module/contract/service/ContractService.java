@@ -51,6 +51,9 @@ public interface ContractService {
      */
     boolean handleApprovalResult(String bizId, Boolean approved, Integer result);
 
+    /** 审批信息只读查询（按合同 id 反查审批中心，未发起返回 null） */
+    ContractVOs.ApprovalInfoVO approvalInfo(Long id);
+
     /**
      * 业务动作驱动的状态推进（不走手工白名单，幂等且带当前状态乐观锁）：
      * 首次到货验收把 EFFECTIVE 推进为 EXECUTING。仅当合同处于 expected 状态才更新。
