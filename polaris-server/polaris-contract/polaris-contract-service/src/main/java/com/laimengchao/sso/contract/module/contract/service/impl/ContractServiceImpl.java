@@ -446,6 +446,13 @@ public class ContractServiceImpl implements ContractService {
         dto.setBizType(senior ? BIZ_CONTRACT_PURCHASE_SENIOR : BIZ_CONTRACT_PURCHASE);
         dto.setBizId(String.valueOf(entity.getId()));
         dto.setBizNo(entity.getNo());
+        // applicant_id 在 appr_instance 非空无默认值；不传会让 settings 侧 INSERT 失败返回 500
+        Long applicantId = com.laimengchao.sso.utils.AccountContext.getAccountId();
+        if (applicantId == null) {
+            throw new BizException(ContractErrorCode.APPROVAL_START_FAILED, "无法获取当前登录人，请重新登录后再发起审批");
+        }
+        dto.setApplicantId(applicantId);
+        dto.setApplicantName(com.laimengchao.sso.utils.AccountContext.getUsername());
         dto.setTitle("采购合同 " + entity.getNo() + " " + entity.getName());
         dto.setSubjectId(String.valueOf(entity.getId()));
         dto.setBizIdKind("DOC");

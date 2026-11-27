@@ -6,8 +6,10 @@ import com.laimengchao.sso.contract.module.contract.service.ContractService;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.laimengchao.sso.common.BizException;
 import com.laimengchao.sso.common.ErrorCode;
+import com.laimengchao.sso.contract.common.BizNoService;
 import com.laimengchao.sso.contract.common.ContractErrorCode;
 import com.laimengchao.sso.contract.common.EmbedPointService;
+import com.laimengchao.sso.contract.common.impl.BizNoServiceImpl;
 import com.laimengchao.sso.contract.module.contract.dto.ContractRequests;
 import com.laimengchao.sso.contract.module.contract.entity.ContractAcceptance;
 import com.laimengchao.sso.contract.module.contract.entity.ContractHeader;
@@ -56,6 +58,7 @@ public class PaymentPlanServiceImpl implements PaymentPlanService {
     private final DataScopeService dataScopeService;
     private final FileApi fileApi;
     private final ContractApprovalLauncher approvalLauncher;
+    private final BizNoService bizNoService;
 
     @Value("${contract.internal-base-url:http://127.0.0.1:9015}")
     private String internalBaseUrl;
@@ -103,6 +106,7 @@ public class PaymentPlanServiceImpl implements PaymentPlanService {
             throw new BizException(ErrorCode.PARAM_ERROR, "本期付款金额不能超过合同剩余金额 " + remaining);
         }
         ContractPaymentPlan entity = new ContractPaymentPlan();
+        entity.setNo(bizNoService.next(BizNoServiceImpl.TABLE_PAYMENT_PLAN));
         entity.setContractNo(header.getNo());
         entity.setStage(req.getStage().trim());
         entity.setDueDate(req.getDueDate());
@@ -236,6 +240,13 @@ public class PaymentPlanServiceImpl implements PaymentPlanService {
         dto.setBizType(senior ? BIZ_PAYMENT_SENIOR : BIZ_PAYMENT);
         dto.setBizId(String.valueOf(entity.getId()));
         dto.setBizNo(entity.getContractNo() + "-" + entity.getId());
+        // applicant_id 在 appr_instance 非空无默认值；不传会让 settings 侧 INSERT 失败返回 500
+        Long applicantId = com.laimengchao.sso.utils.AccountContext.getAccountId();
+        if (applicantId == null) {
+            throw new BizException(ContractErrorCode.APPROVAL_START_FAILED, "无法获取当前登录人，请重新登录后再发起审批");
+        }
+        dto.setApplicantId(applicantId);
+        dto.setApplicantName(com.laimengchao.sso.utils.AccountContext.getUsername());
         dto.setTitle("付款计划 " + entity.getContractNo() + " " + nvl(entity.getStage(), "") + " "
                 + entity.getAmount() + " 元");
         dto.setSubjectId(String.valueOf(header.getId()));
@@ -343,6 +354,7 @@ public class PaymentPlanServiceImpl implements PaymentPlanService {
     private ContractVOs.PaymentPlanVO toVO(ContractPaymentPlan e) {
         ContractVOs.PaymentPlanVO vo = new ContractVOs.PaymentPlanVO();
         vo.setId(e.getId());
+        vo.setNo(e.getNo());
         vo.setContractNo(e.getContractNo());
         vo.setStage(e.getStage());
         vo.setDueDate(e.getDueDate() == null ? null : e.getDueDate().toString());

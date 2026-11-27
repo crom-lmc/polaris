@@ -187,6 +187,8 @@ public final class ContractVOs {
     public static class PaymentPlanVO {
         @JsonSerialize(using = ToStringSerializer.class)
         private Long id;
+        /** 付款申请单号 FK-yyyy-XXXXXX */
+        private String no;
         private String contractNo;
         private String contractName;
         private String stage;

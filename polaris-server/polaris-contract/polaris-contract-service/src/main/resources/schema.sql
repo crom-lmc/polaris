@@ -134,6 +134,7 @@ CREATE TABLE IF NOT EXISTS `contract_item` (
 
 CREATE TABLE IF NOT EXISTS `contract_payment_plan` (
   `id` bigint(20) NOT NULL COMMENT '雪花ID',
+  `no` varchar(32) DEFAULT NULL COMMENT '付款申请单号 FK-yyyy-XXXXXX（settings 单号规则，创建时生成）',
   `contract_no` varchar(32) NOT NULL COMMENT 'contract_header.no',
   `stage` varchar(64) NOT NULL DEFAULT '' COMMENT '付款阶段（settings 字典 contract.payment_stage）',
   `due_date` date DEFAULT NULL COMMENT '计划付款日期',
@@ -149,6 +150,7 @@ CREATE TABLE IF NOT EXISTS `contract_payment_plan` (
   `deleted` tinyint(1) NOT NULL DEFAULT 0,
   PRIMARY KEY (`id`),
   KEY `idx_plan_contract` (`contract_no`,`due_date`,`deleted`),
+  KEY `idx_plan_no` (`no`,`deleted`),
   KEY `idx_plan_source_doc` (`source_doc_no`,`deleted`),
   KEY `idx_plan_org` (`org_code`,`deleted`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='合同付款计划';

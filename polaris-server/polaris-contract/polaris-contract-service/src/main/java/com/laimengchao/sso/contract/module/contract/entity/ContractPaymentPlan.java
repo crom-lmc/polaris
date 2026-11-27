@@ -14,6 +14,8 @@ import java.time.LocalDate;
 @TableName("contract_payment_plan")
 public class ContractPaymentPlan extends BaseEntity {
 
+    /** 付款申请单号 FK-yyyy-XXXXXX（settings 单号规则，创建时生成） */
+    private String no;
     private String contractNo;
     private String stage;
     private LocalDate dueDate;
