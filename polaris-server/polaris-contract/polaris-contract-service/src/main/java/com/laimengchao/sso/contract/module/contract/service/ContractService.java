@@ -40,8 +40,8 @@ public interface ContractService {
     List<ContractVOs.ChangeLogVO> changeLogs(Long contractId);
 
     /**
-     * 状态流转。采购合同转 PENDING（提交审批）且清单金额达到埋点 contract.purchase.approval-amount 时，
-     * 走统一审批引擎（双 bizType 模板分流）；其余状态或金额维持原样直接流转。
+     * 状态流转。所有合同转 PENDING（提交审批）都走统一审批引擎等回调，
+     * 埋点 contract.purchase.approval-amount 仅用于采购合同普通/高级模板分流；其余状态按状态机直接流转。
      */
     void changeStatus(Long id, String status);
 

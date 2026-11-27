@@ -45,7 +45,8 @@ public enum ContractErrorCode implements IErrorCode {
     PAYMENT_TERM_LIMIT(8432, "超出该付款节点可申请金额"),
     WARRANTY_NOT_DUE(8433, "质保期未满，暂不能申请质保金"),
     GOODS_ITEMS_REQUIRED(8434, "请选择到货清单行"),
-    AR_PUSH_FAILED(8435, "推应收失败，验收已保留，可稍后重试");
+    AR_PUSH_FAILED(8435, "推应收失败，验收已保留，可稍后重试"),
+    PAYMENT_TERM_REQUIRED(8436, "请选择合同付款节点");
 
     private final int code;
     private final String message;

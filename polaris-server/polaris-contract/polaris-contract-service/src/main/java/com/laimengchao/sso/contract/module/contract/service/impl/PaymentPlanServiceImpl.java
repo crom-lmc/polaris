@@ -140,9 +140,18 @@ public class PaymentPlanServiceImpl implements PaymentPlanService {
         return toVO(entity);
     }
 
-    /** 节点引用校验：termId 为空返回 null（存量自由录入）；非空必须属于该合同 */
+    /**
+     * 节点引用校验：合同已配置付款节点时 MUST 引用节点（termId 必填），不再自由录入阶段/金额；
+     * 仅存量无节点合同允许 termId 为空沿用原全验收逻辑（方案「存量数据处理」口径）。
+     */
     private ContractPaymentTerm resolveTerm(ContractHeader header, Long termId) {
+        Long termCount = paymentTermMapper.selectCount(new LambdaQueryWrapper<ContractPaymentTerm>()
+                .eq(ContractPaymentTerm::getContractNo, header.getNo()));
+        boolean hasTerms = termCount != null && termCount > 0;
         if (termId == null) {
+            if (hasTerms) {
+                throw new BizException(ContractErrorCode.PAYMENT_TERM_REQUIRED);
+            }
             return null;
         }
         ContractPaymentTerm term = paymentTermService.require(termId);

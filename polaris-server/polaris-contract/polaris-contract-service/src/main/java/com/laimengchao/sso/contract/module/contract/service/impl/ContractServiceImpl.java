@@ -352,8 +352,8 @@ public class ContractServiceImpl implements ContractService {
     }
 
     /**
-     * 状态流转（按钮驱动，目标必须命中状态机白名单）。采购合同提交时清单金额达到埋点
-     * contract.purchase.approval-amount 才进审批中心等回调；未达线直接 EFFECTIVE。
+     * 状态流转（按钮驱动，目标必须命中状态机白名单）。所有合同提交审批一律进审批中心等回调，
+     * 不再按金额绕过审批；埋点 contract.purchase.approval-amount 仅决定普通/高级审批模板档次。
      */
     public void changeStatus(Long id, String status) {
         String target = status == null ? null : status.trim();
@@ -369,19 +369,20 @@ public class ContractServiceImpl implements ContractService {
             if (itemCount == null || itemCount == 0) {
                 throw new BizException(ContractErrorCode.CONTRACT_STATUS_INVALID, "请先维护合同清单，再提交审批");
             }
+            // 付款节点是付款执行基础：未配置节点不允许提交审批（节点表 @TableLogic 自动只查有效节点）
+            Long termCount = paymentTermMapper.selectCount(new LambdaQueryWrapper<com.laimengchao.sso.contract.module.contract.entity.ContractPaymentTerm>()
+                    .eq(com.laimengchao.sso.contract.module.contract.entity.ContractPaymentTerm::getContractNo, entity.getNo()));
+            if (termCount == null || termCount == 0) {
+                throw new BizException(ContractErrorCode.CONTRACT_STATUS_INVALID, "请先配置付款节点，再提交审批");
+            }
         }
         // 销售合同提交审批前做信用额度校验（埋点开启才生效，credit_limit=0 表示不限制）
         if ("PENDING".equals(target) && SALES.equals(entity.getType())) {
             requireCreditOk(entity);
         }
-        // 采购合同达审批线 / 销售合同提交审批 → 进审批中心等回调；采购未达线提交即生效。
-        boolean needApproval = "PENDING".equals(target)
-                && (SALES.equals(entity.getType())
-                    || (PURCHASE.equals(entity.getType()) && contractAmount(entity.getNo()).compareTo(
-                        BigDecimal.valueOf(embedPointService.purchaseApprovalAmount())) >= 0));
-        String finalStatus = "PENDING".equals(target) && PURCHASE.equals(entity.getType()) && !needApproval
-                ? "EFFECTIVE" : target;
-        entity.setStatus(finalStatus);
+        // 所有合同提交审批都进审批中心等回调；金额埋点只决定审批模板档次，不决定是否需要审批
+        boolean needApproval = "PENDING".equals(target);
+        entity.setStatus(target);
         entity.setUpdatedAt(LocalDateTime.now());
         mapper.updateById(entity);
 
