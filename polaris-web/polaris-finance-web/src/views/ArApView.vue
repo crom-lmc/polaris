@@ -242,8 +242,6 @@ async function submitCreate() {
 <template>
   <section class="ft-page">
     <section class="ft-head toolbar">
-      <h2>应收应付</h2>
-      <span class="divider" />
       <a-select v-model:value="type" :options="typeOptions" placeholder="全部往来" style="width: 110px" allow-clear />
       <a-select v-model:value="status" :options="statusOptions" placeholder="状态" style="width: 110px" allow-clear />
       <a-input-search v-model:value="keyword" placeholder="单号 / 往来单位 / 摘要" style="width: 220px" allow-clear />

@@ -158,8 +158,6 @@ onMounted(() => {
 <template>
   <section class="ft-page">
     <section class="ft-head toolbar">
-      <h2>合同付款计划</h2>
-      <span class="divider" />
       <a-select v-model:value="query.contractNo" :options="contractOptions" placeholder="全部合同" style="width: 240px"
                 allow-clear show-search @change="resetPage" />
       <a-select v-model:value="query.status" :options="statusOptions" placeholder="付款状态" style="width: 130px" allow-clear @change="resetPage" />

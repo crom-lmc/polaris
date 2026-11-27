@@ -131,18 +131,17 @@ watch(() => props.open, async (open) => {
 </script>
 
 <template>
-  <a-modal :open="open" :title="title || '选择'" width="820" style="max-width: 94vw"
+  <a-modal :open="open" :title="title || '选择'" width="700" style="max-width: 94vw"
            :footer="null" :mask-closable="false" @cancel="close">
     <div class="ep-wrap">
       <div class="ep-search">
         <a-input v-model:value="keyword" :placeholder="placeholder || '编码 / 名称'" allow-clear @pressEnter="doSearch" />
         <a-button type="primary" @click="doSearch">搜索</a-button>
         <a-button @click="resetSearch">重置</a-button>
-        <span class="ep-tip">单击行选中，确定后回填</span>
       </div>
       <a-table class="ep-table" :row-key="rowKeyOf" :columns="columns" :data-source="rows"
                :loading="loading" :pagination="pagination" :row-selection="rowSelection"
-               :scroll="{ x: 'max-content', y: 360 }" size="small">
+               :scroll="{ x: 'max-content', y: 300 }" size="small">
         <template #bodyCell="{ column, record }">
           <template v-if="column.ellipsis">
             <a-tooltip :title="record[column.dataIndex as string]">
@@ -167,10 +166,9 @@ watch(() => props.open, async (open) => {
 </template>
 
 <style scoped>
-.ep-wrap { min-height: 420px; }
+.ep-wrap { min-height: 360px; }
 .ep-search { display: flex; gap: 8px; align-items: center; margin-bottom: 10px; }
-.ep-search .ant-input { flex: 1 1 auto; max-width: 360px; }
-.ep-tip { color: var(--muted, #8a9099); font-size: 12px; margin-left: auto; }
+.ep-search .ant-input { flex: 1 1 auto; max-width: 260px; }
 .ep-table { min-height: 0; }
 .ep-empty { padding: 24px 8px; text-align: center; color: var(--muted, #8a9099); font-size: 12px; }
 .ep-footer {
@@ -180,7 +178,6 @@ watch(() => props.open, async (open) => {
 .ep-picked { font-size: 12px; color: var(--muted, #8a9099); }
 .ep-picked b { color: var(--text-base, #1f2329); }
 @media (max-width: 700px) {
-  .ep-tip { display: none; }
   .ep-search .ant-input { max-width: none; }
 }
 </style>

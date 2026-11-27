@@ -185,8 +185,6 @@ async function submit() {
 <template>
   <section class="ft-page">
     <section class="ft-head toolbar">
-      <h2>{{ title }}</h2>
-      <span class="divider" />
       <a-input-search v-model:value="keyword" placeholder="编码 / 名称 / 关联科目" style="width: 220px" allow-clear />
       <a-select v-model:value="status" :options="statusOptions" placeholder="状态" style="width: 100px" allow-clear />
       <template v-if="kind === 'subject'">
@@ -197,7 +195,6 @@ async function submit() {
       <a-select v-else v-model:value="year" :options="yearOptions" placeholder="年度" style="width: 110px" allow-clear />
       <a-button @click="resetFilter">重置</a-button>
       <span class="grow" />
-      <span class="hint">财务系统独立维护 · 合同域通过 polaris-finance-client 只读引用</span>
       <a-button v-if="canEdit()" type="primary" @click="openCreate">＋ 新增{{ title }}</a-button>
     </section>
     <section class="ft-scroll ft-bottom">

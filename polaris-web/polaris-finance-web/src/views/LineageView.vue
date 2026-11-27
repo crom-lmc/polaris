@@ -59,11 +59,6 @@ const objectRows = [
 
 <template>
   <section class="ft-page">
-    <section class="ft-head toolbar">
-      <h2>数据口径与单据关系</h2>
-      <span class="divider" />
-      <span class="hint">单据链路、对象说明与统计口径：所有数据均来自服务端接口</span>
-    </section>
     <section class="ft-scroll">
       <a-alert type="info" show-icon class="drawer-alert" message="单据到账表的统一口径"
                description="采购、报销与销售业务单据经审批后生成会计凭证，凭证过账形成预算已用、往来余额、账龄与报表数据。单号与记账由服务端生成，前端只展示与发起动作。" />

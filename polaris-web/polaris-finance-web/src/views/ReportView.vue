@@ -64,9 +64,6 @@ const router = useRouter()
 <template>
   <section class="ft-page">
     <section class="ft-head toolbar">
-      <h2>财务报表</h2>
-      <span class="divider" />
-      <span class="hint">报表清单仅标注可从现有接口取数的报表与数据来源，不提供伪造的生成动作</span>
       <span class="grow" />
       <a-button @click="router.push('/lineage')">查看数据口径</a-button>
     </section>

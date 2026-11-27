@@ -219,15 +219,12 @@ onMounted(() => { load(); loadOrg() })
 <template>
   <section class="ft-page">
     <section class="ft-head toolbar">
-      <h2>项目维护</h2>
-      <span class="divider" />
       <a-input-search v-model:value="query.code" placeholder="项目编码" style="width: 160px" allow-clear @search="resetAndLoad" />
       <a-input-search v-model:value="query.keyword" placeholder="项目名称" style="width: 180px" allow-clear @search="resetAndLoad" />
       <a-select v-model:value="query.type" :options="typeOptions" placeholder="全部类型" style="width: 130px" allow-clear @change="resetAndLoad" />
       <a-select v-model:value="query.status" :options="statusOptions" placeholder="全部状态" style="width: 120px" allow-clear @change="resetAndLoad" />
       <a-select v-model:value="query.teamCode" :options="teamFilterOptions" placeholder="全部项目组" style="width: 170px" allow-clear @change="resetAndLoad" />
       <span class="grow" />
-      <span class="hint">项目独立维护；所属项目在合同侧选择，此处不维护合同</span>
       <a-button v-if="store.can('contract:project:edit')" type="primary" @click="openEdit()">＋ 新增项目</a-button>
     </section>
     <section class="ft-scroll ft-bottom">

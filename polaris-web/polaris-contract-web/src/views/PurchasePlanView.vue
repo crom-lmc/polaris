@@ -237,14 +237,11 @@ onMounted(() => { load(); loadOptions(); loadOrgDirectory() })
 <template>
   <section class="ft-page">
     <section class="ft-head toolbar">
-      <h2>采购计划</h2>
-      <span class="divider" />
       <a-input-search v-model:value="query.no" placeholder="计划编号" style="width: 170px" allow-clear @search="resetAndLoad" />
       <a-input-search v-model:value="query.keyword" placeholder="名称 / 申请人" style="width: 200px" allow-clear @search="resetAndLoad" />
       <a-select v-model:value="query.status" :options="statusOptions" placeholder="计划状态" style="width: 120px" allow-clear @change="resetAndLoad" />
       <a-select v-model:value="query.dept" :options="queryDeptOptions" placeholder="需求部门" style="width: 130px" allow-clear @change="resetAndLoad" />
       <span class="grow" />
-      <span class="hint">审批通过后转采购合同并带入清单</span>
       <a-button v-if="store.can('contract:plan:edit')" type="primary" @click="openCreate">＋ 新建计划</a-button>
     </section>
     <section class="ft-scroll ft-bottom">

@@ -217,8 +217,6 @@ onMounted(() => {
 <template>
   <section class="ft-page">
     <section class="ft-head toolbar">
-      <h2>往来单位维护</h2>
-      <span class="divider" />
       <a-input-search v-model:value="query.code" placeholder="单位编码" style="width: 150px" allow-clear @search="resetAndLoad" />
       <a-input-search v-model:value="query.keyword" placeholder="名称 / 联系人" style="width: 180px" allow-clear @search="resetAndLoad" />
       <a-select v-model:value="query.role" :options="roleOptions" placeholder="全部角色" style="width: 120px" allow-clear @change="resetAndLoad" />

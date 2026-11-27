@@ -196,8 +196,6 @@ async function submit() {
 <template>
   <section class="ft-page">
     <section class="ft-head toolbar">
-      <h2>凭证管理</h2>
-      <span class="divider" />
       <a-input-search v-model:value="keyword" placeholder="凭证号 / 摘要 / 来源单据" style="width: 220px" allow-clear />
       <a-select v-model:value="status" :options="statusOptions" placeholder="状态" style="width: 110px" allow-clear />
       <a-select v-model:value="sourceType" :options="sourceOptions" placeholder="来源类型" style="width: 130px" allow-clear />

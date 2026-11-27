@@ -62,6 +62,7 @@ level: L2
 
 **列表标题（合同 / 财务所有模块统一）**：
 - MUST NOT 在表格上方添加由当前选中节点、筛选条件等拼出来的**额外动态标题**（如 `` `子分类：${currentNode.name}` ``、`` `物料清单：${currentNode.name}` ``）。`a-card` / 表格容器直接用静态标题或不加标题；页面名和选中项已在侧栏、树节点或筛选控件中体现时，MUST NOT 再拼一段重复标题。静态区块标题（如「合同信息」「基本信息」）保留。
+- **`ft-head` 工具栏不重复放页面标题与右侧说明（合同 / 财务 / 采购计划所有模块统一，MUST）**：`ft-head.toolbar` MUST NOT 放 `<h2>`（或等价的独立页面标题）以及紧随其后的 `divider`/`panel-divider`——页面名已由侧栏菜单或页签表达；工具栏右侧 MUST NOT 放 `class="hint"` / `panel-hint` 常驻说明（如「审批通过后转采购合同并带入清单」「项目独立维护；所属项目在合同侧选择」）。工具栏只保留筛选控件、`grow` 留白与操作按钮；表单/卡片内的静态区块标题（`a-card title`、分组标题）不受此限。`polaris-design-web` 设计稿中的对应页面同步适用（2026-11-27 采购计划截图反馈：左侧标题与右侧提示需去掉）。
 - MUST 表头单行不折叠：两个应用 `src/styles/global.css` 对 `.ant-table-thead > tr > th` 及 `.ant-table-column-title` 设 `white-space: nowrap !important`；同时把「列宽合计 > `scroll.x`」的表格加宽 `scroll.x` 与 `--ft-min-width`，MUST NOT 只加 nowrap 不加宽导致列被挤压。
 
 **操作列固定**：MUST 用 `.ft-table` + CSS `position:sticky; right:0; z-index:3` 固定最后一列；MUST NOT 用 antd 的 `fixed:'right'`（会在表格内部再开一层横向滚动，与整页滚动容器冲突；审计 `EventsView.vue` 是历史例外）。按钮左对齐不换行，靠 `.ft-table .ant-btn-link` 的 padding 规则实现。

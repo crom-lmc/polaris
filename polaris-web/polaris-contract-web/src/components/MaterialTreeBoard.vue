@@ -304,8 +304,6 @@ onMounted(async () => { await loadTree(); await loadRows() })
 <template>
   <section class="ft-page">
     <section class="ft-head toolbar">
-      <h2>{{ manage ? '物料维护' : '物料库' }}</h2>
-      <span class="divider" />
       <a-input-search v-model:value="keyword" placeholder="编码 / 名称 / 规格" style="width: 240px" allow-clear />
       <span class="grow" />
       <template v-if="!manage">

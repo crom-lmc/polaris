@@ -138,13 +138,10 @@ function onDelete(row: BudgetVO) {
 <template>
   <section class="ft-page">
     <section class="ft-head toolbar">
-      <h2>预算管理</h2>
-      <span class="divider" />
       <a-select v-model:value="year" :options="yearOptions" style="width: 110px" />
       <a-select v-model:value="dept" :options="deptOptions" placeholder="归属部门" style="width: 180px" allow-clear show-search :filter-option="filterOption" />
       <a-button @click="reset">重置</a-button>
       <span class="grow" />
-      <span class="hint">已用 = 历史归档 + 本期凭证；合同承诺单独列示，不重复计入已用</span>
       <a-button v-if="canEdit()" type="primary" @click="openCreate">＋ 新增预算</a-button>
     </section>
     <section class="ft-scroll ft-bottom">

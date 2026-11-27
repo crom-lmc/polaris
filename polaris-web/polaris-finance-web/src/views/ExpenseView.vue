@@ -235,8 +235,6 @@ async function submit() {
 <template>
   <section class="ft-page">
     <section class="ft-head toolbar">
-      <h2>费用报销</h2>
-      <span class="divider" />
       <a-input-search v-model:value="keyword" placeholder="单号 / 申请人 / 事由" style="width: 220px" allow-clear />
       <a-select v-model:value="status" :options="statusOptions" placeholder="状态" style="width: 110px" allow-clear />
       <a-select v-model:value="dept" :options="deptOptions" placeholder="归属部门" style="width: 160px" allow-clear show-search :filter-option="filterOption" />

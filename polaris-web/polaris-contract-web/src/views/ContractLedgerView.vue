@@ -299,8 +299,6 @@ onMounted(() => { load(); loadOptions(); loadOrgDirectory() })
 <template>
   <section class="ft-page">
     <section class="ft-head toolbar">
-      <h2>合同台账</h2>
-      <span class="divider" />
       <a-select v-model:value="query.type" :options="typeOptions" placeholder="全部类型" style="width: 140px" allow-clear @change="resetAndLoad" />
       <a-input-search v-model:value="query.keyword" placeholder="编号 / 名称 / 供应商 / 客户" style="width: 240px" allow-clear @search="resetAndLoad" />
       <a-select v-model:value="query.status" :options="statusOptions" placeholder="合同状态" style="width: 120px" allow-clear @change="resetAndLoad" />

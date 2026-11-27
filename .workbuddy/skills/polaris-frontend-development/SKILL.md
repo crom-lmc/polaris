@@ -36,6 +36,7 @@ agent_created: true
    - **列表铺满 + 分页固定右下角（合同/财务所有模块统一，MUST）**：列表默认铺满页面剩余高度，分页条 MUST 用 `.ft-bottom` 的 sticky bottom:0 固定在右下角（z-index 5 高于操作列 3）、`margin:auto 0 0` 贴底，MUST NOT 让分页随内容流走或只固定在顶部；`pageSize` 默认 20、开 `showSizeChanger` 与 `showTotal`。树+表布局变体（如物料维护）用 `.panel-tree-main.ft-bottom` + `.tree-table-card` 让右侧表格撑满卡片、分页 sticky 贴底。列表骨架、空态铺满与树表变体细则见 `../../rules/frontend-01-L2-conventions.md`「表格与交互」。
    - **置灰操作按钮口径（合同/财务所有模块统一，MUST）**：禁用的链接式操作（删除/编辑等）只置灰、不改字号，MUST 用 `.link-disabled { color: var(--muted); cursor: not-allowed }`（继承 `<a>` 默认 14px，与相邻的「编辑/停用」同字号）；MUST NOT 用 `.muted`（带 `font-size:12px` 会让置灰按钮比其它操作小一号），也 MUST NOT 用 `a-button disabled` 的缩小样式。禁用原因用 `a-tooltip` hover 展示即可。
    - **常驻说明提示口径（合同/财务所有模块统一，MUST）**：列表页 MUST NOT 放常驻的说明性 `a-alert`（如「维护口径」）、顶部 `hint` 编码说明、左侧「共 N 个分类/条」计数等提示文字；页面只保留标题、搜索栏、操作按钮与表格。禁用原因、字段来源等解释只在 hover（`a-tooltip`/`title`）或弹窗里出现，不在页面常驻。
+   - **工具栏不重复放页面标题 / 右侧说明（合同/财务/采购计划所有模块统一，MUST）**：`ft-head.toolbar` MUST NOT 放 `<h2>` 独立页面标题及紧随的 `divider`，也 MUST NOT 在右侧放 `hint`/`panel-hint` 常驻说明（如「审批通过后转采购合同并带入清单」）；侧栏/页签已标明页面名，工具栏只留筛选控件、`grow` 与操作按钮。卡片/表单内的静态区块标题保留。`polaris-design-web` 设计稿对应页面同步适用。
    - **表单标签左对齐口径（合同/财务所有模块统一，MUST）**：表单（含抽屉/弹窗内表单）字段标签文字 MUST 左对齐，必填星号 MUST NOT 挤占标签文字位置——必填项与非必填项的标签文字起点 MUST 在同一条竖线上。AntDV 4 的 `required` 靠 `label::before` 的 `inline-block + margin-inline-end` 占位，会推右必填项文字，因此两个应用的 `src/styles/global.css` MUST 统一覆盖（选择器 MUST 带 `.ant-form .ant-form-item` 前缀提高特异性，压过 AntDV CSS-in-JS 运行时的 `:not()` 规则）：`.ant-form .ant-form-item .ant-form-item-label > label { padding-left: 14px }` 预留星号位；`.ant-form .ant-form-item .ant-form-item-label > label.ant-form-item-required::before { position:absolute; left:0; top:50%; transform:translateY(-50%); margin-inline-end:0 }` 让星号落在预留区不占文字流。MUST NOT 让必填标签文字被星号推后、与非必填标签错位（2026-11-27 客户/供应商新增抽屉曾因此被要求整改）。
 5. **自检**：按 L1 + L2 检查权限、表格、长文本、响应式、主题、回调、监听器清理、换行符与 BOM。
 6. **验证**：`vue-tsc --noEmit` + `vite build` 通过；改 `_shared/` 时 11 个应用全量验证；本地清理守卫拦截时用 `--outDir /tmp/<唯一目录> --emptyOutDir false`。
@@ -45,6 +46,7 @@ agent_created: true
 
 - 往来单位、所属项目、负责人、归属部门等主数据字段 MUST 用弹窗选择（表格 + 搜索 + 分页 + 单选），MUST NOT 用 `a-select` 下拉或 `a-input` 手输。统一用 `_shared/components/EntityPickerModal.vue`：组件 API 无关，调用方注入 `load(params) => {records,total}` 与动态列 `columns`，`rowKey` 指定唯一字段，`confirm` 回传完整行对象（便于联动带出其它字段）。
 - 表单里用 `a-input readonly`（`cursor:pointer`）点击打开弹窗，不再渲染下拉箭头；选中后把所需字段写入表单（value 存名称/编码与库中一致）。
+- **弹窗保持紧凑（2026-11-27 截图反馈，MUST）**：`EntityPickerModal` 搜索栏右侧 MUST NOT 放「单击行选中，确定后回填」等常驻提示（`ep-tip`），操作说明只经按钮 `title` 或 hover 呈现；弹窗宽 700、`a-table` 滚动高度 300、搜索输入框最大宽 260，MUST NOT 再放大（物料树+表格双栏的 `MaterialPickerModal` 不适用）。
 - 合同类型联动：采购合同的往来单位只能选 SUPPLIER/BOTH（label 显示「供应商」），销售合同只能选 CUSTOMER/BOTH（label 显示「客户」）；切换类型时清空已选避免角色错配。服务端也做同样校验，前端过滤不是唯一防线。
 - 负责人选中后 MUST 自动带出其所属部门写入归属部门（只读、不可手改）；部门为空时给出提示不允许保存。
 - 财务侧选项多为一次性加载的候选，用 `useEntityPickers.ts` 的 `paginatePicker`/`orgRows` 做本地过滤分页；合同侧可直连后端分页接口。

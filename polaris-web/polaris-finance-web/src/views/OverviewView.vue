@@ -132,10 +132,7 @@ function goTraceSource() {
 <template>
   <section class="ft-page">
     <section class="ft-head toolbar">
-      <h2>财务概览</h2>
-      <span class="divider" />
       <a-range-picker v-model:value="range" format="YYYY-MM-DD" />
-      <span class="hint">统计卡与最近凭证按所选日期范围，月度收支固定近 6 个月</span>
       <span class="grow" />
       <a-button :loading="loading" @click="load">刷新</a-button>
     </section>
