@@ -239,10 +239,8 @@
     <!-- 批量审批：统一意见，逐条提交，部分失败会在结果里列出原因 -->
     <a-modal
       v-model:open="batch.open"
+      class="batch-modal"
       :title="batch.pass ? '批量通过审批' : '批量驳回审批'"
-      :confirm-loading="batch.loading"
-      ok-text="确定"
-      @ok="submitBatch"
     >
       <p class="batch-tip">
         将对已选的 {{ selectedRowKeys.length }} 条待办统一{{ batch.pass ? '通过' : '驳回' }}，
@@ -255,6 +253,12 @@
         show-count
         :placeholder="batch.pass ? '审批意见（可选）' : '请填写驳回意见（可选）'"
       />
+      <template #footer>
+        <div class="batch-footer">
+          <a-button :disabled="batch.loading" @click="batch.open = false">取消</a-button>
+          <a-button type="primary" :loading="batch.loading" @click="submitBatch">确定</a-button>
+        </div>
+      </template>
     </a-modal>
   </div>
 </template>
@@ -877,6 +881,16 @@ onMounted(load)
 .batch-tip {
   margin-bottom: 10px;
   color: var(--muted);
+}
+/* 批量审批弹窗：默认 footer 按钮紧贴文本框右下角的“0/200”计数。
+   改用自定义 footer——按钮另起一行、留出上边距，右缘与输入框/弹窗右边框对齐。 */
+.batch-modal :deep(.ant-modal-footer) {
+  padding: 20px 24px 16px;
+}
+.batch-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
 }
 /* 表格最小宽度 = 列宽合计（普通视图 1000px，「已审批」多一列 1200px）。
    横向滚动由 .ft-scroll 承担，操作列由 .ft-table 的 sticky 承担。 */

@@ -250,7 +250,7 @@ onMounted(() => { load(); loadOptions() })
             <a-space :size="4">
               <a @click="openDetail(record.id)">查看</a>
               <a v-if="store.can('contract:ledger:edit') && record.status === 'DRAFT'" @click="openEdit(record)">编辑</a>
-              <a v-if="store.can('contract:item:edit') && ['EFFECTIVE', 'EXECUTING'].includes(record.status)" @click="openAccept(record)">验收</a>
+              <a v-if="store.can('contract:item:edit') && ['EFFECTIVE', 'EXECUTING'].includes(record.status) && !record.acceptanceDone" @click="openAccept(record)">验收</a>
               <template v-if="store.can('contract:ledger:edit')">
                 <a v-for="action in statusActionsOf(record)" :key="action.target" @click="requestStatusAction(action, record)">{{ action.label }}</a>
               </template>

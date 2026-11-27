@@ -98,13 +98,13 @@ function onRemove(file: any) {
   <a-form-item :label="label" :required="required">
     <a-upload v-if="!readonly" v-model:file-list="fileList" :custom-request="onUpload" :on-remove="onRemove"
               :accept="accept" :multiple="true">
-      <a-button :disabled="items.length >= maxCount">{{ buttonText }}</a-button>
+      <a-button :disabled="items.length >= maxCount"
+                :title="`${hint}（最多 ${maxCount} 个，单文件不超过 ${maxSizeMb}MB）`">{{ buttonText }}</a-button>
     </a-upload>
     <div v-else-if="items.length" class="attachment-links">
       <a v-for="item in items" :key="item.fileId" :href="item.url || undefined" target="_blank">{{ item.name }}</a>
     </div>
     <span v-else class="muted">无附件</span>
-    <template v-if="!readonly" #extra>{{ hint }}（最多 {{ maxCount }} 个，单文件不超过 {{ maxSizeMb }}MB）</template>
   </a-form-item>
 </template>
 

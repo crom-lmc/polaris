@@ -98,7 +98,8 @@ agent_created: true
 - 上传组件统一用 `_shared/components/AttachmentUpload.vue`（API 无关，调用方注入 `upload` 函数与 `fileIds` v-model；错误通过 `error` 事件交给应用提示，共享组件不 import 应用 UI 库）。
 - 业务表单只存 `fileId` 数组，FileReader→base64 调业务服务代理接口；预览走后端签发的 `attachmentUrls`，MUST NOT 直连文件服务或把签名 URL 当长期地址存库。
 - 采购计划新建抽屉（2026-11-27 追加）：上传附件区 MUST 放在「计划明细（从物料库选料）」上方，明细行与计划金额在其后。
-- `AttachmentUpload` 自带 `a-form-item`（含 `label` 与 `#extra` 提示），调用方 MUST NOT 再用 `<a-form-item label="...">` 包裹，否则出现重复标签（2026-11-27 新增凭证抽屉出现两个「凭证附件」被用户指出）；直接把组件放在表单内并用 `label` 属性命名即可。
+- `AttachmentUpload` 自带 `a-form-item`（含 `label`），调用方 MUST NOT 再用 `<a-form-item label="...">` 包裹，否则出现重复标签（2026-11-27 新增凭证抽屉出现两个「凭证附件」被用户指出）；直接把组件放在表单内并用 `label` 属性命名即可。
+- **附件上传说明不常驻（2026-11-27 截图反馈，MUST）**：`AttachmentUpload` MUST NOT 用 `#extra` 把「支持 jpg/png/...（最多 N 个，单文件不超过 M MB）」常驻在表单下方；格式/数量/大小说明只放上传按钮的 `title`（hover 呈现），组件内不再渲染 `#extra`。与弹窗 `ep-tip` 常驻提示口径一致。
 - 合同侧三类附件走 `uploadContractAttachment(file, owner)`，owner 取 `purchase-plan`/`contract`/`acceptance`；上传按钮按独立权限码显示，列表加附件列时同步加宽 `scroll.x` 与 `--ft-min-width`。
 
 ## 预算科目业务归属口径（2026-11-27 落地）

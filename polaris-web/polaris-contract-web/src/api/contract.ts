@@ -334,6 +334,8 @@ export interface ContractVO {
   pendingAmount: number
   progress: number
   itemCount: number
+  /** 清单是否全部验收完成（派生字段，前端据此隐藏「验收」入口） */
+  acceptanceDone?: boolean
   planCount: number
   /** 变更次数（来自 contract_change_log） */
   changeCount: number
@@ -542,6 +544,8 @@ export const listPaymentPlans = (contractNo: string) =>
   request.get<never, PaymentPlanVO[]>(`/api/contract/payment-plans/contract/${contractNo}`)
 export const savePaymentPlan = (contractNo: string, data: PaymentPlanSave) =>
   request.post<never, PaymentPlanVO>(`/api/contract/payment-plans/contract/${contractNo}`, data)
+export const updatePaymentPlan = (id: string, data: PaymentPlanSave) =>
+  request.put<never, void>(`/api/contract/payment-plans/${id}`, data)
 export const applyPaymentPlan = (id: string, sourceDocNo?: string) =>
   request.post<never, PaymentPlanVO>(`/api/contract/payment-plans/${id}/apply`,
     sourceDocNo ? { sourceDocNo } : {})

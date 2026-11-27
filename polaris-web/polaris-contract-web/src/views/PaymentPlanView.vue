@@ -4,7 +4,7 @@ import { message } from 'ant-design-vue'
 import { useUserStore } from '@/stores/user'
 import { useIsMobile } from '@/composables/useIsMobile'
 import {
-  listContracts, listPaymentPlans, savePaymentPlan, applyPaymentPlan, fetchPublicDict,
+  listContracts, listPaymentPlans, savePaymentPlan, updatePaymentPlan, deletePaymentPlan, applyPaymentPlan, fetchPublicDict,
   type PaymentPlanVO, type ContractVO, type DictOption
 } from '@/api/contract'
 import { yuan } from '@/utils/format'
@@ -86,7 +86,7 @@ const columns = [
   { title: '本期付款金额', key: 'amount', align: 'right' as const, width: 140 },
   { title: '应付日期', dataIndex: 'dueDate', key: 'dueDate', width: 110 },
   { title: '付款状态', key: 'status', align: 'center' as const, width: 120 },
-  { title: '操作', key: 'action', width: 180 }
+  { title: '操作', key: 'action', width: 280 }
 ]
 
 async function apply(row: PaymentPlanVO) {
@@ -102,6 +102,8 @@ function openView(row: PaymentPlanVO) { viewRow.value = row; viewOpen.value = tr
 /* 发起付款申请：一步完成「新建计划 + 发起申请」。仅生成待申请计划的入口在合同详情的付款计划编辑器。 */
 const applyOpen = ref(false)
 const saving = ref(false)
+/** 编辑待申请计划：复用申请抽屉的表单，editingId 非空表示编辑态（只保存、不发起） */
+const editingId = ref<string | null>(null)
 const form = reactive({
   contractNo: undefined as string | undefined,
   stage: undefined as string | undefined,
@@ -119,13 +121,35 @@ function onContractChange(no?: string) {
   form.remainingAmount = contracts.value.find((c) => c.no === no)?.pendingAmount
   form.amount = undefined
 }
-function openApply() {
+function resetForm() {
   form.contractNo = undefined
   form.stage = undefined
   form.remainingAmount = undefined
   form.amount = undefined
   form.dueDate = undefined
+}
+function openApply() {
+  editingId.value = null
+  resetForm()
   applyOpen.value = true
+}
+/** 编辑待申请计划：回填当前值，合同锁定不可改（金额校验基准仍取该合同） */
+function openEdit(row: PaymentPlanVO) {
+  editingId.value = row.id
+  form.contractNo = row.contractNo
+  form.stage = row.stage
+  form.remainingAmount = contracts.value.find((c) => c.no === row.contractNo)?.pendingAmount
+  form.amount = Number(row.amount || 0)
+  form.dueDate = row.dueDate
+  applyOpen.value = true
+}
+/** 删除待申请计划（服务端再次校验仅 WAITING 可删） */
+async function remove(row: PaymentPlanVO) {
+  try {
+    await deletePaymentPlan(row.id)
+    message.success('付款计划已删除')
+    await load()
+  } catch (e: any) { message.error(e?.message || '删除失败') }
 }
 async function submitApply() {
   const amount = form.amount
@@ -143,13 +167,20 @@ async function submitApply() {
   }
   saving.value = true
   try {
-    const saved = await savePaymentPlan(form.contractNo!, { stage: form.stage, amount: Number(amount), dueDate: form.dueDate })
-    try {
-      await applyPaymentPlan(saved.id)
-      message.success('付款计划已保存并发起申请，等待审批')
-    } catch (e: any) {
-      // 计划已落库为待申请：验收未过账等条件下发起失败时保留计划，供列表行「发起申请」重试
-      message.warning(`付款计划已保存，但发起申请失败：${e?.message || '请在列表中重试'}`)
+    const payload = { stage: form.stage, amount: Number(amount), dueDate: form.dueDate }
+    if (editingId.value) {
+      // 编辑待申请计划：只保存，不发起
+      await updatePaymentPlan(editingId.value, payload)
+      message.success('付款计划已保存')
+    } else {
+      const saved = await savePaymentPlan(form.contractNo!, payload)
+      try {
+        await applyPaymentPlan(saved.id)
+        message.success('付款计划已保存并发起申请，等待审批')
+      } catch (e: any) {
+        // 计划已落库为待申请：验收未过账等条件下发起失败时保留计划，供列表行「发起申请」重试
+        message.warning(`付款计划已保存，但发起申请失败：${e?.message || '请在列表中重试'}`)
+      }
     }
     applyOpen.value = false
     await load()
@@ -182,7 +213,7 @@ onMounted(() => {
       </div>
       <a-table class="ft-table" row-key="id" :columns="columns" :data-source="paged" :loading="loading"
                :pagination="pagination" :class="{ 'tbl-empty-mode': !loading && !paged.length }"
-               :scroll="paged.length ? { x: 1250 } : undefined">
+               :scroll="paged.length ? { x: 1350 } : undefined">
           <template #bodyCell="{ column, record }">
           <template v-if="column.key === 'no'">
             <a-tooltip v-if="record.no" :title="record.no"><span class="cell-ellipsis">{{ record.no }}</span></a-tooltip>
@@ -207,8 +238,14 @@ onMounted(() => {
             <a-tag v-else :color="statusColor[record.status] || 'default'">{{ statusLabel[record.status] || record.status }}</a-tag>
           </template>
           <template v-else-if="column.key === 'action'">
-            <a-space :size="4">
+            <a-space :size="4" class="action-links">
               <a @click="openView(record)">查看</a>
+              <template v-if="store.can('contract:payment:edit') && record.status === 'WAITING'">
+                <a @click="openEdit(record)">编辑</a>
+                <a-popconfirm title="确认删除该待申请付款计划？" ok-text="删除" cancel-text="取消" @confirm="remove(record)">
+                  <a class="link-danger">删除</a>
+                </a-popconfirm>
+              </template>
               <a v-if="store.can('contract:payment:edit') && (record.status === 'WAITING' || record.status === 'REJECTED')"
                  @click="apply(record)">发起申请</a>
             </a-space>
@@ -218,11 +255,11 @@ onMounted(() => {
       </a-table>
     </section>
 
-    <a-drawer v-model:open="applyOpen" title="发起付款申请" :width="drawerWidth" placement="right">
+    <a-drawer v-model:open="applyOpen" :title="editingId ? '编辑付款计划' : '发起付款申请'" :width="drawerWidth" placement="right">
       <a-form layout="vertical">
         <a-form-item label="所属合同" required>
           <a-select v-model:value="form.contractNo" :options="contractOptions" placeholder="请选择合同" show-search
-                    style="width: 100%" @change="onContractChange" />
+                    :disabled="!!editingId" style="width: 100%" @change="onContractChange" />
         </a-form-item>
         <a-form-item label="付款阶段" required>
           <a-select v-model:value="form.stage" :options="stageOptions" placeholder="请选择付款阶段" show-search style="width: 100%" />
@@ -246,7 +283,7 @@ onMounted(() => {
       <template #footer>
         <div class="drawer-footer">
           <a-button @click="applyOpen = false">取消</a-button>
-          <a-button type="primary" :loading="saving" @click="submitApply">保存并发起</a-button>
+          <a-button type="primary" :loading="saving" @click="submitApply">{{ editingId ? '保存修改' : '保存并发起' }}</a-button>
         </div>
       </template>
     </a-drawer>
@@ -284,6 +321,7 @@ onMounted(() => {
 </template>
 
 <style scoped>
+.link-danger { color: var(--danger, #dc2626); }
 .view-attachments { margin-top: 16px; }
 .view-attachments-title { font-weight: 600; margin-bottom: 8px; }
 .view-attachments-list { display: flex; flex-wrap: wrap; gap: 8px 16px; }
