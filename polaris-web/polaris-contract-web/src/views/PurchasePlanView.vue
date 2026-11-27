@@ -5,7 +5,7 @@ import { useUserStore } from '@/stores/user'
 import { useIsMobile } from '@/composables/useIsMobile'
 import { useOrgDirectory } from '@/composables/useOrgDirectory'
 import {
-  listPurchasePlans, getPurchasePlan, savePurchasePlan,
+  listPurchasePlans, getPurchasePlan, savePurchasePlan, submitPurchasePlan,
   uploadContractAttachment, fetchPurchasePlanProfile, fetchPlanApprovalInfo,
   type PurchasePlanVO, type ContractVO
 } from '@/api/contract'
@@ -200,6 +200,15 @@ async function submitCreate() {
   finally { createSaving.value = false }
 }
 
+/* 提交审批：草稿→PENDING，由审批中心审批并回调推进（不再提供手工审批入口） */
+async function submitPlan(row: PurchasePlanVO) {
+  try {
+    await submitPurchasePlan(row.id)
+    message.success('已提交审批，可在「审批信息」查看进度')
+    resetAndLoad()
+  } catch (e: any) { message.error(e?.message || '提交审批失败') }
+}
+
 /* 转合同：复用合同表单抽屉，计划数据由组件预填；保存后切换为编辑态继续维护清单/付款计划 */
 const contractFormOpen = ref(false)
 const convertPlan = ref<PurchasePlanVO | null>(null)
@@ -265,6 +274,7 @@ onMounted(() => { load(); loadOrgDirectory() })
               <a @click="openDetail(record.id)">详情</a>
               <a v-if="record.status !== 'DRAFT'" @click="openApproval(record)">审批信息</a>
               <template v-if="store.can('contract:plan:edit')">
+                <a v-if="record.status === 'DRAFT'" @click="submitPlan(record)">提交审批</a>
                 <!-- 提交审批后由审批中心审批/驳回并回调推进，不再提供手工审批入口 -->
                 <a v-if="record.status === 'APPROVED'" @click="openConvert(record)">转合同</a>
               </template>
@@ -317,6 +327,7 @@ onMounted(() => { load(); loadOrgDirectory() })
         <div class="drawer-footer">
           <a-button @click="detailOpen = false">关闭</a-button>
           <template v-if="store.can('contract:plan:edit') && detail">
+            <a-button v-if="detail.status === 'DRAFT'" type="primary" @click="submitPlan(detail)">提交审批</a-button>
             <a-button v-if="detail.status === 'APPROVED'" type="primary" @click="openConvert(detail)">转采购合同</a-button>
           </template>
         </div>

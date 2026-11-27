@@ -13,6 +13,7 @@ import AttachmentUpload from '@shared/components/AttachmentUpload.vue'
 import { yuan } from '@/utils/format'
 
 const props = defineProps<{ contractNo: string; readonly?: boolean; contractStatus?: string; contractType?: string }>()
+const emit = defineEmits<{ changed: [] }>()
 /** 销售合同客户验收：通过/不通过，通过才累加交付并推应收；采购仍为到货验收合格/不合格 */
 const isSales = computed(() => props.contractType === 'SALES')
 const store = useUserStore()
@@ -109,6 +110,7 @@ async function addFromMaterials(picks: MaterialPick[]) {
     }
     if (ok) message.success(`已添加 ${ok} 行清单，可在表格「编辑」调整数量与单价`)
     await load()
+    emit('changed')
   } catch (e: any) { message.error(e?.message || '添加清单行失败：' + (e?.message || '')) }
   finally { saving.value = false }
 }
@@ -138,6 +140,7 @@ async function submit() {
     editOpen.value = false
     message.success('清单行已保存')
     await load()
+    emit('changed')
   } catch (e: any) { message.error(e?.message || '保存失败：' + (e?.message || '')) }
   finally { saving.value = false }
 }
@@ -146,7 +149,7 @@ function remove(row: ItemVO) {
     centered: true, title: '删除清单行', content: `确定删除「${row.materialName}」吗？`,
     okButtonProps: { danger: true },
     onOk: async () => {
-      try { await deleteItem(props.contractNo, row.id); message.success('已删除'); await load() }
+      try { await deleteItem(props.contractNo, row.id); message.success('已删除'); await load(); emit('changed') }
       catch (e: any) { message.error(e?.message || '删除失败') }
     }
   })

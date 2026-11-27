@@ -44,7 +44,7 @@ const statusOptions = Object.entries(statusLabel).map(([value, label]) => ({ val
 interface StatusAction { label: string; target: string; kind?: 'primary' | 'danger' }
 /** 状态流转确认文案；危险动作先确认，再调状态机接口 */
 const statusActionTips: Record<string, string> = {
-  PENDING: '提交后将按合同金额与类型进入审批流程（未达审批线的采购合同直接生效），确认吗？',
+  PENDING: '提交后将进入审批流程，由审批中心审批通过后合同才生效，确认吗？',
   EFFECTIVE: '确认审批通过并将合同置为已生效？',
   DRAFT: '退回后合同变为草稿，可继续编辑，确认吗？',
   TERMINATED: '确认终止合同？终止后不可再恢复。'
@@ -168,6 +168,11 @@ function requestStatusAction(action: StatusAction, row: ContractVO) {
   // 提交审批必须有清单（合同金额来源），付款计划可后建不强制
   if (action.target === 'PENDING' && !Number(row.itemCount || 0)) {
     message.warning('请先维护合同清单，再提交审批')
+    return
+  }
+  // 付款节点是付款执行基础：未配置节点不允许提交审批（服务端同步硬校验）
+  if (action.target === 'PENDING' && !(row.paymentTermList?.length)) {
+    message.warning('请先配置付款节点，再提交审批（比例合计 100%，须含验收款）')
     return
   }
   Modal.confirm({

@@ -6,12 +6,12 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import { message } from 'ant-design-vue'
 import {
-  listPaymentTerms, savePaymentTerms, PAYMENT_STAGES, paymentStageLabel,
+  listPaymentTerms, savePaymentTerms, listItems, PAYMENT_STAGES, paymentStageLabel,
   type PaymentTermVO, type PaymentTermSave
 } from '@/api/contract'
 import { yuan } from '@/utils/format'
 
-const props = defineProps<{ contractNo: string; contractStatus?: string; readonly?: boolean }>()
+const props = defineProps<{ contractNo: string; contractStatus?: string; readonly?: boolean; itemsVersion?: number }>()
 const emit = defineEmits<{ saved: [terms: PaymentTermVO[]] }>()
 
 const rows = ref<PaymentTermVO[]>([])
@@ -30,15 +30,34 @@ const columns = [
 const totalRatio = computed(() => Number(rows.value.reduce((s, r) => s + Number(r.ratio || 0), 0).toFixed(2)))
 const hasAccept = computed(() => rows.value.some((r) => r.stage === 'ACCEPT'))
 const usedStages = computed(() => new Set(rows.value.map((r) => r.stage)))
+/** 合同清单合计：与服务端 contractAmount 同口径（清单行 amount 求和），用于编辑态实时预览锁定金额 */
+const itemsTotal = ref(0)
+/** 编辑态锁定金额实时预览 = 清单合计 × 比例（四舍五入两位），与服务端锁定口径一致；只读/未保存显示后端真实值 */
+function previewAmount(row: PaymentTermVO): number {
+  if (!editable.value) return Number(row.amount || 0)
+  return Math.round(itemsTotal.value * Number(row.ratio || 0)) / 100
+}
 
 async function load() {
   loading.value = true
-  try { rows.value = await listPaymentTerms(props.contractNo) }
+  try {
+    const [terms, items] = await Promise.all([listPaymentTerms(props.contractNo), listItems(props.contractNo)])
+    rows.value = terms || []
+    itemsTotal.value = (items || []).reduce((s, i) => s + Number(i.amount || 0), 0)
+  }
   catch (e: any) { message.error(e?.message || '付款节点加载失败') }
   finally { loading.value = false }
 }
 onMounted(() => { if (props.contractNo) load() })
 watch(() => props.contractNo, (v) => { if (v) load() })
+/** 清单增删后只重算合计，不覆盖用户正在编辑的比例/阶段 */
+watch(() => props.itemsVersion, () => {
+  if (props.contractNo) {
+    listItems(props.contractNo).then((items) => {
+      itemsTotal.value = (items || []).reduce((s, i) => s + Number(i.amount || 0), 0)
+    }).catch(() => {})
+  }
+})
 
 function addRow() {
   const next = PAYMENT_STAGES.find((s) => !usedStages.value.has(s.value))
@@ -94,7 +113,12 @@ async function save() {
                           :controls="false" style="width: 100%" addon-after="%" />
           <span v-else>{{ record.ratio }}%</span>
         </template>
-        <template v-else-if="column.key === 'amount'">{{ yuan(record.amount) }}</template>
+        <template v-else-if="column.key === 'amount'">
+          <span>{{ yuan(previewAmount(record)) }}</span>
+          <a-tooltip v-if="editable" title="按当前清单合计 × 比例预览，保存节点后锁定">
+            <span class="terms-preview-tag">预览</span>
+          </a-tooltip>
+        </template>
         <template v-else-if="column.key === 'dueDate'">
           <a-date-picker v-if="editable" v-model:value="record.dueDate" value-format="YYYY-MM-DD" format="YYYY-MM-DD" style="width: 100%" />
           <span v-else>{{ record.dueDate || '-' }}</span>
@@ -121,4 +145,5 @@ async function save() {
 .terms-title { font-weight: 600; font-size: 13px; }
 .terms-sum { font-size: 12px; color: var(--muted); }
 .terms-sum.invalid { color: #dc2626; }
+.terms-preview-tag { margin-left: 6px; font-size: 11px; color: var(--muted); border: 1px dashed var(--border, #d9d9d9); border-radius: 3px; padding: 0 4px; }
 </style>
