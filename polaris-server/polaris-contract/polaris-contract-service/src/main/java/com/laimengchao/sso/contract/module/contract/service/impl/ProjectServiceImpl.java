@@ -154,8 +154,8 @@ public class ProjectServiceImpl implements ProjectService {
         if (req == null || req.getName() == null || req.getName().isBlank()) {
             throw new BizException(ErrorCode.PARAM_ERROR, "项目名称不能为空");
         }
-        if (CLOSED.equals(entity.getStatus()) || CANCELLED.equals(entity.getStatus())) {
-            throw new BizException(ContractErrorCode.PROJECT_STATUS_INVALID);
+        if (!DRAFT.equals(entity.getStatus())) {
+            throw new BizException(ContractErrorCode.PROJECT_STATUS_INVALID, "项目已进入执行，不允许编辑");
         }
         apply(entity, req, entity.getOrgCode());
         entity.setUpdatedAt(LocalDateTime.now());
@@ -191,6 +191,9 @@ public class ProjectServiceImpl implements ProjectService {
     @Transactional(rollbackFor = Exception.class)
     public void delete(Long id) {
         ContractProject entity = require(id);
+        if (!DRAFT.equals(entity.getStatus())) {
+            throw new BizException(ContractErrorCode.PROJECT_STATUS_INVALID, "项目已进入执行，不允许删除");
+        }
         LambdaQueryWrapper<ContractHeader> usedQw = new LambdaQueryWrapper<ContractHeader>()
                 .eq(ContractHeader::getProjectNo, entity.getCode());
         dataScopeService.applyOrgScope(usedQw, ContractHeader::getOrgCode);
