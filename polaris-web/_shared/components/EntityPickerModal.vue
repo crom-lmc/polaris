@@ -170,6 +170,12 @@ watch(() => props.open, async (open) => {
 .ep-search { display: flex; gap: 8px; align-items: center; margin-bottom: 10px; }
 .ep-search .ant-input { flex: 1 1 auto; max-width: 260px; }
 .ep-table { min-height: 0; }
+/* 分页固定右下角：表格体高度恒定 + 分页 sticky 贴底（与列表页 .ft-bottom 口径一致） */
+.ep-table :deep(.ant-table-body) { min-height: 300px !important; }
+.ep-table :deep(.ant-table-pagination.ant-pagination) {
+  position: sticky; bottom: 0; z-index: 5; margin: auto 0 0; padding: 10px 0 0;
+  background: var(--panel-bg, #fff);
+}
 .ep-empty { padding: 24px 8px; text-align: center; color: var(--muted, #8a9099); font-size: 12px; }
 .ep-footer {
   display: flex; align-items: center; justify-content: space-between; gap: 12px;

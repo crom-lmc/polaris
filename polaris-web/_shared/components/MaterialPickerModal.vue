@@ -222,7 +222,7 @@ defineExpose({ reload: loadRows })
 </script>
 
 <template>
-  <a-modal :open="open" :title="title || '选择物料'" :width="960" style="max-width: 94vw"
+  <a-modal :open="open" :title="title || '选择物料'" :width="1200" style="max-width: 94vw"
            :footer="null" :mask-closable="false" @cancel="close">
     <div class="mp-wrap">
       <div class="mp-left">
@@ -306,6 +306,12 @@ defineExpose({ reload: loadRows })
 .mp-caption { font-size: 12px; color: var(--muted, #8a9099); }
 .mp-table { flex: 1 1 auto; min-height: 0; }
 .mp-table :deep(.ant-table-wrapper) { min-height: 0; }
+/* 分页固定右下角：表格体高度恒定 + 分页 sticky 贴底（与列表页 .ft-bottom 口径一致） */
+.mp-table :deep(.ant-table-body) { min-height: 340px !important; }
+.mp-table :deep(.ant-pagination.ant-table-pagination) {
+  position: sticky; bottom: 0; z-index: 5; margin: auto 0 0; padding: 10px 0 0;
+  background: var(--panel-bg, #fff);
+}
 .mp-empty { padding: 24px 8px; text-align: center; color: var(--muted, #8a9099); font-size: 12px; }
 .mp-footer {
   display: flex; align-items: center; justify-content: space-between; gap: 12px;
