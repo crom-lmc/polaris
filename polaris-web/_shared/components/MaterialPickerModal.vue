@@ -222,7 +222,7 @@ defineExpose({ reload: loadRows })
 </script>
 
 <template>
-  <a-modal :open="open" :title="title || '选择物料'" width="960" style="max-width: 94vw"
+  <a-modal :open="open" :title="title || '选择物料'" :width="960" style="max-width: 94vw"
            :footer="null" :mask-closable="false" @cancel="close">
     <div class="mp-wrap">
       <div class="mp-left">
