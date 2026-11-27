@@ -153,8 +153,15 @@ body {
 .panel-tree-side { width: 260px; flex: 0 0 260px; overflow: auto; padding: 10px; background: var(--panel-bg); border: 1px solid var(--panel-border); border-radius: 8px; }
 .panel-tree-main { flex: 1 1 auto; min-width: 0; overflow: auto; }
 .panel-tree-node { white-space: nowrap; }
-.panel-tree-side .ant-tree-indent-unit { display: inline-block; width: 18px; }
-.panel-tree-side .ant-tree-switcher { width: 18px; }
+/* 物料分类树：自绘节点，缩进直接内联 padding-left，不依赖 a-tree 的 CSS-in-JS 缩进测量 */
+.mt-tree { font-size: 14px; padding: 2px 0; }
+.mt-node { display: flex; align-items: center; height: 30px; box-sizing: border-box; cursor: pointer; border-radius: 4px; white-space: nowrap; color: var(--text-base, #1f2329); }
+.mt-node:hover { background: rgba(47, 84, 235, 0.08); }
+.mt-node.is-selected { background: rgba(47, 84, 235, 0.14); color: var(--primary, #2f54eb); font-weight: 600; }
+.mt-switcher { width: 20px; flex: 0 0 20px; display: inline-flex; align-items: center; justify-content: center; }
+.mt-arrow { font-size: 11px; color: var(--muted, #8a9099); line-height: 1; }
+.mt-title { overflow: hidden; text-overflow: ellipsis; }
+.mt-empty { padding: 20px 8px; text-align: center; color: var(--muted); font-size: 12px; }
 .rate-cell, .usage-cell { display: flex; align-items: center; gap: 6px; min-width: 100px; }
 .rate-cell .ant-progress, .usage-cell .ant-progress { flex: 1 1 auto; min-width: 60px; }
 .rate-text { font-size: 12px; white-space: nowrap; }

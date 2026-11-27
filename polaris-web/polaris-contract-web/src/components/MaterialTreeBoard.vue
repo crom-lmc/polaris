@@ -21,18 +21,32 @@ const canEditPerm = computed(() => manage.value && store.can('contract:material:
 
 const loading = ref(false)
 const flat = ref<MaterialVO[]>([])
-const treeData = computed(() => toTreeData(flat.value))
+const tree = ref<MaterialVO[]>([])
 const keyword = ref('')
 const selectedKeys = ref<string[]>([])
 const expandedKeys = ref<string[]>([])
 
-function toTreeData(nodes: MaterialVO[]): any[] {
-  return nodes.map((n) => ({
-    key: n.id,
-    title: n.name,
-    children: n.children?.length ? toTreeData(n.children) : undefined
-  }))
+/** 自绘树节点：缩进由 level 直接计算，不依赖 a-tree 的 CSS-in-JS 缩进测量 */
+type FlatNode = { key: string; title: string; level: number; hasChildren: boolean; parentKey: string | null }
+function buildFlatNodes(nodes: MaterialVO[], out: FlatNode[] = [], level = 0, parentKey: string | null = null): FlatNode[] {
+  for (const n of nodes) {
+    out.push({ key: n.id, title: n.name, level, hasChildren: !!n.children?.length, parentKey })
+    if (n.children?.length) buildFlatNodes(n.children, out, level + 1, n.id)
+  }
+  return out
 }
+const flatNodes = computed(() => buildFlatNodes(tree.value))
+const visibleNodes = computed(() => {
+  const byKey = new Map(flatNodes.value.map((n) => [n.key, n]))
+  return flatNodes.value.filter((n) => {
+    let p = n.parentKey
+    while (p) {
+      if (!expandedKeys.value.includes(p)) return false
+      p = byKey.get(p)?.parentKey || null
+    }
+    return true
+  })
+})
 function flatten(nodes: MaterialVO[], out: MaterialVO[] = []): MaterialVO[] {
   nodes.forEach((n) => { out.push(n); if (n.children?.length) flatten(n.children, out) })
   return out
@@ -40,8 +54,9 @@ function flatten(nodes: MaterialVO[], out: MaterialVO[] = []): MaterialVO[] {
 async function load() {
   loading.value = true
   try {
-    const tree = await getMaterialTree()
-    flat.value = flatten(tree || [])
+    const data = await getMaterialTree()
+    tree.value = data || []
+    flat.value = flatten(tree.value)
     if (!selectedKeys.value.length && flat.value.length) selectedKeys.value = [flat.value[0].id]
     expandedKeys.value = flat.value.filter((n) => n.kind === 'CATEGORY').map((n) => n.id)
   } catch (e: any) { message.error(e?.message || '加载物料树失败') }
@@ -165,8 +180,13 @@ function remove(row: MaterialVO) {
     }
   })
 }
-function onSelect(keys: any[]) { if (keys.length) selectedKeys.value = [String(keys[0])] }
-function onExpand(keys: any[]) { expandedKeys.value = keys.map(String) }
+function selectNode(key: string) { selectedKeys.value = [key] }
+function isExpanded(key: string) { return expandedKeys.value.includes(key) }
+function toggleExpand(key: string) {
+  expandedKeys.value = isExpanded(key)
+    ? expandedKeys.value.filter((k) => k !== key)
+    : [...expandedKeys.value, key]
+}
 onMounted(load)
 </script>
 
@@ -197,10 +217,18 @@ onMounted(load)
         <div class="panel-tree-side">
           <div class="panel-hint" style="margin: 0 0 8px 4px">物料分类树（共 {{ flat.length }} 个节点）</div>
           <a-spin :spinning="loading">
-            <a-tree v-model:selected-keys="selectedKeys" :tree-data="treeData" :expanded-keys="expandedKeys"
-                    block-node @select="onSelect" @expand="onExpand">
-              <template #title="node"><span class="panel-tree-node">{{ node.title }}</span></template>
-            </a-tree>
+            <div class="mt-tree">
+              <div v-for="node in visibleNodes" :key="node.key" class="mt-node"
+                   :class="{ 'is-selected': selectedKeys[0] === node.key }"
+                   :style="{ paddingLeft: (node.level * 22 + 6) + 'px' }"
+                   @click="selectNode(node.key)">
+                <span class="mt-switcher" @click.stop="node.hasChildren && toggleExpand(node.key)">
+                  <span v-if="node.hasChildren" class="mt-arrow">{{ isExpanded(node.key) ? '▾' : '▸' }}</span>
+                </span>
+                <span class="mt-title">{{ node.title }}</span>
+              </div>
+              <div v-if="!visibleNodes.length && !loading" class="mt-empty">暂无物料</div>
+            </div>
           </a-spin>
         </div>
         <div class="panel-tree-main">
