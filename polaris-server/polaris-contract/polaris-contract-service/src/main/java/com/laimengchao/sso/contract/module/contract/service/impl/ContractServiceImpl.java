@@ -567,6 +567,7 @@ public class ContractServiceImpl implements ContractService {
         Set<String> nos = headers.stream().map(ContractHeader::getNo).collect(Collectors.toSet());
         Map<String, BigDecimal> amountByNo = new LinkedHashMap<>();
         Map<String, Integer> countByNo = new LinkedHashMap<>();
+        Map<String, Boolean> acceptanceDoneByNo = new LinkedHashMap<>();
         LambdaQueryWrapper<ContractItem> iw = new LambdaQueryWrapper<ContractItem>()
                 .in(ContractItem::getContractNo, nos);
         dataScopeService.applyOrgScope(iw, ContractItem::getOrgCode);
@@ -574,6 +575,9 @@ public class ContractServiceImpl implements ContractService {
             BigDecimal amount = item.getAmount() == null ? BigDecimal.ZERO : item.getAmount();
             amountByNo.merge(item.getContractNo(), amount, BigDecimal::add);
             countByNo.merge(item.getContractNo(), 1, Integer::sum);
+            // 验收完成度：与付款门槛 fullyAccepted 同口径——每行 qty<=0 或 deliveredQty>=qty 才算完成
+            boolean done = fullyAccepted(item);
+            acceptanceDoneByNo.merge(item.getContractNo(), done, (a, b) -> a && b);
         }
         Map<String, BigDecimal> paidByNo = new LinkedHashMap<>();
         Map<String, BigDecimal> inFlightByNo = new LinkedHashMap<>();
@@ -633,12 +637,25 @@ public class ContractServiceImpl implements ContractService {
             vo.setProgress(amount.compareTo(BigDecimal.ZERO) == 0 ? BigDecimal.ZERO
                     : paid.multiply(BigDecimal.valueOf(100)).divide(amount, 2, RoundingMode.HALF_UP));
             vo.setItemCount(countByNo.getOrDefault(h.getNo(), 0));
+            // 清单非空且全部行验收完成才算验收完；空清单按未完成处理，避免误隐藏验收入口
+            vo.setAcceptanceDone(countByNo.getOrDefault(h.getNo(), 0) > 0
+                    && Boolean.TRUE.equals(acceptanceDoneByNo.get(h.getNo())));
             vo.setPlanCount(planCountByNo.getOrDefault(h.getNo(), 0));
             vo.setChangeCount(changeCountByNo.getOrDefault(h.getNo(), 0));
             vo.setPartnerName(partnerNames.get(h.getPartnerCode()));
             vo.setProjectName(projectNames.get(h.getProjectNo()));
             return vo;
         }).toList();
+    }
+
+    /** 清单行是否验收完成：qty<=0 视为完成（避免 0 数量行卡住付款），否则 deliveredQty>=qty。与付款门槛同口径。 */
+    private boolean fullyAccepted(ContractItem item) {
+        BigDecimal qty = item.getQty() == null ? BigDecimal.ZERO : item.getQty();
+        if (qty.compareTo(BigDecimal.ZERO) <= 0) {
+            return true;
+        }
+        BigDecimal delivered = item.getDeliveredQty() == null ? BigDecimal.ZERO : item.getDeliveredQty();
+        return delivered.compareTo(qty) >= 0;
     }
 
     public ContractVOs.ContractVO toVO(ContractHeader e) {

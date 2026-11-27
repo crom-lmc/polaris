@@ -154,6 +154,12 @@ public class ContractItemServiceImpl implements ContractItemService {
         ContractHeader header = contractService.requireByNo(item.getContractNo());
         dataScopeService.assertCanAccessOrg(header.getOrgCode());
         ensureAcceptable(header);
+        // 整单验收完成（全部清单行 deliveredQty>=qty）后不再接受新验收：前端隐藏入口，服务端兜底防绕过
+        List<ContractItem> allItems = mapper.selectList(new LambdaQueryWrapper<ContractItem>()
+                .eq(ContractItem::getContractNo, header.getNo()));
+        if (allItems != null && !allItems.isEmpty() && allItems.stream().allMatch(this::fullyAccepted)) {
+            throw new BizException(ContractErrorCode.CONTRACT_STATUS_INVALID, "合同清单已全部验收完成，无需再验收");
+        }
         if (req == null || req.getQty() == null || req.getQty().compareTo(BigDecimal.ZERO) <= 0) {
             throw new BizException(ContractErrorCode.ACCEPTANCE_QTY_INVALID);
         }
@@ -303,6 +309,16 @@ public class ContractItemServiceImpl implements ContractItemService {
             throw new BizException(ContractErrorCode.CONTRACT_STATUS_INVALID,
                     "合同状态不支持验收，仅已生效或执行中的合同可验收");
         }
+    }
+
+    /** 清单行是否验收完成：qty<=0 视为完成，否则 deliveredQty>=qty。与付款门槛同口径。 */
+    private boolean fullyAccepted(ContractItem item) {
+        BigDecimal qty = item.getQty() == null ? BigDecimal.ZERO : item.getQty();
+        if (qty.compareTo(BigDecimal.ZERO) <= 0) {
+            return true;
+        }
+        BigDecimal delivered = item.getDeliveredQty() == null ? BigDecimal.ZERO : item.getDeliveredQty();
+        return delivered.compareTo(qty) >= 0;
     }
 
     private ContractVOs.ItemVO toVO(ContractItem e) {

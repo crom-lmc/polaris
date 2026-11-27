@@ -10,6 +10,7 @@ import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -33,6 +34,14 @@ public class PaymentPlanController {
     public R<?> save(@PathVariable("contractNo") String contractNo,
                      @RequestBody ContractRequests.PaymentPlanSave req) {
         return R.ok(planService.save(contractNo, req));
+    }
+
+    @PutMapping("/{id}")
+    @Permit(PermissionCodes.CONTRACT_PAYMENT_EDIT)
+    public R<Void> update(@PathVariable("id") Long id,
+                          @RequestBody ContractRequests.PaymentPlanSave req) {
+        planService.update(id, req);
+        return R.ok();
     }
 
     @PostMapping("/{id}/apply")

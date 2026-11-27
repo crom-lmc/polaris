@@ -142,6 +142,8 @@ public final class ContractVOs {
         private BigDecimal pendingAmount;
         private BigDecimal progress;
         private Integer itemCount;
+        /** 清单是否全部验收完成（派生：全部行 deliveredQty >= qty），前端据此隐藏「验收」入口 */
+        private Boolean acceptanceDone;
         private Integer planCount;
         private Integer changeCount;
         /** 附件 file_id 列表，顺序与 attachmentUrls 一致 */

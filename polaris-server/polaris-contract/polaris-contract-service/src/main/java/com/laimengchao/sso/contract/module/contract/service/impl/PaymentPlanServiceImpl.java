@@ -123,8 +123,9 @@ public class PaymentPlanServiceImpl implements PaymentPlanService {
     @Transactional(rollbackFor = Exception.class)
     public void update(Long id, ContractRequests.PaymentPlanSave req) {
         ContractPaymentPlan entity = require(id);
-        if ("PAID".equals(entity.getStatus()) || "POSTED".equals(entity.getStatus())) {
-            throw new BizException(ContractErrorCode.PAYMENT_PLAN_NOT_FOUND, "已完成付款的计划禁止修改");
+        // 仅待申请（未发起审批）的计划可编辑：发起后金额/阶段即锁定，变更须另行走变更流程
+        if (!"WAITING".equals(entity.getStatus())) {
+            throw new BizException(ContractErrorCode.PAYMENT_PLAN_NOT_FOUND, "仅待申请计划可编辑");
         }
         if (req == null) {
             throw new BizException(ErrorCode.PARAM_ERROR, "请求体不能为空");
@@ -149,7 +150,7 @@ public class PaymentPlanServiceImpl implements PaymentPlanService {
         if (req.getFileIds() != null) {
             entity.setFileIds(ContractAttachments.join(req.getFileIds()));
         }
-        entity.setStatus(nvl(req.getStatus(), entity.getStatus()));
+        // 状态是流程结果，编辑 MUST NOT 改状态；仅待申请可编辑，状态保持 WAITING
         entity.setUpdatedAt(LocalDateTime.now());
         mapper.updateById(entity);
     }
