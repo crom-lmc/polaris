@@ -50,6 +50,13 @@ public class ContractController {
         return R.ok(contractService.detail(id));
     }
 
+    /** 按合同号查详情：供采购计划「关联合同」入口跳转，权限与详情一致 */
+    @GetMapping("/by-no/{no}")
+    @Permit(PermissionCodes.CONTRACT_LEDGER_LIST)
+    public R<?> detailByNo(@PathVariable("no") String no) {
+        return R.ok(contractService.getByNo(no));
+    }
+
     @PostMapping
     @Permit(PermissionCodes.CONTRACT_LEDGER_EDIT)
     public R<?> save(@RequestBody ContractRequests.ContractSave req) {

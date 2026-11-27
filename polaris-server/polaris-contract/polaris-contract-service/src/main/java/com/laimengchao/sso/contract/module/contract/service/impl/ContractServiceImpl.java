@@ -59,12 +59,16 @@ public class ContractServiceImpl implements ContractService {
     private static final Set<String> STATUSES = Set.of(
             "DRAFT", "PENDING", "EFFECTIVE", "EXECUTING", "COMPLETED", "TERMINATED");
 
-    /** 手工按钮允许的状态迁移；审批回调直接走 handleApprovalResult，不经过这里。 */
+    /**
+     * 手工按钮允许的状态迁移。EXECUTING / COMPLETED 由业务动作自动推进，不提供手工按钮：
+     * 已生效首次验收 → 执行中（advanceOnFirstAcceptance），执行中付款结清 → 完成（tryCompleteOnSettled）。
+     * PENDING → EFFECTIVE 采购合同由审批回调写入（assertManualTransition 拦截手工），销售合同保留手工审批通过按钮。
+     */
     private static final Map<String, Set<String>> MANUAL_TRANSITIONS = Map.of(
             "DRAFT", Set.of("PENDING"),
             "PENDING", Set.of("EFFECTIVE", "DRAFT"),
-            "EFFECTIVE", Set.of("EXECUTING", "TERMINATED"),
-            "EXECUTING", Set.of("COMPLETED", "TERMINATED"),
+            "EFFECTIVE", Set.of("TERMINATED"),
+            "EXECUTING", Set.of("TERMINATED"),
             "COMPLETED", Set.of(),
             "TERMINATED", Set.of());
     private static final Set<String> PAID_STATUS = Set.of("PAID", "POSTED");
@@ -476,6 +480,29 @@ public class ContractServiceImpl implements ContractService {
                 .eq(ContractHeader::getId, id).eq(ContractHeader::getStatus, "PENDING")
                 .set(ContractHeader::getStatus, pass ? "EFFECTIVE" : "DRAFT"));
         return true;
+    }
+
+    /**
+     * 业务动作驱动的状态推进：带当前状态乐观锁，仅当合同处于 expected 才更新，幂等且并发安全。
+     * 首次验收 EFFECTIVE→EXECUTING、付款结清 EXECUTING→COMPLETED 都走这里，不经手工按钮白名单。
+     */
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public boolean advanceIfStatus(String contractNo, String expected, String target) {
+        if (contractNo == null || expected == null || target == null) {
+            return false;
+        }
+        int rows = mapper.update(null,
+                new com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper<ContractHeader>()
+                        .eq(ContractHeader::getNo, contractNo)
+                        .eq(ContractHeader::getStatus, expected)
+                        .set(ContractHeader::getStatus, target)
+                        .set(ContractHeader::getUpdatedAt, LocalDateTime.now()));
+        boolean advanced = rows > 0;
+        if (advanced) {
+            log.info("合同状态自动推进：no={} {} → {}（业务动作驱动）", contractNo, expected, target);
+        }
+        return advanced;
     }
 
     @Transactional(rollbackFor = Exception.class)

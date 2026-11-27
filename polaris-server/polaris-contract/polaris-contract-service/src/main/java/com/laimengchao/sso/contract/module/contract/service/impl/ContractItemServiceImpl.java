@@ -42,6 +42,9 @@ public class ContractItemServiceImpl implements ContractItemService {
 
     private static final String EMBED_ALLOW_OVER = "contract.budget.allow-over";
     private static final String POSTED = "POSTED";
+    /** 采购计划转入清单行的备注前缀，作为来源标记（前端据此禁删，后端据此拦截） */
+    static final String PLAN_ITEM_REMARK_PREFIX = "由采购计划 ";
+    private static final String PLAN_ITEM_DELETE_DENIED = "采购计划转入的清单行不允许删除";
 
     private final ContractItemMapper mapper;
     private final ContractAcceptanceMapper acceptanceMapper;
@@ -79,7 +82,7 @@ public class ContractItemServiceImpl implements ContractItemService {
     public ContractVOs.ItemVO save(String contractNo, ContractRequests.ItemSave req) {
         ContractHeader header = contractService.requireByNo(contractNo);
         dataScopeService.assertCanAccessOrg(header.getOrgCode());
-        ensureContractOpen(header);
+        ensureEditable(header);
         if (req == null || req.getQty() == null || req.getPrice() == null) {
             throw new BizException(ErrorCode.PARAM_ERROR, "数量与单价不能为空");
         }
@@ -117,7 +120,10 @@ public class ContractItemServiceImpl implements ContractItemService {
         entity.setPrice(req.getPrice());
         entity.setAmount(req.getAmount() == null
                 ? req.getQty().multiply(req.getPrice()) : req.getAmount());
-        entity.setRemark(nvl(req.getRemark(), ""));
+        // 采购计划转入行始终保留来源备注前缀，避免编辑时被抹掉后绕过禁删校验
+        String planPrefix = req.getId() != null && entity.getRemark() != null
+                && entity.getRemark().startsWith(PLAN_ITEM_REMARK_PREFIX) ? entity.getRemark() : null;
+        entity.setRemark(planPrefix != null ? planPrefix : nvl(req.getRemark(), ""));
         entity.setUpdatedAt(LocalDateTime.now());
         checkBudget(header, oldAmount, entity.getAmount());
         if (req.getId() == null) {
@@ -132,7 +138,10 @@ public class ContractItemServiceImpl implements ContractItemService {
     public void delete(Long id) {
         ContractItem entity = require(id);
         ContractHeader header = contractService.requireByNo(entity.getContractNo());
-        ensureContractOpen(header);
+        ensureEditable(header);
+        if (entity.getRemark() != null && entity.getRemark().startsWith(PLAN_ITEM_REMARK_PREFIX)) {
+            throw new BizException(ContractErrorCode.CONTRACT_STATUS_INVALID, PLAN_ITEM_DELETE_DENIED);
+        }
         if (entity.getDeliveredQty() != null && entity.getDeliveredQty().compareTo(BigDecimal.ZERO) > 0) {
             throw new BizException(ContractErrorCode.ACCEPTANCE_STATUS_INVALID, "已验收清单行禁止删除");
         }
@@ -145,6 +154,7 @@ public class ContractItemServiceImpl implements ContractItemService {
         ContractItem item = require(id);
         ContractHeader header = contractService.requireByNo(item.getContractNo());
         dataScopeService.assertCanAccessOrg(header.getOrgCode());
+        ensureAcceptable(header);
         if (req == null || req.getQty() == null || req.getQty().compareTo(BigDecimal.ZERO) <= 0) {
             throw new BizException(ContractErrorCode.ACCEPTANCE_QTY_INVALID);
         }
@@ -163,7 +173,15 @@ public class ContractItemServiceImpl implements ContractItemService {
         acceptance.setMaterialCode(item.getMaterialCode());
         acceptance.setQty(req.getQty());
         acceptance.setDate(req.getDate() == null ? LocalDate.now() : req.getDate());
-        acceptance.setResult(nvl(req.getResult(), "合格"));
+        // 验收结果口径统一为「合格/不合格」：历史前端传 PASS/FAIL，归一化入库，
+        // 否则付款埋点查 result='合格' 永远命中 0（验收完成也无法发起付款）
+        String result = nvl(req.getResult(), "合格");
+        if ("PASS".equalsIgnoreCase(result) || "OK".equalsIgnoreCase(result)) {
+            result = "合格";
+        } else if ("FAIL".equalsIgnoreCase(result) || "NG".equalsIgnoreCase(result)) {
+            result = "不合格";
+        }
+        acceptance.setResult(result);
         acceptance.setStatus("DRAFT");
         acceptance.setOrgCode(header.getOrgCode());
         acceptance.setFileIds(ContractAttachments.join(req.getFileIds()));
@@ -171,6 +189,8 @@ public class ContractItemServiceImpl implements ContractItemService {
         acceptanceMapper.insert(acceptance);
         log.info("合同清单验收：contractNo={} itemId={} qty={} acceptanceNo={}",
                 header.getNo(), item.getId(), req.getQty(), acceptance.getNo());
+        // 首次验收自动推进：已生效 → 执行中；乐观锁保证幂等，后续验收不会再触发
+        contractService.advanceIfStatus(header.getNo(), "EFFECTIVE", "EXECUTING");
         return toAcceptanceVO(acceptance);
     }
 
@@ -265,9 +285,20 @@ public class ContractItemServiceImpl implements ContractItemService {
                 .max(Integer::compareTo).orElse(0) + 1;
     }
 
-    private void ensureContractOpen(ContractHeader header) {
-        if ("COMPLETED".equals(header.getStatus()) || "TERMINATED".equals(header.getStatus())) {
-            throw new BizException(ContractErrorCode.CONTRACT_STATUS_INVALID);
+    /** 清单增删改仅草稿允许：审批通过后合同金额锁定，变更需走变更流程，不能在此直接改清单。 */
+    private void ensureEditable(ContractHeader header) {
+        if (!"DRAFT".equals(header.getStatus())) {
+            throw new BizException(ContractErrorCode.CONTRACT_STATUS_INVALID,
+                    "合同已提交审批，清单已锁定；如需变更请走合同变更流程");
+        }
+    }
+
+    /** 到货验收仅已生效/执行中允许：草稿未审批、审批中、完成/终止都不能验收。 */
+    private void ensureAcceptable(ContractHeader header) {
+        String s = header.getStatus();
+        if (!"EFFECTIVE".equals(s) && !"EXECUTING".equals(s)) {
+            throw new BizException(ContractErrorCode.CONTRACT_STATUS_INVALID,
+                    "合同状态不支持验收，仅已生效或执行中的合同可验收");
         }
     }
 

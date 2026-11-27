@@ -51,6 +51,17 @@ public interface ContractService {
      */
     boolean handleApprovalResult(String bizId, Boolean approved, Integer result);
 
+    /**
+     * 业务动作驱动的状态推进（不走手工白名单，幂等且带当前状态乐观锁）：
+     * 首次到货验收把 EFFECTIVE 推进为 EXECUTING。仅当合同处于 expected 状态才更新。
+     *
+     * @param contractNo 合同编号
+     * @param expected   期望的当前状态（如 EFFECTIVE）
+     * @param target     目标状态（如 EXECUTING）
+     * @return 是否发生了推进
+     */
+    boolean advanceIfStatus(String contractNo, String expected, String target);
+
     void delete(Long id);
 
     ContractVOs.ContractStatsVO stats(String type);

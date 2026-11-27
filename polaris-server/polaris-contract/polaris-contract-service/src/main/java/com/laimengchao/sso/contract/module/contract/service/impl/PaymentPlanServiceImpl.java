@@ -11,8 +11,10 @@ import com.laimengchao.sso.contract.common.EmbedPointService;
 import com.laimengchao.sso.contract.module.contract.dto.ContractRequests;
 import com.laimengchao.sso.contract.module.contract.entity.ContractAcceptance;
 import com.laimengchao.sso.contract.module.contract.entity.ContractHeader;
+import com.laimengchao.sso.contract.module.contract.entity.ContractItem;
 import com.laimengchao.sso.contract.module.contract.entity.ContractPaymentPlan;
 import com.laimengchao.sso.contract.module.contract.mapper.ContractAcceptanceMapper;
+import com.laimengchao.sso.contract.module.contract.mapper.ContractItemMapper;
 import com.laimengchao.sso.contract.module.contract.mapper.ContractPaymentPlanMapper;
 import com.laimengchao.sso.contract.module.contract.support.ContractAttachments;
 import com.laimengchao.sso.contract.module.contract.vo.ContractVOs;
@@ -39,6 +41,7 @@ public class PaymentPlanServiceImpl implements PaymentPlanService {
 
     private final ContractPaymentPlanMapper mapper;
     private final ContractAcceptanceMapper acceptanceMapper;
+    private final ContractItemMapper itemMapper;
     private final ContractService contractService;
     private final EmbedPointService embedPointService;
     private final DataScopeService dataScopeService;
@@ -153,6 +156,21 @@ public class PaymentPlanServiceImpl implements PaymentPlanService {
         if (!"WAITING".equals(entity.getStatus()) && !"REJECTED".equals(entity.getStatus())) {
             throw new BizException(ContractErrorCode.PAYMENT_PLAN_NOT_FOUND, "当前付款计划状态不支持发起申请");
         }
+        // 合同必须已生效并执行中；草稿/审批中/完成/终止均不能发起付款
+        ContractHeader header = contractService.requireByNo(entity.getContractNo());
+        String contractStatus = header.getStatus();
+        if (!"EFFECTIVE".equals(contractStatus) && !"EXECUTING".equals(contractStatus)) {
+            throw new BizException(ContractErrorCode.CONTRACT_STATUS_INVALID,
+                    "合同状态不支持付款，仅已生效或执行中的合同可发起付款申请");
+        }
+        // 付款门槛：全部清单行须验收完成（deliveredQty >= qty），未验收完不允许付款
+        List<ContractItem> items = itemMapper.selectList(new LambdaQueryWrapper<ContractItem>()
+                .eq(ContractItem::getContractNo, entity.getContractNo()));
+        boolean allAccepted = items != null && !items.isEmpty() && items.stream().allMatch(this::fullyAccepted);
+        if (!allAccepted) {
+            throw new BizException(ContractErrorCode.ACCEPTANCE_REQUIRED,
+                    "合同清单尚未全部验收完成，验收完成后才能发起付款申请");
+        }
         // 埋点 contract.acceptance.required-before-pay 默认 true：付款申请前必须有合格且已过账的验收单。
         // 埋点读取失败时按 true 兜底（fail-closed），与财务 internal token 口径一致。
         if (embedPointService.acceptanceRequiredBeforePay()) {
@@ -204,7 +222,42 @@ public class PaymentPlanServiceImpl implements PaymentPlanService {
         }
         entity.setUpdatedAt(LocalDateTime.now());
         mapper.updateById(entity);
+        // 付款结清自动完成：合同所有付款计划均 PAID/POSTED 且清单全部验收完成时，EXECUTING → COMPLETED
+        tryCompleteOnSettled(entity.getContractNo());
         return toVO(entity);
+    }
+
+    /** 清单行是否验收完成：数量已交付 >= 合同数量（无数量视为完成，避免 0 数量行卡住付款）。 */
+    private boolean fullyAccepted(ContractItem item) {
+        BigDecimal qty = item.getQty() == null ? BigDecimal.ZERO : item.getQty();
+        if (qty.compareTo(BigDecimal.ZERO) <= 0) {
+            return true;
+        }
+        BigDecimal delivered = item.getDeliveredQty() == null ? BigDecimal.ZERO : item.getDeliveredQty();
+        return delivered.compareTo(qty) >= 0;
+    }
+
+    /** 所有付款计划结清 + 清单验收完成 → 自动推进合同为已完成（未达条件幂等跳过）。 */
+    private void tryCompleteOnSettled(String contractNo) {
+        if (contractNo == null || contractNo.isBlank()) {
+            return;
+        }
+        List<ContractPaymentPlan> plans = mapper.selectList(new LambdaQueryWrapper<ContractPaymentPlan>()
+                .eq(ContractPaymentPlan::getContractNo, contractNo));
+        if (plans == null || plans.isEmpty()) {
+            return;
+        }
+        boolean allSettled = plans.stream().allMatch(p -> PAID_STATUS.contains(p.getStatus()));
+        if (!allSettled) {
+            return;
+        }
+        List<ContractItem> items = itemMapper.selectList(new LambdaQueryWrapper<ContractItem>()
+                .eq(ContractItem::getContractNo, contractNo));
+        boolean allAccepted = items != null && !items.isEmpty() && items.stream().allMatch(this::fullyAccepted);
+        if (!allAccepted) {
+            return;
+        }
+        contractService.advanceIfStatus(contractNo, "EXECUTING", "COMPLETED");
     }
 
     private ContractVOs.PaymentPlanVO toVO(ContractPaymentPlan e) {
