@@ -17,6 +17,7 @@ import {
 } from '@/api/contract'
 import ContractItemsEditor from '@/components/ContractItemsEditor.vue'
 import PaymentPlanEditor from '@/components/PaymentPlanEditor.vue'
+import PaymentTermsEditor from '@/components/PaymentTermsEditor.vue'
 import AttachmentUpload from '@shared/components/AttachmentUpload.vue'
 import { yuan } from '@/utils/format'
 import EntityPickerModal, { type PickerColumn, type PickerRow, type PickerLoadParams, type PickerResult } from '@shared/components/EntityPickerModal.vue'
@@ -83,13 +84,13 @@ const planItemColumns = [
 
 const createForm = reactive<ContractSave & { partnerName?: string; projectName?: string }>({
   type: 'PURCHASE', name: '', partnerCode: '', partnerName: '', projectNo: undefined, projectName: '', dept: '', owner: '',
-  signedDate: undefined, effectiveDate: undefined, endDate: undefined, note: '', fileIds: []
+  signedDate: undefined, effectiveDate: undefined, endDate: undefined, warrantyDueDate: undefined, note: '', fileIds: []
 })
 
 function resetCreate() {
   Object.assign(createForm, {
     type: props.defaultType || 'PURCHASE', name: '', partnerCode: '', partnerName: '', projectNo: undefined, projectName: '', dept: '', owner: '',
-    signedDate: undefined, effectiveDate: undefined, endDate: undefined, note: '', fileIds: []
+    signedDate: undefined, effectiveDate: undefined, endDate: undefined, warrantyDueDate: undefined, note: '', fileIds: []
   })
 }
 
@@ -99,6 +100,7 @@ function fillFromPlan(plan: PurchasePlanVO) {
     type: 'PURCHASE', name: plan.title || '', partnerCode: '', partnerName: '',
     projectNo: undefined, projectName: '', dept: plan.dept || '', owner: plan.applicant || '',
     signedDate: plan.date || undefined, effectiveDate: plan.date || undefined, endDate: plan.needDate || undefined,
+    warrantyDueDate: undefined,
     note: '', fileIds: plan.fileIds ? [...plan.fileIds] : []
   })
 }
@@ -108,6 +110,7 @@ function fillFromContract(row: ContractVO) {
     type: row.type, name: row.name, partnerCode: row.partnerCode, partnerName: row.partnerName,
     projectNo: row.projectNo, projectName: row.projectName, dept: row.dept, owner: row.owner,
     signedDate: row.signedDate, effectiveDate: row.effectiveDate, endDate: row.endDate,
+    warrantyDueDate: row.warrantyDueDate || undefined,
     note: row.note || '', fileIds: row.fileIds ? [...row.fileIds] : []
   })
 }
@@ -297,6 +300,14 @@ onMounted(() => { loadOrgDirectory() })
             </a-form-item>
           </a-col>
         </a-row>
+        <a-row :gutter="12">
+          <a-col :span="8">
+            <a-form-item label="质保到期日">
+              <a-date-picker v-model:value="createForm.warrantyDueDate" value-format="YYYY-MM-DD" format="YYYY-MM-DD"
+                             placeholder="质保金节点需填，到期后可申请" style="width: 100%" />
+            </a-form-item>
+          </a-col>
+        </a-row>
         <a-form-item label="备注"><a-input v-model:value="createForm.note" placeholder="选填，最多 200 字" :maxlength="200" show-count /></a-form-item>
         <AttachmentUpload v-if="store.can('contract:ledger:attachment:upload')" v-model="createForm.fileIds" label="合同附件" button-text="上传合同附件"
                           :upload="(file) => uploadContractAttachment(file, 'contract')" @error="message.error" />
@@ -304,7 +315,9 @@ onMounted(() => { loadOrgDirectory() })
 
       <template v-if="isEdit && contract">
         <div class="drawer-section-title">合同清单</div>
-        <ContractItemsEditor :contract-no="contract.no" :contract-status="contract.status" />
+        <ContractItemsEditor :contract-no="contract.no" :contract-status="contract.status" :contract-type="contract.type" />
+
+        <PaymentTermsEditor :contract-no="contract.no" :contract-status="contract.status" />
 
         <div class="drawer-section-title">付款计划</div>
         <PaymentPlanEditor :contract-no="contract.no" :remaining-amount="Number(contract.pendingAmount || 0)" :contract-status="contract.status" />

@@ -9,6 +9,7 @@ import { useIsMobile } from '@/composables/useIsMobile'
 import { getContract, getContractByNo, listContractChanges, type ContractVO, type ChangeLogVO } from '@/api/contract'
 import { yuan } from '@/utils/format'
 import ContractItemsEditor from '@/components/ContractItemsEditor.vue'
+import PaymentTermsEditor from '@/components/PaymentTermsEditor.vue'
 import PaymentPlanEditor from '@/components/PaymentPlanEditor.vue'
 
 const props = defineProps<{ open: boolean; contractId?: string | null; contractNo?: string | null }>()
@@ -83,6 +84,7 @@ function close() { emit('update:open', false) }
             <a-descriptions-item label="归属部门">{{ detail.dept || '-' }} · {{ detail.owner || '-' }}</a-descriptions-item>
             <a-descriptions-item label="所属项目">{{ detail.projectName || '未关联' }}</a-descriptions-item>
             <a-descriptions-item label="签订 / 生效 / 到期">{{ detail.signedDate || '-' }} / {{ detail.effectiveDate || '-' }} / {{ detail.endDate || '-' }}</a-descriptions-item>
+            <a-descriptions-item label="质保到期日">{{ detail.warrantyDueDate || '-' }}</a-descriptions-item>
             <a-descriptions-item label="备注">{{ detail.note || '-' }}</a-descriptions-item>
             <a-descriptions-item label="来源">
               <a-tag :color="detail.contractSource === 'FROM_PLAN' ? 'blue' : 'default'">
@@ -111,7 +113,9 @@ function close() { emit('update:open', false) }
         </a-card>
 
         <div class="drawer-section-title">合同清单</div>
-        <ContractItemsEditor :contract-no="detail.no" :contract-status="detail.status" readonly />
+        <ContractItemsEditor :contract-no="detail.no" :contract-status="detail.status" :contract-type="detail.type" readonly />
+
+        <PaymentTermsEditor :contract-no="detail.no" :contract-status="detail.status" readonly />
 
         <div class="drawer-section-title">付款计划</div>
         <PaymentPlanEditor :contract-no="detail.no" :remaining-amount="detail.pendingAmount" :contract-status="detail.status" readonly />

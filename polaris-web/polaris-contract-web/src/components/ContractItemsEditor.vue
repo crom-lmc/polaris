@@ -4,7 +4,7 @@ import { message, Modal } from 'ant-design-vue'
 import { useUserStore } from '@/stores/user'
 import { useIsMobile } from '@/composables/useIsMobile'
 import {
-  listItems, saveItem, deleteItem, acceptItem, listAcceptances, uploadContractAttachment,
+  listItems, saveItem, deleteItem, acceptItem, listAcceptances, pushAcceptanceAr, uploadContractAttachment,
   type ItemVO, type ItemSave, type AcceptanceVO
 } from '@/api/contract'
 import { loadMaterialChildren, loadMaterialPage } from '@/composables/useMaterialPicker'
@@ -12,7 +12,9 @@ import MaterialPickerModal, { type MaterialPick } from '@shared/components/Mater
 import AttachmentUpload from '@shared/components/AttachmentUpload.vue'
 import { yuan } from '@/utils/format'
 
-const props = defineProps<{ contractNo: string; readonly?: boolean; contractStatus?: string }>()
+const props = defineProps<{ contractNo: string; readonly?: boolean; contractStatus?: string; contractType?: string }>()
+/** 销售合同客户验收：通过/不通过，通过才累加交付并推应收；采购仍为到货验收合格/不合格 */
+const isSales = computed(() => props.contractType === 'SALES')
 const store = useUserStore()
 /** 采购计划转入行由后端写入该备注前缀，作为来源标记：禁止删除，可编辑/验收 */
 const PLAN_ITEM_REMARK_PREFIX = '由采购计划 '
@@ -155,15 +157,19 @@ const acceptOpen = ref(false)
 const acceptSaving = ref(false)
 const acceptId = ref('')
 const acceptForm = reactive({
-  qty: 1, date: undefined as string | undefined, result: '合格', remark: '', fileIds: [] as string[]
+  qty: 1, date: undefined as string | undefined, result: '合格', customerNo: '', remark: '', fileIds: [] as string[]
 })
+const resultOptions = computed(() => isSales.value
+  ? [{ value: '通过', label: '通过' }, { value: '不通过', label: '不通过' }]
+  : [{ value: '合格', label: '合格' }, { value: '不合格', label: '不合格' }])
 const acceptRow = computed(() => rows.value.find((r) => r.id === acceptId.value) || null)
 const acceptRemain = computed(() => acceptRow.value ? Math.max(0, Number(acceptRow.value.qty || 0) - Number(acceptRow.value.deliveredQty || 0)) : 0)
 function openAccept(row: ItemVO) {
   acceptId.value = row.id
   acceptForm.qty = Math.max(1, acceptRemain.value || 1)
   acceptForm.date = undefined
-  acceptForm.result = '合格'
+  acceptForm.result = isSales.value ? '通过' : '合格'
+  acceptForm.customerNo = ''
   acceptForm.remark = ''
   acceptForm.fileIds = []
   acceptOpen.value = true
@@ -179,10 +185,13 @@ async function submitAccept() {
   try {
     await acceptItem(props.contractNo, acceptId.value, {
       qty: Number(acceptForm.qty), date: acceptForm.date, result: acceptForm.result,
+      customerNo: isSales.value ? acceptForm.customerNo || undefined : undefined,
       remark: acceptForm.remark || undefined, fileIds: acceptForm.fileIds
     })
     acceptOpen.value = false
-    message.success('验收已登记')
+    message.success(isSales.value
+      ? (acceptForm.result === '通过' ? '客户验收已登记，应收将自动推送' : '客户验收已登记（不通过，不推应收）')
+      : '验收已登记')
     await load()
     if (acceptRecordsOpen.value) await loadAcceptances()
   } catch (e: any) { message.error(e?.message || '验收失败') }
@@ -193,15 +202,31 @@ async function submitAccept() {
 const acceptRecordsOpen = ref(false)
 const acceptRecordsLoading = ref(false)
 const acceptRecords = ref<AcceptanceVO[]>([])
-const acceptanceColumns = [
-  { title: '验收单号', dataIndex: 'no', key: 'no', width: 170 },
-  { title: '物料', dataIndex: 'materialCode', key: 'materialCode', width: 140 },
-  { title: '数量', dataIndex: 'qty', key: 'qty', align: 'right' as const, width: 90 },
-  { title: '日期', dataIndex: 'date', key: 'date', width: 110 },
-  { title: '结果', dataIndex: 'result', key: 'result', width: 90 },
-  { title: '过账凭证', dataIndex: 'voucherNo', key: 'voucherNo', width: 150 },
-  { title: '验收凭证', key: 'attachments', width: 150 }
-]
+const acceptanceColumns = computed(() => {
+  const base = [
+    { title: '验收单号', dataIndex: 'no', key: 'no', width: 170 },
+    { title: '物料', dataIndex: 'materialCode', key: 'materialCode', width: 140 },
+    { title: '数量', dataIndex: 'qty', key: 'qty', align: 'right' as const, width: 90 },
+    { title: '日期', dataIndex: 'date', key: 'date', width: 110 },
+    { title: '结果', dataIndex: 'result', key: 'result', width: 90 }
+  ] as any[]
+  if (isSales.value) {
+    base.push({ title: '客户验收单号', dataIndex: 'customerNo', key: 'customerNo', width: 150 })
+    base.push({ title: '应收单号', dataIndex: 'arNo', key: 'arNo', width: 150 })
+  }
+  base.push({ title: '过账凭证', dataIndex: 'voucherNo', key: 'voucherNo', width: 150 })
+  base.push({ title: '验收凭证', key: 'attachments', width: 150 })
+  if (isSales.value && !props.readonly) base.push({ title: '操作', key: 'arAction', width: 110 })
+  return base
+})
+const acceptanceScrollX = computed(() => acceptanceColumns.value.reduce((sum, c) => sum + Number(c.width || 100), 0))
+async function retryAr(row: AcceptanceVO) {
+  try {
+    await pushAcceptanceAr(props.contractNo, row.id)
+    message.success('已重新推送应收')
+    await loadAcceptances()
+  } catch (e: any) { message.error(e?.message || '推送应收失败') }
+}
 async function loadAcceptances() {
   acceptRecordsLoading.value = true
   try { acceptRecords.value = await listAcceptances(props.contractNo) }
@@ -218,11 +243,13 @@ onMounted(() => { load() })
 
 <template>
   <div class="contract-items-editor">
-    <div v-if="!readonly" class="items-toolbar">
+    <div class="items-toolbar">
       <span class="grow" />
       <a-tag color="blue">清单 {{ rows.length }} 行</a-tag>
       <a-button v-if="store.can('contract:ledger:list')" size="small" @click="openAcceptRecords">验收记录</a-button>
-      <a-button v-if="canEditItems && store.can('contract:item:edit')" type="primary" size="small" :loading="saving" @click="openAddPicker">＋ 新增清单行</a-button>
+      <template v-if="!readonly">
+        <a-button v-if="canEditItems && store.can('contract:item:edit')" type="primary" size="small" :loading="saving" @click="openAddPicker">＋ 新增清单行</a-button>
+      </template>
     </div>
     <a-table class="ft-table" row-key="id" :columns="columns" :data-source="rows" :loading="loading" :pagination="false"
              :class="{ 'tbl-empty-mode': !loading && !rows.length }" :scroll="rows.length ? { x: 980 } : undefined">
@@ -284,17 +311,20 @@ onMounted(() => { load() })
       </template>
     </a-drawer>
 
-    <a-drawer v-model:open="acceptOpen" title="到货验收" :width="smallDrawerWidth" placement="right">
+    <a-drawer v-model:open="acceptOpen" :title="isSales ? '客户验收' : '到货验收'" :width="smallDrawerWidth" placement="right">
       <a-form layout="vertical">
         <a-form-item label="物料"><a-input :value="acceptRow ? `${acceptRow.materialName} · ${acceptRow.spec}` : ''" readonly /></a-form-item>
         <a-form-item label="合同数量"><a-input :value="acceptRow ? `${acceptRow.qty} ${acceptRow.unit || ''}` : ''" readonly /></a-form-item>
-        <a-form-item label="已交付"><a-input :value="acceptRow ? String(acceptRow.deliveredQty || 0) : ''" readonly /></a-form-item>
-        <a-form-item label="本次验收数量" required>
+        <a-form-item :label="isSales ? '客户已验收' : '已交付'"><a-input :value="acceptRow ? String(acceptRow.deliveredQty || 0) : ''" readonly /></a-form-item>
+        <a-form-item :label="isSales ? '本次验收数量' : '本次验收数量'" required>
           <a-input-number v-model:value="acceptForm.qty" :min="1" :max="acceptRemain" style="width: 100%" />
         </a-form-item>
-        <a-form-item label="验收日期" required><a-date-picker v-model:value="acceptForm.date" value-format="YYYY-MM-DD" format="YYYY-MM-DD" style="width: 100%" placeholder="请选择验收日期" /></a-form-item>
-        <a-form-item label="验收结果">
-          <a-select v-model:value="acceptForm.result" :options="[{ label: '合格', value: '合格' }, { label: '不合格', value: '不合格' }]" />
+        <a-form-item :label="isSales ? '客户验收日期' : '验收日期'" required><a-date-picker v-model:value="acceptForm.date" value-format="YYYY-MM-DD" format="YYYY-MM-DD" style="width: 100%" placeholder="请选择验收日期" /></a-form-item>
+        <a-form-item v-if="isSales" label="客户验收单号">
+          <a-input v-model:value="acceptForm.customerNo" placeholder="选填，客户侧单据号" />
+        </a-form-item>
+        <a-form-item :label="isSales ? '验收结论' : '验收结果'">
+          <a-select v-model:value="acceptForm.result" :options="resultOptions" />
         </a-form-item>
         <a-form-item label="备注"><a-textarea v-model:value="acceptForm.remark" :rows="2" /></a-form-item>
         <AttachmentUpload v-if="store.can('contract:item:attachment:upload')" v-model="acceptForm.fileIds" label="验收凭证" button-text="上传验收凭证"
@@ -311,15 +341,28 @@ onMounted(() => { load() })
     <a-modal v-model:open="acceptRecordsOpen" title="验收记录 · 验收凭证" :footer="null" :width="820">
       <a-spin :spinning="acceptRecordsLoading">
         <a-table class="ft-table" row-key="id" size="small" :columns="acceptanceColumns" :data-source="acceptRecords"
-                 :pagination="false" :scroll="{ x: 900 }" style="--ft-min-width: 900px">
+                 :pagination="false" :scroll="{ x: acceptanceScrollX }" :style="{ '--ft-min-width': `${acceptanceScrollX}px` }">
           <template #bodyCell="{ column, record }">
-            <template v-if="column.key === 'voucherNo'">
+            <template v-if="column.key === 'customerNo'">
+              <a-tooltip v-if="record.customerNo" :title="record.customerNo"><span class="cell-ellipsis">{{ record.customerNo }}</span></a-tooltip>
+              <span v-else class="muted">-</span>
+            </template>
+            <template v-else-if="column.key === 'arNo'">
+              <a-tooltip v-if="record.arNo" :title="record.arNo"><span class="cell-ellipsis">{{ record.arNo }}</span></a-tooltip>
+              <a-tooltip v-else-if="record.arError" :title="record.arError"><span class="text-danger">推送失败</span></a-tooltip>
+              <span v-else class="muted">待推送</span>
+            </template>
+            <template v-else-if="column.key === 'voucherNo'">
               <a-tooltip v-if="record.voucherNo" :title="record.voucherNo"><span class="cell-ellipsis">{{ record.voucherNo }}</span></a-tooltip>
               <span v-else class="muted">未过账</span>
             </template>
             <template v-else-if="column.key === 'attachments'">
               <a v-if="record.fileIds?.length && record.attachmentUrls?.[0]" :href="record.attachmentUrls[0]" target="_blank">凭证（{{ record.fileIds.length }}）</a>
               <span v-else-if="record.fileIds?.length" class="muted">{{ record.fileIds.length }} 个</span>
+              <span v-else class="muted">-</span>
+            </template>
+            <template v-else-if="column.key === 'arAction'">
+              <a v-if="record.arError && store.can('contract:item:edit')" @click="retryAr(record)">重试推应收</a>
               <span v-else class="muted">-</span>
             </template>
           </template>
@@ -338,4 +381,5 @@ onMounted(() => { load() })
 <style scoped>
 .contract-items-editor { margin-top: 4px; }
 .items-toolbar { display: flex; align-items: center; gap: 12px; margin: 4px 0 8px; }
+.text-danger { color: #dc2626; }
 </style>

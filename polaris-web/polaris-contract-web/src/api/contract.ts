@@ -303,6 +303,41 @@ export const deleteProject = (id: string) => request.delete<never, void>(`/api/c
 
 /* ==================== 合同台账 ==================== */
 
+/** 付款阶段（合同付款节点 + 付款计划），与 settings 字典 contract.payment_stage 一致 */
+export type PaymentStage = 'PREPAY' | 'GOODS' | 'ACCEPT' | 'WARRANTY'
+export const PAYMENT_STAGES: Array<{ value: PaymentStage; label: string }> = [
+  { value: 'PREPAY', label: '预付款' },
+  { value: 'GOODS', label: '到货款' },
+  { value: 'ACCEPT', label: '验收款' },
+  { value: 'WARRANTY', label: '质保金' }
+]
+export const paymentStageLabel = (v?: string) => PAYMENT_STAGES.find((s) => s.value === v)?.label || v || '-'
+
+/** 合同付款节点：比例合计 100%，必含验收款；金额按合同清单合计 × 比例锁定 */
+export interface PaymentTermVO {
+  id: string
+  contractNo: string
+  stage: PaymentStage
+  ratio: number
+  amount: number
+  appliedAmount?: number
+  availableAmount?: number
+  dueDate?: string
+  remark?: string
+  orgCode?: string
+}
+export interface PaymentTermSave {
+  id?: string
+  stage: PaymentStage
+  ratio: number
+  dueDate?: string
+  remark?: string
+}
+export const listPaymentTerms = (contractNo: string) =>
+  request.get<never, PaymentTermVO[]>(`/api/contract/contracts/${contractNo}/payment-terms`)
+export const savePaymentTerms = (contractNo: string, terms: PaymentTermSave[]) =>
+  request.post<never, PaymentTermVO[]>(`/api/contract/contracts/${contractNo}/payment-terms`, { terms })
+
 export interface ContractVO {
   id: string
   no: string
@@ -317,8 +352,12 @@ export interface ContractVO {
   signedDate: string
   effectiveDate: string
   endDate: string
+  /** 质保到期日：质保金节点放行依据 */
+  warrantyDueDate?: string
   status: string
   paymentTerms: string
+  /** 付款节点配置（比例合计 100%） */
+  paymentTermList?: PaymentTermVO[]
   /** 合同标的 */
   subject: string
   /** 备注（非必填，200 字） */
@@ -355,6 +394,7 @@ export interface ContractSave {
   signedDate?: string
   effectiveDate?: string
   endDate?: string
+  warrantyDueDate?: string
   status?: string
   paymentTerms?: string
   /** 合同标的 */
@@ -437,9 +477,12 @@ export interface ItemSave {
 
 export interface AcceptRequest {
   qty: number
+  /** 采购「合格/不合格」；销售「通过/不通过」（通过才累加交付并推应收） */
   result?: string
   date?: string
   remark?: string
+  /** 客户验收单号（销售合同，选填） */
+  customerNo?: string
   /** 验收凭证 file_id 列表 */
   fileIds?: string[]
 }
@@ -452,8 +495,14 @@ export interface AcceptanceVO {
   materialCode: string
   qty: number
   date: string
+  /** 客户验收单号（销售） */
+  customerNo?: string
   result: string
   status: string
+  /** 推送生成的应收单号（销售，非空即已推） */
+  arNo?: string
+  /** 推应收失败原因（销售，供重试） */
+  arError?: string
   /** 过账凭证号（财务域回写） */
   voucherNo?: string
   orgCode: string
@@ -471,6 +520,9 @@ export const listAcceptances = (contractNo: string) =>
   request.get<never, AcceptanceVO[]>(`/api/contract/contracts/${contractNo}/items/acceptances`)
 export const acceptItem = (contractNo: string, id: string, data: AcceptRequest) =>
   request.post<never, AcceptanceVO>(`/api/contract/contracts/${contractNo}/items/${id}/accept`, data)
+/** 销售验收推应收失败后重试（幂等） */
+export const pushAcceptanceAr = (contractNo: string, acceptanceId: string) =>
+  request.post<never, void>(`/api/contract/contracts/${contractNo}/items/acceptances/${acceptanceId}/push-ar`)
 
 /* ==================== 附件上传（统一文件服务代理） ==================== */
 
@@ -508,6 +560,13 @@ export interface PaymentPlanVO {
   contractNo: string
   contractName: string
   stage: string
+  /** 引用的付款节点 ID（存量为空） */
+  termId?: string
+  /** 付款节点名称（预付款/到货款/验收款/质保金） */
+  termName?: string
+  /** GOODS 阶段所选清单行 ID（逗号分隔） */
+  itemIds?: string
+  warrantyDueDate?: string
   dueDate: string
   amount: number
   /** 付款事由 */
@@ -531,6 +590,10 @@ export interface PaymentPlanVO {
 
 export interface PaymentPlanSave {
   stage?: string
+  /** 引用的付款节点 ID；为空按存量自由录入 */
+  termId?: string
+  /** GOODS 阶段所选清单行 ID（逗号分隔） */
+  itemIds?: string
   dueDate?: string
   amount: number
   /** 付款事由 */
@@ -578,15 +641,12 @@ export interface ApprovalInfo {
 }
 export const fetchPaymentApprovalInfo = (id: string) =>
   request.get<never, ApprovalInfo | null>(`/api/contract/payment-plans/${id}/approval`)
-
-/** 审批实例状态：0 进行中 / 1 已通过 / 2 已驳回 / 3 已撤回 / 4 已终止 */
-export const APPROVAL_STATUS_NAME: Record<number, string> = {
-  0: '审批中', 1: '已通过', 2: '已驳回', 3: '已撤回', 4: '已终止'
-}
-/** 审批任务状态：0 待办 / 1 通过 / 2 驳回 / 3 跳过 / 4 作废 / 9 转办 */
-export const TASK_STATUS_NAME: Record<number, string> = {
-  0: '待审批', 1: '已通过', 2: '已驳回', 3: '已跳过', 4: '已取消', 9: '已转办'
-}
+/** 采购计划审批信息（审批中心反查） */
+export const fetchPlanApprovalInfo = (id: string) =>
+  request.get<never, ApprovalInfo | null>(`/api/contract/purchase-plans/${id}/approval`)
+/** 合同审批信息（采购/销售，审批中心反查） */
+export const fetchContractApprovalInfo = (id: string) =>
+  request.get<never, ApprovalInfo | null>(`/api/contract/contracts/${id}/approval`)
 
 /* ==================== 采购计划 ==================== */
 

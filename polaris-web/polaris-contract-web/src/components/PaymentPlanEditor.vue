@@ -4,13 +4,14 @@ import { message, Modal } from 'ant-design-vue'
 import { useUserStore } from '@/stores/user'
 import { useIsMobile } from '@/composables/useIsMobile'
 import {
-  listPaymentPlans, savePaymentPlan, applyPaymentPlan, deletePaymentPlan, uploadContractAttachment, fetchPublicDict,
-  type PaymentPlanVO, type DictOption
+  listPaymentPlans, savePaymentPlan, applyPaymentPlan, deletePaymentPlan, uploadContractAttachment,
+  listPaymentTerms, listItems, paymentStageLabel,
+  type PaymentPlanVO, type PaymentTermVO, type ItemVO
 } from '@/api/contract'
 import { yuan } from '@/utils/format'
 import AttachmentUpload from '@shared/components/AttachmentUpload.vue'
 
-const props = defineProps<{ contractNo: string; remainingAmount?: number; readonly?: boolean; contractStatus?: string }>()
+const props = defineProps<{ contractNo: string; remainingAmount?: number; readonly?: boolean; contractStatus?: string; warrantyDueDate?: string }>()
 const store = useUserStore()
 const isMobile = useIsMobile()
 const drawerWidth = computed(() => (isMobile.value ? '100%' : 520))
@@ -25,12 +26,20 @@ const statusLabel: Record<string, string> = {
 const statusColor: Record<string, string> = {
   WAITING: 'default', PENDING: 'orange', APPROVED: 'blue', POSTED: 'green', PAID: 'green', REJECTED: 'red'
 }
-const dictStages = ref<DictOption[]>([])
-const stageOptions = computed(() => dictStages.value.map((d) => ({ value: d.value, label: d.label })))
-function stageText(value?: string) {
-  if (!value) return '-'
-  return dictStages.value.find((d) => d.value === value)?.label || value
-}
+/** 付款节点：有节点时申请必须引用节点，阶段由节点决定；存量无节点仍可自由选阶段 */
+const terms = ref<PaymentTermVO[]>([])
+const items = ref<ItemVO[]>([])
+const stageOptions = [
+  { value: 'PREPAY', label: '预付款' }, { value: 'GOODS', label: '到货款' },
+  { value: 'ACCEPT', label: '验收款' }, { value: 'WARRANTY', label: '质保金' }
+]
+function stageText(value?: string) { return paymentStageLabel(value) }
+/** 节点下拉：质保未到期时置灰（禁用但仍展示，说明原因） */
+const termOptions = computed(() => terms.value.map((t) => ({
+  value: t.id,
+  label: `${paymentStageLabel(t.stage)} ${t.ratio}% · 可申请 ${yuan(t.availableAmount ?? 0)}`,
+  disabled: t.stage === 'WARRANTY' && (!props.warrantyDueDate || props.warrantyDueDate > new Date().toISOString().slice(0, 10))
+})))
 
 const columns = computed(() => {
   const base = [
@@ -57,43 +66,75 @@ async function load() {
 const createOpen = ref(false)
 const saving = ref(false)
 const form = reactive({
+  termId: undefined as string | undefined,
   stage: undefined as string | undefined,
+  itemIds: [] as string[],
   remainingAmount: undefined as number | undefined,
   amount: undefined as number | undefined,
   dueDate: undefined as string | undefined,
   summary: '', fileIds: [] as string[]
 })
+/** 当前选中的付款节点 */
+const selectedTerm = computed(() => terms.value.find((t) => t.id === form.termId))
+/** 节点模式：有节点时必须选节点；存量无节点时回退自由选阶段 */
+const termMode = computed(() => terms.value.length > 0)
+/** 本节点可申请金额：有节点取节点余额，否则取合同剩余 */
+const appliableAmount = computed(() => selectedTerm.value
+  ? Number(selectedTerm.value.availableAmount ?? 0)
+  : Number(form.remainingAmount ?? 0))
+/** GOODS 阶段可验收的清单行（已交付 > 0） */
+const goodsRows = computed(() => items.value.filter((i) => Number(i.deliveredQty || 0) > 0))
 /** 剩余未付金额 = 合同剩余金额 - 本期付款金额，纯展示派生字段，不落库 */
 const unpaidAmount = computed(() => {
-  if (form.remainingAmount == null) return undefined
-  return Math.round((Number(form.remainingAmount) - Number(form.amount ?? 0)) * 100) / 100
+  const base = selectedTerm.value ? Number(selectedTerm.value.availableAmount ?? 0) : form.remainingAmount
+  if (base == null) return undefined
+  return Math.round((Number(base) - Number(form.amount ?? 0)) * 100) / 100
 })
-function openCreate() {
+async function openCreate() {
+  form.termId = undefined
   form.stage = undefined
+  form.itemIds = []
   form.remainingAmount = props.remainingAmount
   form.amount = undefined
   form.dueDate = undefined
   form.summary = ''
   form.fileIds = []
+  // 加载节点与清单行（节点模式由节点带出阶段与金额）
+  try {
+    const [t, i] = await Promise.all([
+      listPaymentTerms(props.contractNo), listItems(props.contractNo)
+    ])
+    terms.value = t || []
+    items.value = i || []
+  } catch (e: any) { message.error(e?.message || '付款节点/清单加载失败') }
   createOpen.value = true
+}
+/** 选节点后带出阶段与可申请金额 */
+function onTermChange() {
+  const term = selectedTerm.value
+  form.stage = term?.stage
+  form.amount = undefined
+  form.itemIds = []
 }
 async function submit() {
   const amount = form.amount
   const missing: string[] = []
-  if (!form.stage) missing.push('付款阶段')
-  if (form.remainingAmount == null) missing.push('合同剩余金额')
+  if (termMode.value && !form.termId) missing.push('付款节点')
+  if (!termMode.value && !form.stage) missing.push('付款阶段')
   if (!amount || amount <= 0) missing.push('本期付款金额')
   if (!form.dueDate) missing.push('应付日期')
+  if (form.stage === 'GOODS' && !form.itemIds.length) missing.push('到货清单行')
   if (missing.length) { message.warning(`请填写必填项：${missing.join('、')}`); return }
   if (amount == null) return
-  if (amount > Number(form.remainingAmount)) {
-    message.warning(`本期付款金额不能超过合同剩余金额 ${yuan(Number(form.remainingAmount))}`)
+  if (amount > appliableAmount.value) {
+    message.warning(`本期付款金额不能超过${selectedTerm.value ? '该节点可申请金额' : '合同剩余金额'} ${yuan(appliableAmount.value)}`)
     return
   }
   saving.value = true
   try {
     await savePaymentPlan(props.contractNo, {
-      stage: form.stage, amount: Number(amount), dueDate: form.dueDate,
+      termId: form.termId, stage: form.stage, itemIds: form.itemIds.length ? form.itemIds.join(',') : undefined,
+      amount: Number(amount), dueDate: form.dueDate,
       summary: form.summary || undefined, fileIds: form.fileIds
     })
     createOpen.value = false
@@ -118,8 +159,7 @@ function remove(row: PaymentPlanVO) {
 }
 onMounted(() => {
   load()
-  fetchPublicDict('contract.payment_stage').then((list) => { dictStages.value = list || [] })
-    .catch(() => { message.warning('付款阶段字典加载失败，请检查配置中心') })
+  // 节点/清单在打开新增抽屉时按需加载（openCreate）
 })
 </script>
 
@@ -132,7 +172,10 @@ onMounted(() => {
     <a-table class="ft-table" row-key="id" :columns="columns" :data-source="rows" :loading="loading" :pagination="false"
              :class="{ 'tbl-empty-mode': !loading && !rows.length }" :scroll="rows.length ? { x: 1220 } : undefined">
       <template #bodyCell="{ column, record }">
-        <template v-if="column.key === 'stage'">{{ stageText(record.stage) }}</template>
+        <template v-if="column.key === 'stage'">
+          {{ record.termName || stageText(record.stage) }}
+          <a-tag v-if="record.termId" color="blue" style="margin-left: 4px">节点</a-tag>
+        </template>
         <template v-else-if="column.key === 'amount'">{{ yuan(record.amount) }}</template>
         <template v-else-if="column.key === 'summary'">
           <a-tooltip v-if="record.summary" :title="record.summary"><span class="cell-ellipsis">{{ record.summary }}</span></a-tooltip>
@@ -174,20 +217,32 @@ onMounted(() => {
     <a-drawer v-model:open="createOpen" title="新增付款计划" :width="drawerWidth" placement="right">
       <a-form layout="vertical">
         <a-form-item label="所属合同"><a-input :value="contractNo" readonly /></a-form-item>
-        <a-form-item label="付款阶段" required>
+        <a-form-item v-if="termMode" label="付款节点" required>
+          <a-select v-model:value="form.termId" :options="termOptions" placeholder="请选择付款节点" show-search
+                    style="width: 100%" @change="onTermChange" />
+        </a-form-item>
+        <a-form-item v-else label="付款阶段" required>
           <a-select v-model:value="form.stage" :options="stageOptions" placeholder="请选择付款阶段" show-search style="width: 100%" />
         </a-form-item>
-        <a-form-item label="合同剩余金额" required>
-          <a-input-number :value="form.remainingAmount" :controls="false" :precision="2" readonly
-                          placeholder="合同剩余金额" style="width: 100%" addon-before="¥" />
+        <a-form-item v-if="form.stage === 'GOODS'" label="到货清单行" required>
+          <a-select v-model:value="form.itemIds" mode="multiple" placeholder="选择已验收的清单行"
+                    style="width: 100%" :max-tag-count="3">
+            <a-select-option v-for="i in goodsRows" :key="i.id" :value="i.id">
+              {{ i.materialName }} · 已交付 {{ i.deliveredQty }}/{{ i.qty }}
+            </a-select-option>
+          </a-select>
+        </a-form-item>
+        <a-form-item :label="selectedTerm ? '本节点可申请金额' : '合同剩余金额'" required>
+          <a-input-number :value="appliableAmount" :controls="false" :precision="2" readonly
+                          style="width: 100%" addon-before="¥" />
         </a-form-item>
         <a-form-item label="本期付款金额" required>
-          <a-input-number v-model:value="form.amount" :min="0" :max="form.remainingAmount ?? undefined" :precision="2"
+          <a-input-number v-model:value="form.amount" :min="0" :max="appliableAmount || undefined" :precision="2"
                           style="width: 100%" addon-before="¥" />
         </a-form-item>
         <a-form-item label="剩余未付金额">
           <a-input-number :value="unpaidAmount" :controls="false" :precision="2" readonly
-                          placeholder="自动计算：合同剩余金额 - 本期付款金额" style="width: 100%" addon-before="¥" />
+                          placeholder="自动计算：可申请金额 - 本期付款金额" style="width: 100%" addon-before="¥" />
         </a-form-item>
         <a-form-item label="应付日期" required>
           <a-date-picker v-model:value="form.dueDate" value-format="YYYY-MM-DD" format="YYYY-MM-DD" style="width: 100%" />

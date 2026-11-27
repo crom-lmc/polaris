@@ -57,6 +57,7 @@ agent_created: true
 - 往来单位、所属项目、负责人、归属部门等主数据字段 MUST 用弹窗选择（表格 + 搜索 + 分页 + 单选），MUST NOT 用 `a-select` 下拉或 `a-input` 手输。统一用 `_shared/components/EntityPickerModal.vue`：组件 API 无关，调用方注入 `load(params) => {records,total}` 与动态列 `columns`，`rowKey` 指定唯一字段，`confirm` 回传完整行对象（便于联动带出其它字段）。
 - 表单里用 `a-input readonly`（`cursor:pointer`）点击打开弹窗，不再渲染下拉箭头；选中后把所需字段写入表单（value 存名称/编码与库中一致）。
 - **弹窗保持紧凑（2026-11-27 截图反馈，MUST）**：`EntityPickerModal` 搜索栏右侧 MUST NOT 放「单击行选中，确定后回填」等常驻提示（`ep-tip`），操作说明只经按钮 `title` 或 hover 呈现。
+- **详情空值不写解释性提示（2026-11-28 截图反馈，MUST）**：`a-descriptions-item` 等只读详情字段为空统一显示 `-`，MUST NOT 把「尚未生成（审批通过后由财务域建单回写）」这类流程说明塞进字段值里；需要解释时只放 tooltip 或帮助入口。
 - **弹窗宽度三档（2026-11-27 定稿，MUST）**：**大弹窗 1200px** = 物料树+表格双栏的 `MaterialPickerModal`；**中弹窗 800px** = 供应商/项目/人员/部门等主数据单选的 `EntityPickerModal`（搜索框最大宽 260、`a-table` 滚动高 300）；**小弹窗 480px** = 仅需少量字段的简单确认/选择弹窗。MUST NOT 自行引入其它宽度档。
 - **弹窗宽度 MUST 用数字绑定 `:width="数字"`（2026-11-27 bug，MUST）**：AntDV `a-modal` 的 `width` 写成字符串 `width="700"` 会渲染成无效 CSS（`width:700` 无单位被浏览器忽略），弹窗被表格内容撑到 `max-width:94vw`（约 1000px），视觉上远大于设定值。所有 `a-modal` 宽度 MUST 用 `:width="数字"` 绑定，`_shared` 的 `EntityPickerModal`/`MaterialPickerModal` 尤其注意，MUST NOT 写回裸字符串。
 - **弹窗内分页固定右下角（2026-11-27 定稿，MUST）**：带表格分页的弹窗（`EntityPickerModal`/`MaterialPickerModal`）MUST 遵守与列表页 `.ft-bottom` 相同的规则——表格体高度恒定（`scroll.y` 对应加 `:deep(.ant-table-body) { min-height: <y>px !important }`），分页 `:deep(.ant-table-pagination)` MUST `position:sticky; bottom:0; z-index:5; margin:auto 0 0` 贴底，数据少时也不得上移；MUST NOT 让分页随内容流走。
@@ -73,14 +74,23 @@ agent_created: true
 ## 合同状态流转口径（2026-11-27 落地，MUST）
 
 - 合同详情里的「状态」MUST 只读展示（`a-tag`），MUST NOT 用 `a-select` 让用户直接选 DRAFT/PENDING/EFFECTIVE/EXECUTING/COMPLETED/TERMINATED；状态是流程结果，不是可编辑业务字段。
-- 状态流转 MUST 由明确按钮或服务端条件推进，**按钮统一放在合同列表操作列**（详情纯只读不放任何状态按钮；草稿编辑页 footer 另有「提交审批」入口）。按当前状态收敛：草稿→「提交审批 / 编辑 / 删除」；销售合同审批中→「审批通过 / 退回草稿」（采购合同审批中不提供手工按钮，等审批中心回调）；已生效 / 执行中→「验收 / 终止合同」；已完成/已终止无按钮。**「编辑 / 提交审批 / 删除」MUST 仅在 `status === 'DRAFT'` 显示**（2026-11-27 用户定稿），非草稿合同是业务凭证不可编辑/删除；服务端 `update()`/`delete()` 同步硬校验。危险流转（终止）先 `Modal.confirm`，确认后再调状态接口。
+- 状态流转 MUST 由明确按钮或服务端条件推进，**按钮统一放在合同列表操作列**（详情纯只读不放任何状态按钮；草稿编辑页 footer 另有「提交审批」入口）。按当前状态收敛：草稿→「提交审批 / 编辑 / 删除」；采购/销售合同审批中均不提供手工审批按钮（接入审批中心后等回调，只保留「审批信息」）；已生效 / 执行中→「验收 / 终止合同」；已完成/已终止无按钮。**「编辑 / 提交审批 / 删除」MUST 仅在 `status === 'DRAFT'` 显示**（2026-11-27 用户定稿），非草稿合同是业务凭证不可编辑/删除；服务端 `update()`/`delete()` 同步硬校验。危险流转（终止）先 `Modal.confirm`，确认后再调状态接口。
 - **执行中 / 完成不提供手工按钮（2026-11-27 定稿）**：首次验收由服务端自动推进「已生效→执行中」，全部付款结清自动推进「执行中→完成」，前端 MUST NOT 再显示「开始执行 / 完成合同」按钮。已生效/执行中的合同在列表操作点「验收」打开独立抽屉，复用 `ContractItemsEditor` 并传 `contract-status`，此时只开放验收与验收记录、隐藏清单增删改。
 - **清单/付款按钮按状态显隐（2026-11-27 定稿）**：`ContractItemsEditor` 收 `contract-status`，新增/编辑/删除仅 DRAFT（`canEditItems`），验收仅 EFFECTIVE/EXECUTING（`canAccept`）；`PaymentPlanEditor` 收 `contract-status`，「发起申请」仅 EFFECTIVE/EXECUTING 显示，且服务端会再校验验收完成度。前端显隐只是可见入口，服务端校验才是防线。
 - 前端按钮 MUST NOT 自行拼状态值绕过状态机，统一调 `changeContractStatus(id, target)`；服务端按状态机白名单校验，前端按钮集合只是可见入口，不是唯一防线。
 - 提交审批（`target=PENDING`）前端 MUST 先校验已有清单：列表操作列用 `row.itemCount`，编辑抽屉用 `listItems(contract.no)` 实时查，为空则 `message.warning('请先维护合同清单，再提交审批')` 并中止，不弹确认框。付款计划可后建（合同编辑页可先建 WAITING、付款计划页有独立「发起付款申请」入口），MUST NOT 作为提交审批的前置校验。
 - 采购合同未达审批线提交后服务端直接置「已生效」，前端 MUST 以接口返回的最新详情刷新状态，不得假设一定停在审批中。
-- 到货验收弹窗的「验收日期」MUST 必填：`a-form-item` 带 `required` 星号，`submitAccept` 未选日期时 `message.warning('请选择验收日期')` 并中止；后端 `accept()` 同步硬校验 `ACCEPTANCE_DATE_REQUIRED`，前端校验只是可见入口（2026-11-27 用户定稿）。验收结果选项值 MUST 用中文「合格/不合格」，与后端入库及付款埋点口径一致。
-- **已发起审批的单据 MUST 在操作列提供「审批信息」入口（2026-11-27 用户定稿，全站通用）**：任何接入审批中心的业务列表（付款计划、采购合同、报销等），凡是进入过审批流程（`status !== 'WAITING'/'DRAFT'` 等初始态）的行，操作列 MUST 有只读「审批信息」按钮，打开只读抽屉展示审批单状态、发起人/时间、审批记录 timeline（节点/审批人/状态/意见/时间）。口径：审批数据真相源是 settings 审批中心，业务域后端按 `bizType+bizId` 反查（`approvalApi.latest`，两模板都查取最新），返回雪花 ID 按 String 下发防前端精度丢失；前端禁止直连账号中心 `/api/accounts/approvals/**`（详情接口有参与者校验会 403），统一走本业务域的薄查询接口。合同域范式：`PaymentPlanService.approvalInfo()` + `GET /api/contract/payment-plans/{id}/approval` + `ApprovalInfoDrawer`。
+- 验收弹窗的「验收日期」MUST 必填：`a-form-item` 带 `required` 星号，`submitAccept` 未选日期时 `message.warning('请选择验收日期')` 并中止；后端 `accept()` 同步硬校验 `ACCEPTANCE_DATE_REQUIRED`，前端校验只是可见入口（2026-11-27 用户定稿）。验收结果值 MUST 用中文：采购「合格/不合格」、销售「通过/不通过」，与后端入库、付款埋点及推应收口径一致。
+- **已发起审批的单据 MUST 在操作列提供「审批信息」入口（2026-11-27 用户定稿，全站通用）**：任何接入审批中心的业务列表（付款计划、采购计划、采购/销售合同、报销等），凡是进入过审批流程（`status !== 'WAITING'/'DRAFT'` 等初始态）的行，操作列 MUST 有只读「审批信息」按钮。**详情页面 MUST 与审批中心「我发起的」点开的详情是同一张页面（2026-11-27 用户定稿）**：展示表单快照（版式配置 sections / 未配置时铺开 formData）、流程进度步骤条（发起申请 + 各审批节点）、每个步骤的审批人/状态/意见；MUST NOT 另造「标题+状态+发起人+tasks timeline」的简化抽屉。取数口径：业务域后端按 `bizType+bizId` 反查拿 instanceId（`approvalApi.latest`，多模板取雪花 ID 最大，String 下发防精度丢失），前端用该 ID 调账号中心 `GET /api/accounts/approvals/{id}` + `/context` 渲染同款详情——与审批中心共用同一套接口/版式，不做第二套展示。合同域范式：后端 `ContractApprovalInfoSupport.latest/toVO` 收口 + `GET /api/contract/{resource}/{id}/approval` 反查 ID；前端共用 `components/ApprovalDetailDrawer.vue`（props `open/instanceId/width`，`v-model:open`，只读不渲染通过/驳回/撤回），三个列表（付款计划/采购计划/合同台账）都复用它，MUST NOT 复制详情模板；已删除的旧 `ApprovalInfoDrawer.vue` 不得再引入。注意：详情接口有「参与者」校验（发起人/审批人/委托人/抄送人），非参与者打开显示空态，与审批中心口径一致。**详情抽屉右下角同样 MUST 有「查看审批」按钮**（与操作列同口径 `status !== 初始态`，复用同一详情抽屉），用户从详情即可查看审批过程，无需退回列表（2026-11-27 补充）。
+- **接入审批中心后 MUST 撤掉手工审批按钮（2026-11-27 定稿）**：单据提交后审批/驳回由审批中心回调推进，列表操作列与详情 footer MUST NOT 再显示「审批 / 驳回 / 审批通过」手工入口（否则绕过审批中心、无审批记录）。服务端同步拒绝在途实例的 `approve/reject/changeStatus`。采购计划 PENDING 只保留「审批信息 + 转合同（APPROVED 时）」，销售合同 PENDING 无手工动作按钮。
+
+## 付款节点与销售客户验收交互口径（2026-11-27 落地，MUST）
+
+- **合同编辑抽屉内付款节点配置**：`PaymentTermsEditor` 嵌在合同清单与付款计划之间，仅 DRAFT 可编辑；保存前 MUST 校验比例合计 100%、包含验收款、每项比例 > 0，比例合计非法时红色提示。金额由服务端按清单合计锁定，前端只读展示「锁定金额」。`contract_header.warranty_due_date` 用独立日期字段（质保金节点需填，到期后才可申请），详情抽屉也要展示。合同详情只读复用同一组件传 `readonly`，MUST NOT 复制第二张节点表。
+- **付款申请按节点选择**：`PaymentPlanEditor` / `PaymentPlanView` 申请时 MUST 先 `listPaymentTerms(contractNo)`，选择 `termId` 后阶段与可申请金额由节点决定；阶段展示用 `paymentStageLabel`，MUST NOT 再让用户手输阶段。`WARRANTY` 未到期节点置灰不可选；`GOODS` 阶段 MUST 出现已交付清单行多选（`itemIds`），否则后端 8434。金额上限 = 节点「可申请金额」而非合同剩余金额，超限后端 8432。列表/详情展示节点名称与所选清单行。存量无节点合同沿用原「全验收」逻辑，不必强制补节点。
+- **到期提醒独立列（2026-11-28 截图反馈）**：付款计划列表的 `overdue` / `dueSoon`（「已逾期」红色 / 「临近到期」橙色）MUST 单独成列展示，MUST NOT 混在「应付日期」列里；新增列后必须同步加宽 `scroll.x`（1410→1530）与列宽合计，避免 sticky 操作列被挤压。
+- **销售客户验收**：`ContractItemsEditor` MUST 收 `contractType`，`SALES` 时弹窗标题「客户验收」、结果「通过/不通过」、显示「客户验收单号」选填；提交 `customerNo`。验收记录弹窗在销售下列出客户验收单号、应收单号、推应收失败原因（hover tooltip）与「重试推应收」按钮（`pushAcceptanceAr`），只读态隐藏重试。验收记录按钮只读态也要可见，便于合同详情查看应收状态；财务核销回调尚未接通，MUST NOT 前端自行推断核销状态。
+- **权限与显隐**：验收按钮统一 `EFFECTIVE/EXECUTING` 且 `deliveredQty < qty` 且 `!acceptanceDone`（列表由 `acceptanceDone` 派生字段隐藏），销售验收通过后同样隐藏，不再显示「验收完」的中间状态或手工完成按钮。所有调用 `ContractItemsEditor` 的地方（合同编辑抽屉、合同台账验收抽屉、合同详情抽屉）MUST 传 `contractType`，否则销售会误显示采购的「合格/不合格」。
 
 ## 当前登录人/部门默认带出口径（合同/财务所有模块统一，MUST）
 

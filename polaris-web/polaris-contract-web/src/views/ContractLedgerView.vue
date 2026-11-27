@@ -5,13 +5,14 @@ import { message, Modal } from 'ant-design-vue'
 import { useUserStore } from '@/stores/user'
 import {
   listContracts, getContractStats, deleteContract, changeContractStatus,
-  getProjectOptions, listPartners,
+  getProjectOptions, listPartners, fetchContractApprovalInfo,
   type ContractVO, type ContractStats, type ProjectOptionVO
 } from '@/api/contract'
 import { yuan } from '@/utils/format'
 import ContractDetailDrawer from '@/components/ContractDetailDrawer.vue'
 import ContractFormDrawer from '@/components/ContractFormDrawer.vue'
 import ContractItemsEditor from '@/components/ContractItemsEditor.vue'
+import ApprovalDetailDrawer from '@/components/ApprovalDetailDrawer.vue'
 import { useIsMobile } from '@/composables/useIsMobile'
 
 const store = useUserStore()
@@ -56,11 +57,8 @@ const sourceLabel: Record<string, string> = { DIRECT: '直接新建', FROM_PLAN:
 /** 状态是流程结果，详情只读；流转按钮收敛到列表操作行，按当前状态给出明确动作 */
 function statusActionsOf(row: ContractVO): StatusAction[] {
   if (row.status === 'DRAFT') return [{ label: '提交审批', target: 'PENDING', kind: 'primary' }]
-  if (row.status === 'PENDING') {
-    return row.type === 'SALES'
-      ? [{ label: '审批通过', target: 'EFFECTIVE', kind: 'primary' }, { label: '退回草稿', target: 'DRAFT' }]
-      : []
-  }
+  // PENDING 一律由审批中心回调推进（采购合同与销售合同接入审批中心后统一），不提供手工审批
+  if (row.status === 'PENDING') return []
   // 执行中 / 已完成由业务动作自动推进：首次验收 → 执行中，付款结清 → 完成；此处只保留终止
   if (row.status === 'EFFECTIVE' || row.status === 'EXECUTING') {
     return [{ label: '终止合同', target: 'TERMINATED', kind: 'danger' }]
@@ -121,7 +119,7 @@ const columns = computed(() => [
   { title: '状态', key: 'status', align: 'center' as const, width: 100 },
   { title: '到期日期', dataIndex: 'endDate', key: 'endDate', width: 110 },
   { title: '附件', key: 'attachments', align: 'center' as const, width: 110 },
-  { title: '操作', key: 'action', width: 270 }
+  { title: '操作', key: 'action', width: 350 }
 ])
 
 /* 新增 / 编辑合同：公共表单抽屉 */
@@ -140,6 +138,18 @@ function onFormSaved(saved: ContractVO) {
 const detailOpen = ref(false)
 const detailId = ref<string | null>(null)
 function openDetail(id: string) { detailId.value = id; detailOpen.value = true }
+
+/* 查看审批：打开与审批中心同款详情。业务域薄接口按 bizType+bizId 反查实例号，详情由账号中心接口渲染 */
+const approvalOpen = ref(false)
+const approvalInstanceId = ref<string | null>(null)
+async function openApproval(row: ContractVO) {
+  try {
+    const info = await fetchContractApprovalInfo(row.id)
+    if (!info?.id) { message.warning('该合同尚未发起审批'); return }
+    approvalInstanceId.value = info.id
+    approvalOpen.value = true
+  } catch (e: any) { message.error(e?.message || '审批信息加载失败') }
+}
 
 /* 验收：已生效/执行中的合同通过独立抽屉办验收（复用清单编辑器，仅开放验收按钮） */
 const isMobile = useIsMobile()
@@ -206,7 +216,7 @@ onMounted(() => { load(); loadOptions() })
       </div>
       <a-table class="ft-table" row-key="id" :columns="columns" :data-source="rows" :loading="loading"
                :pagination="pagination" :class="{ 'tbl-empty-mode': !loading && !rows.length }"
-               :scroll="rows.length ? { x: 2290 } : undefined" style="--ft-min-width: 2290px">
+               :scroll="rows.length ? { x: 2370 } : undefined" style="--ft-min-width: 2370px">
         <template #bodyCell="{ column, record }">
           <template v-if="column.key === 'name'">
             <a-tooltip :title="record.name"><span class="cell-ellipsis">{{ record.name }}</span></a-tooltip>
@@ -247,8 +257,9 @@ onMounted(() => { load(); loadOptions() })
             <span v-else class="muted">-</span>
           </template>
           <template v-else-if="column.key === 'action'">
-            <a-space :size="4">
+            <a-space :size="4" class="action-links">
               <a @click="openDetail(record.id)">查看</a>
+              <a v-if="record.status !== 'DRAFT'" @click="openApproval(record)">审批信息</a>
               <a v-if="store.can('contract:ledger:edit') && record.status === 'DRAFT'" @click="openEdit(record)">编辑</a>
               <a v-if="store.can('contract:item:edit') && ['EFFECTIVE', 'EXECUTING'].includes(record.status) && !record.acceptanceDone" @click="openAccept(record)">验收</a>
               <template v-if="store.can('contract:ledger:edit')">
@@ -264,12 +275,15 @@ onMounted(() => { load(); loadOptions() })
 
     <ContractDetailDrawer v-model:open="detailOpen" :contract-id="detailId" />
 
+    <ApprovalDetailDrawer v-model:open="approvalOpen" :instance-id="approvalInstanceId"
+                          :width="isMobile ? '100%' : 860" />
+
     <a-drawer v-model:open="acceptOpen" title="合同验收 · 清单交付" :width="acceptDrawerWidth" placement="right">
       <template v-if="acceptContract">
         <a-alert type="info" show-icon style="margin-bottom: 12px"
                  :message="`${acceptContract.no} · ${acceptContract.name}`"
                  description="已生效/执行中的合同可登记到货验收；清单已锁定，如需变更请走合同变更流程。" />
-        <ContractItemsEditor :contract-no="acceptContract.no" :contract-status="acceptContract.status" />
+        <ContractItemsEditor :contract-no="acceptContract.no" :contract-status="acceptContract.status" :contract-type="acceptContract.type" />
       </template>
       <template #footer><div class="drawer-footer"><a-button @click="acceptOpen = false">关闭</a-button></div></template>
     </a-drawer>

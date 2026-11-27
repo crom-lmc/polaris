@@ -5,14 +5,16 @@ import { useUserStore } from '@/stores/user'
 import { useIsMobile } from '@/composables/useIsMobile'
 import { useOrgDirectory } from '@/composables/useOrgDirectory'
 import {
-  listPurchasePlans, getPurchasePlan, savePurchasePlan, approvePurchasePlan, rejectPurchasePlan,
-  uploadContractAttachment, fetchPurchasePlanProfile, type PurchasePlanVO, type ContractVO
+  listPurchasePlans, getPurchasePlan, savePurchasePlan,
+  uploadContractAttachment, fetchPurchasePlanProfile, fetchPlanApprovalInfo,
+  type PurchasePlanVO, type ContractVO
 } from '@/api/contract'
 import { loadMaterialChildren, loadMaterialPage } from '@/composables/useMaterialPicker'
 import MaterialPickerModal, { type MaterialPick } from '@shared/components/MaterialPickerModal.vue'
 import AttachmentUpload from '@shared/components/AttachmentUpload.vue'
 import ContractFormDrawer from '@/components/ContractFormDrawer.vue'
 import ContractDetailDrawer from '@/components/ContractDetailDrawer.vue'
+import ApprovalDetailDrawer from '@/components/ApprovalDetailDrawer.vue'
 import { yuan } from '@/utils/format'
 
 const store = useUserStore()
@@ -79,7 +81,7 @@ const columns = [
   { title: '状态', key: 'status', align: 'center' as const, width: 110 },
   { title: '关联合同', key: 'contract', width: 170 },
   { title: '附件', key: 'attachments', align: 'center' as const, width: 110 },
-  { title: '操作', key: 'action', width: 180 }
+  { title: '操作', key: 'action', width: 260 }
 ]
 const itemColumns = [
   { title: '物料编码', dataIndex: 'materialCode', key: 'materialCode', width: 130 },
@@ -106,6 +108,18 @@ async function openDetail(id: string) {
 const contractDetailOpen = ref(false)
 const contractDetailNo = ref<string | null>(null)
 function openContractDetail(no: string) { contractDetailNo.value = no; contractDetailOpen.value = true }
+
+/* 查看审批：打开与审批中心同款详情。业务域薄接口按 bizType+bizId 反查实例号，详情由账号中心接口渲染 */
+const approvalOpen = ref(false)
+const approvalInstanceId = ref<string | null>(null)
+async function openApproval(row: PurchasePlanVO) {
+  try {
+    const info = await fetchPlanApprovalInfo(row.id)
+    if (!info?.id) { message.warning('该采购计划尚未发起审批'); return }
+    approvalInstanceId.value = info.id
+    approvalOpen.value = true
+  } catch (e: any) { message.error(e?.message || '审批信息加载失败') }
+}
 
 /* 新建 */
 const createOpen = ref(false)
@@ -186,15 +200,6 @@ async function submitCreate() {
   finally { createSaving.value = false }
 }
 
-/* 审批 / 驳回 / 转合同 */
-async function doApprove(id: string) {
-  try { await approvePurchasePlan(id); message.success('已审批通过'); detailOpen.value = false; load() }
-  catch (e: any) { message.error(e?.message || '审批失败') }
-}
-async function doReject(id: string) {
-  try { await rejectPurchasePlan(id); message.success('已驳回'); detailOpen.value = false; load() }
-  catch (e: any) { message.error(e?.message || '驳回失败') }
-}
 /* 转合同：复用合同表单抽屉，计划数据由组件预填；保存后切换为编辑态继续维护清单/付款计划 */
 const contractFormOpen = ref(false)
 const convertPlan = ref<PurchasePlanVO | null>(null)
@@ -237,7 +242,7 @@ onMounted(() => { load(); loadOrgDirectory() })
       </div>
       <a-table class="ft-table" row-key="id" :columns="columns" :data-source="rows" :loading="loading"
                :pagination="pagination" :class="{ 'tbl-empty-mode': !loading && !rows.length }"
-               :scroll="rows.length ? { x: 1610 } : undefined" style="--ft-min-width: 1610px">
+               :scroll="rows.length ? { x: 1690 } : undefined" style="--ft-min-width: 1690px">
         <template #bodyCell="{ column, record }">
           <template v-if="column.key === 'title'">
             <a-tooltip :title="record.title"><span class="cell-ellipsis">{{ record.title }}</span></a-tooltip>
@@ -256,11 +261,11 @@ onMounted(() => { load(); loadOrgDirectory() })
             <span v-else class="muted">未转合同</span>
           </template>
           <template v-else-if="column.key === 'action'">
-            <a-space :size="4">
+            <a-space :size="4" class="action-links">
               <a @click="openDetail(record.id)">详情</a>
+              <a v-if="record.status !== 'DRAFT'" @click="openApproval(record)">审批信息</a>
               <template v-if="store.can('contract:plan:edit')">
-                <a v-if="record.status === 'PENDING' || record.status === 'DRAFT'" @click="doApprove(record.id)">审批</a>
-                <a v-if="record.status === 'PENDING'" @click="doReject(record.id)">驳回</a>
+                <!-- 提交审批后由审批中心审批/驳回并回调推进，不再提供手工审批入口 -->
                 <a v-if="record.status === 'APPROVED'" @click="openConvert(record)">转合同</a>
               </template>
             </a-space>
@@ -312,7 +317,6 @@ onMounted(() => { load(); loadOrgDirectory() })
         <div class="drawer-footer">
           <a-button @click="detailOpen = false">关闭</a-button>
           <template v-if="store.can('contract:plan:edit') && detail">
-            <a-button v-if="detail.status === 'PENDING' || detail.status === 'DRAFT'" type="primary" @click="doApprove(detail.id)">审批通过</a-button>
             <a-button v-if="detail.status === 'APPROVED'" type="primary" @click="openConvert(detail)">转采购合同</a-button>
           </template>
         </div>
@@ -376,5 +380,7 @@ onMounted(() => { load(); loadOrgDirectory() })
     <MaterialPickerModal v-model:open="pickerOpen" title="选择物料" :initial-materials="pickerInitial"
                          :load-children="loadMaterialChildren" :load-materials="loadMaterialPage"
                          @confirm="onMaterialConfirm" />
+
+    <ApprovalDetailDrawer v-model:open="approvalOpen" :instance-id="approvalInstanceId" :width="isMobile ? '100%' : 860" />
   </section>
 </template>

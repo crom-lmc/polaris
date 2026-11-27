@@ -4,10 +4,12 @@ import { message } from 'ant-design-vue'
 import { useUserStore } from '@/stores/user'
 import { useIsMobile } from '@/composables/useIsMobile'
 import {
-  listContracts, listPaymentPlans, savePaymentPlan, updatePaymentPlan, deletePaymentPlan, applyPaymentPlan, fetchPublicDict,
-  fetchPaymentApprovalInfo, APPROVAL_STATUS_NAME, TASK_STATUS_NAME,
-  type PaymentPlanVO, type ContractVO, type DictOption, type ApprovalInfo
+  listContracts, listPaymentPlans, savePaymentPlan, updatePaymentPlan, deletePaymentPlan, applyPaymentPlan,
+  listPaymentTerms, listItems, paymentStageLabel,
+  fetchPaymentApprovalInfo,
+  type PaymentPlanVO, type ContractVO, type PaymentTermVO, type ItemVO
 } from '@/api/contract'
+import ApprovalDetailDrawer from '@/components/ApprovalDetailDrawer.vue'
 import { yuan } from '@/utils/format'
 
 const store = useUserStore()
@@ -31,12 +33,11 @@ const statusOptions = Object.entries(statusLabel).map(([value, label]) => ({ val
 /** 待审批由谁审：与 settings 审批模板 contract.payment / contract.payment.senior 保持一致 */
 const approvalHint = '审批中：合同归口部门负责人 → 财务中心负责人；本期金额超过升级线时加总经理终审（settings 埋点 contract.payment.approval-amount）'
 const contractOptions = computed(() => contracts.value.map((c) => ({ label: `${c.no} · ${c.name}`, value: c.no })))
-const dictStages = ref<DictOption[]>([])
-const stageOptions = computed(() => dictStages.value.map((d) => ({ value: d.value, label: d.label })))
-function stageText(value?: string) {
-  if (!value) return '-'
-  return dictStages.value.find((d) => d.value === value)?.label || value
-}
+const stageOptions = [
+  { value: 'PREPAY', label: '预付款' }, { value: 'GOODS', label: '到货款' },
+  { value: 'ACCEPT', label: '验收款' }, { value: 'WARRANTY', label: '质保金' }
+]
+function stageText(value?: string) { return paymentStageLabel(value) }
 
 const filtered = computed(() => {
   const kw = query.keyword.trim().toLowerCase()
@@ -86,6 +87,7 @@ const columns = [
   { title: '付款阶段', dataIndex: 'stage', key: 'stage', width: 140 },
   { title: '本期付款金额', key: 'amount', align: 'right' as const, width: 140 },
   { title: '应付日期', dataIndex: 'dueDate', key: 'dueDate', width: 110 },
+  { title: '到期提醒', key: 'reminder', align: 'center' as const, width: 120 },
   { title: '付款状态', key: 'status', align: 'center' as const, width: 120 },
   { title: '操作', key: 'action', width: 340 }
 ]
@@ -100,27 +102,18 @@ const viewOpen = ref(false)
 const viewRow = ref<PaymentPlanVO | null>(null)
 function openView(row: PaymentPlanVO) { viewRow.value = row; viewOpen.value = true }
 
-/* 查看审批信息：已发起审批的付款计划从 settings 审批中心反查，只读 */
+/* 查看审批：打开与审批中心同款详情。业务域薄接口按 bizType+bizId 反查实例号，详情由账号中心接口渲染 */
 const approvalOpen = ref(false)
-const approvalLoading = ref(false)
-const approvalInfo = ref<ApprovalInfo | null>(null)
+const approvalInstanceId = ref<string | null>(null)
 async function openApproval(row: PaymentPlanVO) {
-  approvalOpen.value = true
-  approvalLoading.value = true
-  approvalInfo.value = null
   try {
-    approvalInfo.value = await fetchPaymentApprovalInfo(row.id)
+    const info = await fetchPaymentApprovalInfo(row.id)
+    if (!info?.id) { message.warning('该付款计划尚未发起审批'); return }
+    approvalInstanceId.value = info.id
+    approvalOpen.value = true
   } catch (e: any) {
     message.error(e?.message || '审批信息加载失败')
-  } finally {
-    approvalLoading.value = false
   }
-}
-function approvalTaskColor(status?: number): string {
-  if (status === 1) return 'green'
-  if (status === 2) return 'red'
-  if (status === 0) return 'blue'
-  return 'default'
 }
 
 /* 发起付款申请：一步完成「新建计划 + 发起申请」。仅生成待申请计划的入口在合同详情的付款计划编辑器。 */
@@ -130,39 +123,75 @@ const saving = ref(false)
 const editingId = ref<string | null>(null)
 const form = reactive({
   contractNo: undefined as string | undefined,
+  termId: undefined as string | undefined,
   stage: undefined as string | undefined,
+  itemIds: [] as string[],
   remainingAmount: undefined as number | undefined,
   amount: undefined as number | undefined,
   dueDate: undefined as string | undefined
 })
-/** 剩余未付金额 = 合同剩余金额 - 本期付款金额，纯展示派生字段，不落库 */
+const terms = ref<PaymentTermVO[]>([])
+const items = ref<ItemVO[]>([])
+const selectedTerm = computed(() => terms.value.find((t) => t.id === form.termId))
+const termMode = computed(() => terms.value.length > 0)
+const appliableAmount = computed(() => selectedTerm.value
+  ? Number(selectedTerm.value.availableAmount ?? 0)
+  : Number(form.remainingAmount ?? 0))
+const goodsRows = computed(() => items.value.filter((i) => Number(i.deliveredQty || 0) > 0))
+const termOptions = computed(() => terms.value.map((t) => ({
+  value: t.id,
+  label: `${paymentStageLabel(t.stage)} ${t.ratio}% · 可申请 ${yuan(t.availableAmount ?? 0)}`,
+  disabled: t.stage === 'WARRANTY' && (!warrantyDueDate.value || warrantyDueDate.value > new Date().toISOString().slice(0, 10))
+})))
+const warrantyDueDate = computed(() => contracts.value.find((c) => c.no === form.contractNo)?.warrantyDueDate)
+/** 剩余未付金额 = 可申请金额 - 本期付款金额，纯展示派生字段，不落库 */
 const unpaidAmount = computed(() => {
-  if (form.remainingAmount == null) return undefined
-  return Math.round((Number(form.remainingAmount) - Number(form.amount ?? 0)) * 100) / 100
+  if (appliableAmount.value == null) return undefined
+  return Math.round((appliableAmount.value - Number(form.amount ?? 0)) * 100) / 100
 })
-/** 合同剩余金额取合同 VO 的待付款金额（合同金额 - 已付 - 在途），选择合同后自动带出 */
-function onContractChange(no?: string) {
+/** 选择合同后带出合同剩余金额，并加载该合同的付款节点与清单行 */
+async function onContractChange(no?: string) {
+  form.contractNo = no
+  form.termId = undefined
+  form.stage = undefined
+  form.itemIds = []
   form.remainingAmount = contracts.value.find((c) => c.no === no)?.pendingAmount
   form.amount = undefined
+  if (!no) { terms.value = []; items.value = []; return }
+  try {
+    const [t, i] = await Promise.all([listPaymentTerms(no), listItems(no)])
+    terms.value = t || []
+    items.value = i || []
+  } catch (e: any) { message.error(e?.message || '付款节点/清单加载失败') }
+}
+function onTermChange() {
+  form.stage = selectedTerm.value?.stage
+  form.amount = undefined
+  form.itemIds = []
 }
 function resetForm() {
   form.contractNo = undefined
+  form.termId = undefined
   form.stage = undefined
+  form.itemIds = []
   form.remainingAmount = undefined
   form.amount = undefined
   form.dueDate = undefined
+  terms.value = []
+  items.value = []
 }
 function openApply() {
   editingId.value = null
   resetForm()
   applyOpen.value = true
 }
-/** 编辑待申请计划：回填当前值，合同锁定不可改（金额校验基准仍取该合同） */
-function openEdit(row: PaymentPlanVO) {
+/** 编辑待申请计划：回填当前值，合同锁定不可改 */
+async function openEdit(row: PaymentPlanVO) {
   editingId.value = row.id
-  form.contractNo = row.contractNo
+  await onContractChange(row.contractNo)
+  form.termId = row.termId
   form.stage = row.stage
-  form.remainingAmount = contracts.value.find((c) => c.no === row.contractNo)?.pendingAmount
+  form.itemIds = row.itemIds ? row.itemIds.split(',').filter(Boolean) : []
   form.amount = Number(row.amount || 0)
   form.dueDate = row.dueDate
   applyOpen.value = true
@@ -179,19 +208,24 @@ async function submitApply() {
   const amount = form.amount
   const missing: string[] = []
   if (!form.contractNo) missing.push('所属合同')
-  if (!form.stage) missing.push('付款阶段')
-  if (form.remainingAmount == null) missing.push('合同剩余金额')
+  if (termMode.value && !form.termId) missing.push('付款节点')
+  if (!termMode.value && !form.stage) missing.push('付款阶段')
   if (!amount || amount <= 0) missing.push('本期付款金额')
   if (!form.dueDate) missing.push('应付日期')
+  if (form.stage === 'GOODS' && !form.itemIds.length) missing.push('到货清单行')
   if (missing.length) { message.warning(`请填写必填项：${missing.join('、')}`); return }
   if (amount == null) return
-  if (amount > Number(form.remainingAmount)) {
-    message.warning(`本期付款金额不能超过合同剩余金额 ${yuan(Number(form.remainingAmount))}`)
+  if (amount > appliableAmount.value) {
+    message.warning(`本期付款金额不能超过${selectedTerm.value ? '该节点可申请金额' : '合同剩余金额'} ${yuan(appliableAmount.value)}`)
     return
   }
   saving.value = true
   try {
-    const payload = { stage: form.stage, amount: Number(amount), dueDate: form.dueDate }
+    const payload = {
+      termId: form.termId, stage: form.stage,
+      itemIds: form.itemIds.length ? form.itemIds.join(',') : undefined,
+      amount: Number(amount), dueDate: form.dueDate
+    }
     if (editingId.value) {
       // 编辑待申请计划：只保存，不发起
       await updatePaymentPlan(editingId.value, payload)
@@ -213,8 +247,6 @@ async function submitApply() {
 }
 onMounted(() => {
   load()
-  fetchPublicDict('contract.payment_stage').then((list) => { dictStages.value = list || [] })
-    .catch(() => { message.warning('付款阶段字典加载失败，请检查配置中心') })
 })
 </script>
 
@@ -237,7 +269,7 @@ onMounted(() => {
       </div>
       <a-table class="ft-table" row-key="id" :columns="columns" :data-source="paged" :loading="loading"
                :pagination="pagination" :class="{ 'tbl-empty-mode': !loading && !paged.length }"
-               :scroll="paged.length ? { x: 1410 } : undefined">
+               :scroll="paged.length ? { x: 1530 } : undefined">
           <template #bodyCell="{ column, record }">
           <template v-if="column.key === 'no'">
             <a-tooltip v-if="record.no" :title="record.no"><span class="cell-ellipsis">{{ record.no }}</span></a-tooltip>
@@ -246,14 +278,19 @@ onMounted(() => {
           <template v-else-if="column.key === 'contractName'">
             <a-tooltip :title="record.contractName"><span class="cell-ellipsis">{{ record.contractName || '-' }}</span></a-tooltip>
           </template>
-          <template v-else-if="column.key === 'stage'">{{ stageText(record.stage) }}</template>
+          <template v-else-if="column.key === 'stage'">
+            {{ record.termName || stageText(record.stage) }}<a-tag v-if="record.termId" color="blue" style="margin-left: 4px">节点</a-tag>
+          </template>
           <template v-else-if="column.key === 'amount'">{{ yuan(record.amount) }}</template>
-          <template v-else-if="column.key === 'dueDate'">
-            <span>{{ record.dueDate || '-' }}</span>
-            <a-tag v-if="record.overdue" color="red" style="margin-left:6px">已逾期</a-tag>
-            <a-tooltip v-else-if="record.dueSoon" :title="`到期前 ${record.remindDays ?? 7} 天提醒（settings 埋点配置）`">
-              <a-tag color="orange" style="margin-left:6px">临近到期</a-tag>
+          <template v-else-if="column.key === 'dueDate'">{{ record.dueDate || '-' }}</template>
+          <template v-else-if="column.key === 'reminder'">
+            <a-tooltip v-if="record.overdue" title="应付日期已过且未付款">
+              <a-tag color="red">已逾期</a-tag>
             </a-tooltip>
+            <a-tooltip v-else-if="record.dueSoon" :title="`到期前 ${record.remindDays ?? 7} 天提醒（settings 埋点配置）`">
+              <a-tag color="orange">临近到期</a-tag>
+            </a-tooltip>
+            <span v-else class="muted">-</span>
           </template>
           <template v-else-if="column.key === 'status'">
             <a-tooltip v-if="record.status === 'PENDING'" :title="approvalHint">
@@ -286,20 +323,32 @@ onMounted(() => {
           <a-select v-model:value="form.contractNo" :options="contractOptions" placeholder="请选择合同" show-search
                     :disabled="!!editingId" style="width: 100%" @change="onContractChange" />
         </a-form-item>
-        <a-form-item label="付款阶段" required>
+        <a-form-item v-if="termMode" label="付款节点" required>
+          <a-select v-model:value="form.termId" :options="termOptions" placeholder="请选择付款节点" show-search
+                    style="width: 100%" @change="onTermChange" />
+        </a-form-item>
+        <a-form-item v-else label="付款阶段" required>
           <a-select v-model:value="form.stage" :options="stageOptions" placeholder="请选择付款阶段" show-search style="width: 100%" />
         </a-form-item>
-        <a-form-item label="合同剩余金额" required>
-          <a-input-number :value="form.remainingAmount" :controls="false" :precision="2" readonly
-                          placeholder="选择合同后自动带出" style="width: 100%" addon-before="¥" />
+        <a-form-item v-if="form.stage === 'GOODS'" label="到货清单行" required>
+          <a-select v-model:value="form.itemIds" mode="multiple" placeholder="选择已验收的清单行"
+                    style="width: 100%" :max-tag-count="3">
+            <a-select-option v-for="i in goodsRows" :key="i.id" :value="i.id">
+              {{ i.materialName }} · 已交付 {{ i.deliveredQty }}/{{ i.qty }}
+            </a-select-option>
+          </a-select>
+        </a-form-item>
+        <a-form-item :label="selectedTerm ? '本节点可申请金额' : '合同剩余金额'" required>
+          <a-input-number :value="appliableAmount" :controls="false" :precision="2" readonly
+                          style="width: 100%" addon-before="¥" />
         </a-form-item>
         <a-form-item label="本期付款金额" required>
-          <a-input-number v-model:value="form.amount" :min="0" :max="form.remainingAmount ?? undefined" :precision="2"
+          <a-input-number v-model:value="form.amount" :min="0" :max="appliableAmount || undefined" :precision="2"
                           style="width: 100%" addon-before="¥" />
         </a-form-item>
         <a-form-item label="剩余未付金额">
           <a-input-number :value="unpaidAmount" :controls="false" :precision="2" readonly
-                          placeholder="自动计算：合同剩余金额 - 本期付款金额" style="width: 100%" addon-before="¥" />
+                          placeholder="自动计算：可申请金额 - 本期付款金额" style="width: 100%" addon-before="¥" />
         </a-form-item>
         <a-form-item label="应付日期" required>
           <a-date-picker v-model:value="form.dueDate" value-format="YYYY-MM-DD" format="YYYY-MM-DD" style="width: 100%" />
@@ -319,14 +368,15 @@ onMounted(() => {
           <a-descriptions-item label="付款申请单号"><b>{{ viewRow.no || '-' }}</b></a-descriptions-item>
           <a-descriptions-item label="合同编号">{{ viewRow.contractNo }}</a-descriptions-item>
           <a-descriptions-item label="合同名称">{{ viewRow.contractName || '-' }}</a-descriptions-item>
-          <a-descriptions-item label="付款阶段">{{ stageText(viewRow.stage) }}</a-descriptions-item>
+          <a-descriptions-item label="付款阶段">{{ viewRow.termName || stageText(viewRow.stage) }}</a-descriptions-item>
+          <a-descriptions-item v-if="viewRow.itemIds" label="到货清单行">{{ viewRow.itemIds }}</a-descriptions-item>
           <a-descriptions-item label="本期付款金额">{{ yuan(viewRow.amount) }}</a-descriptions-item>
           <a-descriptions-item label="应付日期">{{ viewRow.dueDate || '-' }}</a-descriptions-item>
           <a-descriptions-item label="付款状态">
             <a-tag :color="statusColor[viewRow.status] || 'default'">{{ statusLabel[viewRow.status] || viewRow.status }}</a-tag>
           </a-descriptions-item>
           <a-descriptions-item label="付款事由">{{ viewRow.summary || '-' }}</a-descriptions-item>
-          <a-descriptions-item label="财务单据号">{{ viewRow.sourceDocNo || '尚未生成（审批通过后由财务域建单回写）' }}</a-descriptions-item>
+          <a-descriptions-item label="财务单据号">{{ viewRow.sourceDocNo || '-' }}</a-descriptions-item>
           <a-descriptions-item label="凭证号">{{ viewRow.voucherNo || '尚未生成' }}</a-descriptions-item>
         </a-descriptions>
         <div v-if="viewRow.attachmentUrls?.length" class="view-attachments">
@@ -337,59 +387,19 @@ onMounted(() => {
         </div>
       </template>
       <template #footer>
-        <div class="drawer-footer"><a-button @click="viewOpen = false">关闭</a-button></div>
+        <div class="drawer-footer">
+          <a-button @click="viewOpen = false">关闭</a-button>
+          <a-button v-if="viewRow && viewRow.status !== 'WAITING'" type="primary" @click="openApproval(viewRow)">查看审批</a-button>
+        </div>
       </template>
     </a-drawer>
 
-    <a-drawer v-model:open="approvalOpen" title="审批信息" :width="drawerWidth" placement="right">
-      <a-spin :spinning="approvalLoading">
-        <template v-if="approvalInfo">
-          <a-descriptions :column="1" bordered size="small">
-            <a-descriptions-item label="标题">{{ approvalInfo.title || '-' }}</a-descriptions-item>
-            <a-descriptions-item label="状态">
-              <a-tag :color="approvalInfo.status === 1 ? 'green' : approvalInfo.status === 2 ? 'red' : 'blue'">
-                {{ APPROVAL_STATUS_NAME[approvalInfo.status] || approvalInfo.statusName || approvalInfo.status }}
-              </a-tag>
-            </a-descriptions-item>
-            <a-descriptions-item label="发起人">{{ approvalInfo.applicantName || '-' }}</a-descriptions-item>
-            <a-descriptions-item label="发起时间">{{ approvalInfo.createdAt || '-' }}</a-descriptions-item>
-            <a-descriptions-item label="完成时间">{{ approvalInfo.finishedAt || '-' }}</a-descriptions-item>
-          </a-descriptions>
-          <h4 class="approval-sec-title">审批记录</h4>
-          <a-timeline v-if="approvalInfo.tasks?.length">
-            <a-timeline-item v-for="t in approvalInfo.tasks" :key="t.id"
-                             :color="approvalTaskColor(t.status)">
-              <div class="approval-task-line">
-                <b>{{ t.stepName || `第 ${t.stepSeq} 步` }}</b>
-                <span v-if="t.nodeName"> · {{ t.nodeName }}</span>
-                <a-tag :color="approvalTaskColor(t.status)" class="approval-task-tag">
-                  {{ t.statusName || TASK_STATUS_NAME[t.status] || '未知' }}
-                </a-tag>
-              </div>
-              <div class="approval-task-meta">
-                审批人：{{ t.approverName || '-' }}<span v-if="t.actedAt"> · {{ t.actedAt }}</span>
-              </div>
-              <div v-if="t.opinion" class="approval-task-opinion">意见：{{ t.opinion }}</div>
-            </a-timeline-item>
-          </a-timeline>
-          <a-empty v-else description="暂无审批任务记录" />
-        </template>
-        <a-empty v-else-if="!approvalLoading" description="未找到审批单" />
-      </a-spin>
-      <template #footer>
-        <div class="drawer-footer"><a-button @click="approvalOpen = false">关闭</a-button></div>
-      </template>
-    </a-drawer>
+    <ApprovalDetailDrawer v-model:open="approvalOpen" :instance-id="approvalInstanceId" :width="isMobile ? '100%' : 860" />
   </section>
 </template>
 
 <style scoped>
 .link-danger { color: var(--danger, #dc2626); }
-.approval-sec-title { margin: 20px 0 12px; font-weight: 600; }
-.approval-task-line { display: flex; align-items: center; flex-wrap: wrap; gap: 4px; }
-.approval-task-tag { margin-left: 6px; }
-.approval-task-meta { font-size: 12px; opacity: 0.72; margin-top: 4px; }
-.approval-task-opinion { margin-top: 4px; font-size: 13px; }
 .view-attachments { margin-top: 16px; }
 .view-attachments-title { font-weight: 600; margin-bottom: 8px; }
 .view-attachments-list { display: flex; flex-wrap: wrap; gap: 8px 16px; }
