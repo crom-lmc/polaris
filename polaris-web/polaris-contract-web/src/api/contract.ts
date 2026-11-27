@@ -148,14 +148,32 @@ export const togglePartner = (id: string, status: string) =>
   request.post<never, void>(`/api/contract/partners/${id}/status`, { status })
 export const deletePartner = (id: string) => request.delete<never, void>(`/api/contract/partners/${id}`)
 
-/* ==================== 物料三级树 ==================== */
+/* ==================== 物料分类（物料库）与物料（物料维护）分表 ==================== */
 
-export interface MaterialVO {
+/** 分类树节点：树里只有分类，不挂物料 */
+export interface MaterialCategoryVO {
   id: string
   parentId: string | null
   code: string
   name: string
-  /** CATEGORY / MATERIAL */
+  orgCode: string
+  children?: MaterialCategoryVO[]
+}
+
+export interface MaterialCategorySave {
+  parentId?: string | null
+  code?: string
+  name: string
+  orgCode?: string
+}
+
+/** 物料：categoryId 指向三级分类 */
+export interface MaterialVO {
+  id: string
+  categoryId: string
+  parentId: string | null
+  code: string
+  name: string
   kind: string
   spec: string
   unit: string
@@ -165,19 +183,34 @@ export interface MaterialVO {
 }
 
 export interface MaterialSave {
+  categoryId?: string | null
   parentId?: string | null
   code?: string
   name: string
-  kind: string
+  kind?: string
   spec?: string
   unit?: string
   referencePrice?: number | null
   orgCode?: string
 }
 
-export const getMaterialTree = () => request.get<never, MaterialVO[]>('/api/contract/materials')
+/* 分类：物料库 */
+export const getCategoryTree = () => request.get<never, MaterialCategoryVO[]>('/api/contract/material-categories/tree')
+export const getCategoryList = (parentId?: string | null) =>
+  request.get<never, MaterialCategoryVO[]>('/api/contract/material-categories', { params: { parentId } })
+export const getCategory = (id: string) => request.get<never, MaterialCategoryVO>(`/api/contract/material-categories/${id}`)
+export const saveCategory = (data: MaterialCategorySave) =>
+  request.post<never, MaterialCategoryVO>('/api/contract/material-categories', data)
+export const updateCategory = (id: string, data: MaterialCategorySave) =>
+  request.put<never, void>(`/api/contract/material-categories/${id}`, data)
+export const deleteCategory = (id: string) => request.delete<never, void>(`/api/contract/material-categories/${id}`)
+
+/* 物料：物料维护 */
+/** 选料下拉用：分类 + 物料拼合树（物料库/维护页不用） */
+export const getMaterialTree = () => request.get<never, MaterialVO[]>('/api/contract/materials/tree')
+export const getMaterials = (categoryId?: string | null) =>
+  request.get<never, MaterialVO[]>('/api/contract/materials', { params: { categoryId } })
 export const getMaterial = (id: string) => request.get<never, MaterialVO>(`/api/contract/materials/${id}`)
-export const saveCategory = (data: MaterialSave) => request.post<never, MaterialVO>('/api/contract/materials/category', data)
 export const saveMaterial = (data: MaterialSave) => request.post<never, MaterialVO>('/api/contract/materials', data)
 export const updateMaterial = (id: string, data: MaterialSave) =>
   request.put<never, void>(`/api/contract/materials/${id}`, data)
