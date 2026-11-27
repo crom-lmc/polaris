@@ -17,6 +17,8 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.Map;
+
 /** 物料库：分类树/分类列表维护分类；物料维护：按三级分类维护物料。均独立成表。 */
 @RestController
 @RequestMapping("/api/contract")
@@ -40,6 +42,13 @@ public class MaterialController {
         return R.ok(categoryService.children(parentId));
     }
 
+    /** 选料弹窗左树按需展开：只返回一层，不拉全量分类树 */
+    @GetMapping("/material-categories/children")
+    @Permit(PermissionCodes.CONTRACT_MATERIAL_LIST)
+    public R<?> categoryDirectChildren(@RequestParam(value = "parentId", required = false) Long parentId) {
+        return R.ok(categoryService.directChildren(parentId));
+    }
+
     @GetMapping("/material-categories/{id}")
     @Permit(PermissionCodes.CONTRACT_MATERIAL_LIST)
     public R<?> categoryDetail(@PathVariable("id") Long id) {
@@ -60,6 +69,13 @@ public class MaterialController {
         return R.ok();
     }
 
+    @PostMapping("/material-categories/{id}/status")
+    @Permit(PermissionCodes.CONTRACT_MATERIAL_CATEGORY_STATUS)
+    public R<Void> changeCategoryStatus(@PathVariable("id") Long id, @RequestBody Map<String, String> body) {
+        categoryService.changeStatus(id, body == null ? null : body.get("status"));
+        return R.ok();
+    }
+
     @DeleteMapping("/material-categories/{id}")
     @Permit(PermissionCodes.CONTRACT_MATERIAL_CATEGORY_EDIT)
     public R<Void> deleteCategory(@PathVariable("id") Long id) {
@@ -67,13 +83,23 @@ public class MaterialController {
         return R.ok();
     }
 
-    /* ============ 物料（物料维护）：选中三级分类后在列表维护 ============ */
+    /* ============ 物料（物料维护）：选中任意层级分类，列表含其子孙分类下的物料 ============ */
 
     /** 分类 + 物料拼合树：仅用于合同清单/采购计划选料下拉，不用于物料库/维护页 */
     @GetMapping("/materials/tree")
     @Permit(PermissionCodes.CONTRACT_MATERIAL_LIST)
     public R<?> materialTree() {
         return R.ok(materialService.tree());
+    }
+
+    /** 选料弹窗右侧列表：分页 + 关键字，避免一次性加载全量物料 */
+    @GetMapping("/materials/search")
+    @Permit(PermissionCodes.CONTRACT_MATERIAL_LIST)
+    public R<?> materialSearch(@RequestParam(value = "keyword", required = false) String keyword,
+                               @RequestParam(value = "categoryId", required = false) Long categoryId,
+                               @RequestParam(value = "page", defaultValue = "1") int page,
+                               @RequestParam(value = "size", defaultValue = "10") int size) {
+        return R.ok(materialService.search(keyword, categoryId, page, size));
     }
 
     @GetMapping("/materials")

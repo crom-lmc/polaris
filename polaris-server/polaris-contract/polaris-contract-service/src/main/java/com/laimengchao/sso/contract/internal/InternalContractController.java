@@ -9,6 +9,7 @@ import com.laimengchao.sso.contract.module.contract.service.ContractItemService;
 import com.laimengchao.sso.contract.module.contract.service.ContractService;
 import com.laimengchao.sso.contract.module.contract.service.MaterialService;
 import com.laimengchao.sso.contract.module.contract.service.PartnerService;
+import com.laimengchao.sso.contract.module.contract.service.PaymentPlanService;
 import com.laimengchao.sso.contract.module.contract.vo.ContractVOs;
 import com.laimengchao.sso.contract.security.DataScopeService;
 import com.laimengchao.sso.common.security.PermissionCodes;
@@ -37,6 +38,7 @@ public class InternalContractController {
     private final PartnerService partnerService;
     private final MaterialService materialService;
     private final ContractAcceptanceMapper acceptanceMapper;
+    private final PaymentPlanService paymentPlanService;
     private final DataScopeService dataScopeService;
 
     @GetMapping("/contracts")
@@ -110,13 +112,29 @@ public class InternalContractController {
         vo.setDate(entity.getDate() == null ? null : entity.getDate().toString());
         vo.setResult(entity.getResult());
         vo.setStatus(entity.getStatus());
+        vo.setVoucherNo(entity.getVoucherNo());
         vo.setOrgCode(entity.getOrgCode());
         return R.ok(vo);
     }
 
+    /** 财务域过账后回写验收单状态；voucherNo 为过账凭证号 */
     @PostMapping("/acceptances/{no}/posted")
-    public R<Void> posted(@PathVariable("no") String no) {
-        contractItemService.markPosted(no);
+    public R<Void> posted(@PathVariable("no") String no,
+                          @RequestParam(value = "voucherNo", required = false) String voucherNo) {
+        contractItemService.markPosted(no, voucherNo);
         return R.ok();
+    }
+
+    /**
+     * 财务域建应付/付款单并过账后回写付款计划：来源单据号、凭证号、状态。
+     * 幂等，由财务域在凭证过账后投递。
+     */
+    @PostMapping("/payment-plans/{id}/writeback")
+    public R<ContractVOs.PaymentPlanVO> paymentPlanWriteBack(
+            @PathVariable("id") Long id,
+            @RequestParam(value = "sourceDocNo", required = false) String sourceDocNo,
+            @RequestParam(value = "voucherNo", required = false) String voucherNo,
+            @RequestParam(value = "status", required = false) String status) {
+        return R.ok(paymentPlanService.writeBack(id, sourceDocNo, voucherNo, status));
     }
 }

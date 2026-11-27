@@ -15,6 +15,8 @@ import com.laimengchao.sso.finance.module.finance.entity.FinVoucher;
 import com.laimengchao.sso.finance.module.finance.mapper.FinVoucherMapper;
 import com.laimengchao.sso.finance.module.finance.vo.FinanceVOs;
 import com.laimengchao.sso.finance.security.DataScopeService;
+import com.laimengchao.sso.file.client.api.FileApi;
+import com.laimengchao.sso.file.client.dto.SignUrlRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -32,11 +34,15 @@ public class VoucherServiceImpl implements VoucherService {
     /** 已过账凭证才算生效 */
     public static final String POSTED = "POSTED";
     public static final String DRAFT = "DRAFT";
+    /** 待审核（设计稿状态：草稿/待审核/已入账） */
+    public static final String REVIEW = "REVIEW";
+    private static final long SIGN_EXPIRE_SECONDS = 900L;
 
     private final FinVoucherMapper voucherMapper;
     private final BizNoService bizNoService;
     private final DataScopeService dataScopeService;
     private final EmbedPointService embedPointService;
+    private final FileApi fileApi;
 
     /** 列表：来源追溯 + 数据范围 */
     public R.Page<FinanceVOs.VoucherVO> page(String sourceType, String sourceNo, String status,
@@ -88,12 +94,42 @@ public class VoucherServiceImpl implements VoucherService {
                 req.getSourceType() == null ? "MANUAL" : req.getSourceType().trim(),
                 req.getSourceNo(), req.getSummary(), req.getSubject(), req.getAmount(), date,
                 req.getCreator(), req.getDept(), req.getContractNo(), req.getOrgCode());
-        v.setStatus(POSTED);
+        v.setVoucherType(nvl(req.getVoucherType(), "JZ"));
+        v.setFileIds(normalizeFileIds(req.getFileIds()));
+        // 手工录入先落草稿，走 提交审核 → 审核 → 过账 闭环；过账时才记录过账人
+        v.setStatus(DRAFT);
         voucherMapper.insert(v);
         return toVO(v);
     }
 
-    /** 过账草稿凭证 */
+    /** 提交审核：DRAFT → REVIEW */
+    @Transactional(rollbackFor = Exception.class)
+    public void submitReview(Long id) {
+        FinVoucher v = require(id);
+        dataScopeService.assertCanAccessOrg(v.getOrgCode());
+        if (!DRAFT.equals(v.getStatus())) {
+            throw new BizException(FinanceErrorCode.STATUS_INVALID, "仅草稿凭证可提交审核");
+        }
+        voucherMapper.update(null, new LambdaUpdateWrapper<FinVoucher>()
+                .eq(FinVoucher::getId, id)
+                .set(FinVoucher::getStatus, REVIEW));
+    }
+
+    /** 审核通过：REVIEW → DRAFT（记录审核人，由制单人随后过账） */
+    @Transactional(rollbackFor = Exception.class)
+    public void review(Long id) {
+        FinVoucher v = require(id);
+        dataScopeService.assertCanAccessOrg(v.getOrgCode());
+        if (!REVIEW.equals(v.getStatus())) {
+            throw new BizException(FinanceErrorCode.STATUS_INVALID, "仅待审核凭证可审核");
+        }
+        voucherMapper.update(null, new LambdaUpdateWrapper<FinVoucher>()
+                .eq(FinVoucher::getId, id)
+                .set(FinVoucher::getStatus, DRAFT)
+                .set(FinVoucher::getReviewer, currentUser()));
+    }
+
+    /** 过账草稿凭证：记录过账人 */
     @Transactional(rollbackFor = Exception.class)
     public void post(Long id) {
         FinVoucher v = require(id);
@@ -103,7 +139,8 @@ public class VoucherServiceImpl implements VoucherService {
         }
         voucherMapper.update(null, new LambdaUpdateWrapper<FinVoucher>()
                 .eq(FinVoucher::getId, id)
-                .set(FinVoucher::getStatus, POSTED));
+                .set(FinVoucher::getStatus, POSTED)
+                .set(FinVoucher::getPoster, currentUser()));
     }
 
     /**
@@ -168,6 +205,7 @@ public class VoucherServiceImpl implements VoucherService {
         requireOpenPeriod(date);
         FinVoucher v = new FinVoucher();
         v.setNo(bizNoService.next(table));
+        v.setVoucherType("JZ");
         v.setSourceType(sourceType == null || sourceType.isBlank() ? "MANUAL" : sourceType.trim());
         v.setSourceNo(sourceNo == null ? "" : sourceNo.trim());
         v.setSummary(summary == null ? "" : summary.trim());
@@ -216,6 +254,7 @@ public class VoucherServiceImpl implements VoucherService {
         FinanceVOs.VoucherVO vo = new FinanceVOs.VoucherVO();
         vo.setId(v.getId());
         vo.setNo(v.getNo());
+        vo.setVoucherType(v.getVoucherType());
         vo.setSourceType(v.getSourceType());
         vo.setSourceNo(v.getSourceNo());
         vo.setSummary(v.getSummary());
@@ -226,11 +265,49 @@ public class VoucherServiceImpl implements VoucherService {
         vo.setStatus(v.getStatus());
         vo.setDate(v.getDate());
         vo.setCreator(v.getCreator());
+        vo.setReviewer(v.getReviewer());
+        vo.setPoster(v.getPoster());
         vo.setDept(v.getDept());
         vo.setContractNo(v.getContractNo());
         vo.setOrgCode(v.getOrgCode());
+        java.util.List<String> fileIds = java.util.Arrays.stream(
+                        v.getFileIds() == null ? new String[0] : v.getFileIds().split(","))
+                .map(String::trim).filter(s -> !s.isEmpty()).distinct().toList();
+        vo.setFileIds(fileIds);
+        java.util.List<String> urls = new java.util.ArrayList<>();
+        SignUrlRequest signReq = new SignUrlRequest();
+        signReq.setPurpose("VIEW");
+        signReq.setExpiresSeconds(SIGN_EXPIRE_SECONDS);
+        for (String fileId : fileIds) {
+            try {
+                var resp = fileApi.sign(fileId, signReq);
+                if (resp != null && resp.ok() && resp.getData() != null && resp.getData().getUrl() != null) {
+                    urls.add(resp.getData().getUrl());
+                }
+            } catch (Exception ex) {
+                // 签名失败不影响凭证主流程，列表/详情会重新签名
+            }
+        }
+        vo.setAttachmentUrls(urls);
         vo.setCreatedAt(v.getCreatedAt());
         return vo;
+    }
+
+    private String normalizeFileIds(java.util.List<String> ids) {
+        if (ids == null || ids.isEmpty()) {
+            return "";
+        }
+        return String.join(",", ids.stream()
+                .filter(s -> s != null && !s.isBlank()).map(String::trim).distinct().toList());
+    }
+
+    private String nvl(String value, String fallback) {
+        return value == null || value.isBlank() ? fallback : value.trim();
+    }
+
+    private String currentUser() {
+        var info = com.laimengchao.sso.utils.AccountContext.get();
+        return info == null ? "" : (info.getUsername() == null ? "" : info.getUsername());
     }
 
     private String trim(String s) {

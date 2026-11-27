@@ -53,6 +53,20 @@ public class VoucherController {
         return R.ok(voucherService.createManual(req));
     }
 
+    @PostMapping("/{id}/submit-review")
+    @Permit(PermissionCodes.FINANCE_VOUCHER_EDIT)
+    public R<Void> submitReview(@PathVariable("id") Long id) {
+        voucherService.submitReview(id);
+        return R.ok();
+    }
+
+    @PostMapping("/{id}/review")
+    @Permit(PermissionCodes.FINANCE_VOUCHER_EDIT)
+    public R<Void> review(@PathVariable("id") Long id) {
+        voucherService.review(id);
+        return R.ok();
+    }
+
     @PostMapping("/{id}/post")
     @Permit(PermissionCodes.FINANCE_VOUCHER_EDIT)
     public R<Void> post(@PathVariable("id") Long id) {

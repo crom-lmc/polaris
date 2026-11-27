@@ -25,4 +25,7 @@ public interface PaymentPlanService {
      */
     ContractVOs.PaymentPlanVO apply(Long id, ContractRequests.PaymentApplyRequest req);
 
+    /** 财务域回写来源单据号、凭证号与状态（internal token 准入） */
+    ContractVOs.PaymentPlanVO writeBack(Long id, String sourceDocNo, String voucherNo, String status);
+
 }

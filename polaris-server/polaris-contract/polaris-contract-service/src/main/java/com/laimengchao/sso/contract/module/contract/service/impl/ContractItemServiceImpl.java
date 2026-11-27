@@ -20,7 +20,9 @@ import com.laimengchao.sso.contract.module.contract.mapper.ContractAcceptanceMap
 import com.laimengchao.sso.contract.module.contract.mapper.ContractItemMapper;
 import com.laimengchao.sso.contract.module.contract.mapper.ContractMaterialMapper;
 import com.laimengchao.sso.contract.module.contract.mapper.ContractProjectMapper;
+import com.laimengchao.sso.contract.module.contract.support.ContractAttachments;
 import com.laimengchao.sso.contract.module.contract.vo.ContractVOs;
+import com.laimengchao.sso.file.client.api.FileApi;
 import com.laimengchao.sso.contract.security.DataScopeService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -48,6 +50,7 @@ public class ContractItemServiceImpl implements ContractItemService {
     private final ContractService contractService;
     private final BizNoService bizNoService;
     private final EmbedPointService embedPointService;
+    private final FileApi fileApi;
     private final DataScopeService dataScopeService;
 
     public List<ContractVOs.ItemVO> list(String contractNo) {
@@ -163,6 +166,7 @@ public class ContractItemServiceImpl implements ContractItemService {
         acceptance.setResult(nvl(req.getResult(), "合格"));
         acceptance.setStatus("DRAFT");
         acceptance.setOrgCode(header.getOrgCode());
+        acceptance.setFileIds(ContractAttachments.join(req.getFileIds()));
         acceptance.setCreatedAt(LocalDateTime.now());
         acceptanceMapper.insert(acceptance);
         log.info("合同清单验收：contractNo={} itemId={} qty={} acceptanceNo={}",
@@ -196,11 +200,20 @@ public class ContractItemServiceImpl implements ContractItemService {
     /** 财务域过账后回写验收单状态 */
     @Transactional(rollbackFor = Exception.class)
     public ContractVOs.AcceptanceVO markPosted(String no) {
+        return markPosted(no, null);
+    }
+
+    /** 财务域过账后回写验收单状态与凭证号 */
+    @Transactional(rollbackFor = Exception.class)
+    public ContractVOs.AcceptanceVO markPosted(String no, String voucherNo) {
         ContractAcceptance entity = requireAcceptance(no);
-        if (POSTED.equals(entity.getStatus())) {
+        if (POSTED.equals(entity.getStatus()) && (voucherNo == null || voucherNo.isBlank())) {
             return toAcceptanceVO(entity);
         }
         entity.setStatus(POSTED);
+        if (voucherNo != null && !voucherNo.isBlank()) {
+            entity.setVoucherNo(voucherNo.trim());
+        }
         entity.setUpdatedAt(LocalDateTime.now());
         acceptanceMapper.updateById(entity);
         return toAcceptanceVO(entity);
@@ -288,7 +301,11 @@ public class ContractItemServiceImpl implements ContractItemService {
         vo.setDate(e.getDate() == null ? null : e.getDate().toString());
         vo.setResult(e.getResult());
         vo.setStatus(e.getStatus());
+        vo.setVoucherNo(e.getVoucherNo());
         vo.setOrgCode(e.getOrgCode());
+        List<String> fileIds = ContractAttachments.split(e.getFileIds());
+        vo.setFileIds(fileIds);
+        vo.setAttachmentUrls(ContractAttachments.signedUrls(fileIds, fileApi));
         return vo;
     }
 

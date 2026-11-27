@@ -37,7 +37,9 @@ public enum ContractErrorCode implements IErrorCode {
     ORG_REQUIRED(8423, "归属组织不能为空且无法从数据权限推导"),
     APPROVAL_START_FAILED(8425, "发起审批失败，请稍后重试"),
     CREDIT_LIMIT_EXCEEDED(8426, "销售合同金额超出客户授信额度，请调整金额或提高授信"),
-    CHANGE_TIMES_EXCEEDED(8427, "合同变更次数已达埋点上限，不能再变更");
+    CHANGE_TIMES_EXCEEDED(8427, "合同变更次数已达埋点上限，不能再变更"),
+    MATERIAL_STATUS_INVALID(8428, "分类状态不支持该操作"),
+    ATTACHMENT_UPLOAD_FAILED(8429, "附件上传失败，请稍后重试");
 
     private final int code;
     private final String message;

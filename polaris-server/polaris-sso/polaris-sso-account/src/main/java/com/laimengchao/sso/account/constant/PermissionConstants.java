@@ -419,6 +419,7 @@ public final class PermissionConstants {
     public static final String CONTRACT_MATERIAL_EDIT = "contract:material:edit";
     public static final String CONTRACT_MATERIAL_CATEGORY_ADD = "contract:material:category:add";
     public static final String CONTRACT_MATERIAL_CATEGORY_EDIT = "contract:material:category:edit";
+    public static final String CONTRACT_MATERIAL_CATEGORY_STATUS = "contract:material:category:status";
     public static final String CONTRACT_MATERIAL_ADD = "contract:material:add";
     public static final String CONTRACT_PROJECT_LIST = "contract:project:list";
     public static final String CONTRACT_PROJECT_EDIT = "contract:project:edit";
@@ -428,6 +429,10 @@ public final class PermissionConstants {
     public static final String CONTRACT_PAYMENT_LIST = "contract:payment:list";
     public static final String CONTRACT_PAYMENT_EDIT = "contract:payment:edit";
     public static final String CONTRACT_PARTNER_BANK_VIEW = "contract:partner:bank:view";
+    public static final String CONTRACT_PLAN_ATTACHMENT_UPLOAD = "contract:plan:attachment:upload";
+    public static final String CONTRACT_LEDGER_ATTACHMENT_UPLOAD = "contract:ledger:attachment:upload";
+    public static final String CONTRACT_ITEM_ATTACHMENT_UPLOAD = "contract:item:attachment:upload";
+    public static final String CONTRACT_PAYMENT_ATTACHMENT_UPLOAD = "contract:payment:attachment:upload";
 
     public static final java.util.List<PermDef> CONTRACT_BUILTIN = java.util.List.of(
             new PermDef("采购计划", CONTRACT_PLAN_LIST, PermissionType.MENU, null, 1),
@@ -442,12 +447,17 @@ public final class PermissionConstants {
             new PermDef("维护物料", CONTRACT_MATERIAL_EDIT, PermissionType.BUTTON, CONTRACT_MATERIAL_MAINTAIN_LIST, 1),
             new PermDef("新增分类", CONTRACT_MATERIAL_CATEGORY_ADD, PermissionType.BUTTON, CONTRACT_MATERIAL_LIST, 1),
             new PermDef("编辑删除分类", CONTRACT_MATERIAL_CATEGORY_EDIT, PermissionType.BUTTON, CONTRACT_MATERIAL_LIST, 2),
+            new PermDef("停用启用分类", CONTRACT_MATERIAL_CATEGORY_STATUS, PermissionType.BUTTON, CONTRACT_MATERIAL_LIST, 3),
             new PermDef("新增物料", CONTRACT_MATERIAL_ADD, PermissionType.BUTTON, CONTRACT_MATERIAL_MAINTAIN_LIST, 2),
             new PermDef("维护项目", CONTRACT_PROJECT_EDIT, PermissionType.BUTTON, CONTRACT_PROJECT_LIST, 1),
             new PermDef("新增/编辑合同", CONTRACT_LEDGER_EDIT, PermissionType.BUTTON, CONTRACT_LEDGER_LIST, 1),
             new PermDef("维护合同清单", CONTRACT_ITEM_EDIT, PermissionType.BUTTON, CONTRACT_LEDGER_LIST, 2),
             new PermDef("发起付款", CONTRACT_PAYMENT_EDIT, PermissionType.BUTTON, CONTRACT_PAYMENT_LIST, 1),
-            new PermDef("查看往来单位银行账号", CONTRACT_PARTNER_BANK_VIEW, PermissionType.BUTTON, CONTRACT_PARTNER_LIST, 2)
+            new PermDef("查看往来单位银行账号", CONTRACT_PARTNER_BANK_VIEW, PermissionType.BUTTON, CONTRACT_PARTNER_LIST, 2),
+            new PermDef("上传采购计划附件", CONTRACT_PLAN_ATTACHMENT_UPLOAD, PermissionType.BUTTON, CONTRACT_PLAN_LIST, 2),
+            new PermDef("上传合同附件", CONTRACT_LEDGER_ATTACHMENT_UPLOAD, PermissionType.BUTTON, CONTRACT_LEDGER_LIST, 3),
+            new PermDef("上传验收凭证", CONTRACT_ITEM_ATTACHMENT_UPLOAD, PermissionType.BUTTON, CONTRACT_LEDGER_LIST, 4),
+            new PermDef("上传付款凭证", CONTRACT_PAYMENT_ATTACHMENT_UPLOAD, PermissionType.BUTTON, CONTRACT_PAYMENT_LIST, 2)
     );
 
     /* ---------- 业务应用 forum（社区论坛）的内置权限 ---------- */

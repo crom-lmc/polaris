@@ -15,7 +15,11 @@ VALUES
   (9200000000000000006,'announcement_attachment','内部通知附件',20,
    'jpg,jpeg,png,gif,webp,pdf,doc,docx,xls,xlsx,zip','PRIVATE',1,1,'公告正文插图与附件强制私有，按公告可见范围下载',NOW()),
   (9200000000000000007,'meeting_room_image','会议室图片',20,
-   'jpg,jpeg,png,gif,webp','PRIVATE',1,1,'会议室图片强制私有，业务表 meeting_room.file_ids 只存 file_id',NOW());
+   'jpg,jpeg,png,gif,webp','PRIVATE',1,1,'会议室图片强制私有，业务表 meeting_room.file_ids 只存 file_id',NOW()),
+  (9200000000000000008,'finance_expense_attachment','财务报销凭证附件',20,
+   'jpg,jpeg,png,pdf,ofd,doc,docx,xls,xlsx,zip','PRIVATE',1,1,'报销凭证强制私有，业务表 fin_expense.file_ids 只存 file_id；按报销单权限下载',NOW()),
+  (9200000000000000009,'contract_attachment','合同业务附件',20,
+   'jpg,jpeg,png,pdf,ofd,doc,docx,xls,xlsx,zip','PRIVATE',1,1,'采购计划/合同/验收共用；强制私有，业务表 file_ids 只存 file_id，按单据权限预览',NOW());
 
 -- 水印配置种子（INSERT IGNORE 幂等）：默认给员工附件（含合同/档案）启用水印，其余业务可按需在页面新增
 -- 注：合同附件统一按 ehr_attachment 上传，不再单独配置 ehr_contract

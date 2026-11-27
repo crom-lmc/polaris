@@ -95,6 +95,15 @@ public class ArApServiceImpl implements ArApService {
         validate(req);
         FinArAp a = build(req.getType(), req.getParty(), req.getAmount(), req.getContractNo(),
                 req.getSubject(), req.getSummary(), req.getDate(), req.getDept(), req.getOrgCode());
+        a.setInvoiceNo(StringUtils.hasText(req.getInvoiceNo()) ? req.getInvoiceNo().trim() : "");
+        a.setInvoiceType(StringUtils.hasText(req.getInvoiceType()) ? req.getInvoiceType().trim() : "");
+        a.setCreditDays(req.getCreditDays());
+        // 到期日：显式传入优先；否则按发生日期 + 账期天数派生
+        LocalDate due = req.getDueDate();
+        if (due == null && req.getCreditDays() != null && a.getDate() != null) {
+            due = a.getDate().plusDays(req.getCreditDays());
+        }
+        a.setDueDate(due);
         a.setStatus(APPROVED);
         arApMapper.insert(a);
         return toVO(a);
@@ -391,6 +400,10 @@ public class ArApServiceImpl implements ArApService {
         vo.setSubject(a.getSubject());
         vo.setSummary(a.getSummary());
         vo.setPaymentStage(a.getPaymentStage());
+        vo.setInvoiceNo(a.getInvoiceNo());
+        vo.setInvoiceType(a.getInvoiceType());
+        vo.setCreditDays(a.getCreditDays());
+        vo.setDueDate(a.getDueDate());
         vo.setDept(a.getDept());
         vo.setOrgCode(a.getOrgCode());
         vo.setCreatedAt(a.getCreatedAt());

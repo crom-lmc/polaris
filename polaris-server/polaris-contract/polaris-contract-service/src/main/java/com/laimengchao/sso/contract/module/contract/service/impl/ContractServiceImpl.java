@@ -26,7 +26,9 @@ import com.laimengchao.sso.contract.module.contract.mapper.ContractPaymentPlanMa
 import com.laimengchao.sso.contract.module.contract.mapper.ContractPartnerMapper;
 import com.laimengchao.sso.contract.module.contract.mapper.ContractProjectMapper;
 import com.laimengchao.sso.contract.module.contract.support.ContractApprovalLauncher;
+import com.laimengchao.sso.contract.module.contract.support.ContractAttachments;
 import com.laimengchao.sso.contract.module.contract.vo.ContractVOs;
+import com.laimengchao.sso.file.client.api.FileApi;
 import com.laimengchao.sso.contract.security.DataScopeService;
 import com.laimengchao.sso.settings.client.dto.ApprovalStartDTO;
 import lombok.RequiredArgsConstructor;
@@ -69,6 +71,7 @@ public class ContractServiceImpl implements ContractService {
     private final EmbedPointService embedPointService;
     private final ContractApprovalLauncher approvalLauncher;
     private final DataScopeService dataScopeService;
+    private final FileApi fileApi;
 
     /** 采购合同审批 bizType；超升级线用 senior 模板多一级审批（同 EHR 招聘双 bizType 模式） */
     public static final String BIZ_CONTRACT_PURCHASE = "contract.purchase";
@@ -193,6 +196,7 @@ public class ContractServiceImpl implements ContractService {
         entity.setNo(bizNoService.next(PURCHASE.equals(type)
                 ? BizNoServiceImpl.TABLE_CONTRACT_PURCHASE : BizNoServiceImpl.TABLE_CONTRACT_SALES));
         apply(entity, req, type, projectNo, orgCode);
+        entity.setFileIds(ContractAttachments.join(req.getFileIds()));
         entity.setContractSource("DIRECT");
         entity.setCreatedAt(LocalDateTime.now());
         mapper.insert(entity);
@@ -203,7 +207,7 @@ public class ContractServiceImpl implements ContractService {
     @Transactional(rollbackFor = Exception.class)
     public ContractHeader createForPlan(String type, String name, String partnerCode, String projectNo,
                                         String dept, String owner, String paymentTerms, String subject,
-                                        String budgetSubject, String orgCode) {
+                                        String budgetSubject, String orgCode, String fileIds, String planNo) {
         ContractHeader entity = new ContractHeader();
         entity.setNo(bizNoService.next(PURCHASE.equals(type)
                 ? BizNoServiceImpl.TABLE_CONTRACT_PURCHASE : BizNoServiceImpl.TABLE_CONTRACT_SALES));
@@ -218,7 +222,9 @@ public class ContractServiceImpl implements ContractService {
         entity.setSubject(subject);
         entity.setBudgetSubject(budgetSubject);
         entity.setContractSource("FROM_PLAN");
+        entity.setPlanNo(planNo);
         entity.setOrgCode(orgCode);
+        entity.setFileIds(fileIds == null ? "" : fileIds);
         entity.setStatus("DRAFT");
         entity.setCreatedAt(LocalDateTime.now());
         mapper.insert(entity);
@@ -562,7 +568,11 @@ public class ContractServiceImpl implements ContractService {
         vo.setSubject(e.getSubject());
         vo.setBudgetSubject(e.getBudgetSubject());
         vo.setContractSource(e.getContractSource());
+        vo.setPlanNo(e.getPlanNo());
         vo.setOrgCode(e.getOrgCode());
+        List<String> fileIds = ContractAttachments.split(e.getFileIds());
+        vo.setFileIds(fileIds);
+        vo.setAttachmentUrls(ContractAttachments.signedUrls(fileIds, fileApi));
         return vo;
     }
 
@@ -582,6 +592,10 @@ public class ContractServiceImpl implements ContractService {
         e.setSubject(nvl(req.getSubject(), ""));
         e.setBudgetSubject(nvl(req.getBudgetSubject(), e.getBudgetSubject()));
         e.setOrgCode(orgCode);
+        // 局部更新（如只改所属项目）不传 fileIds 时必须保留原附件
+        if (req.getFileIds() != null) {
+            e.setFileIds(ContractAttachments.join(req.getFileIds()));
+        }
     }
 
     private String nvl(String value, String fallback) {

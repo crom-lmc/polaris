@@ -44,7 +44,14 @@ public class PublicReferenceController {
             "ehr.interview_method",
             "ehr.candidate_comm_type",
             "ehr.recruit_source",
-            "forum.gift_category"
+            "forum.gift_category",
+            "finance.expense_type",
+            "finance.expense_reason",
+            "finance.invoice_type",
+            "finance.tax_rate",
+            "finance.voucher_type",
+            "finance.settle_method",
+            "contract.payment_stage"
     );
 
     /** 允许跨应用读取的业务主数据（银行/学历/职位/请假类型/离职原因/家庭成员关系） */
@@ -66,7 +73,7 @@ public class PublicReferenceController {
             return R.ok(List.of());
         }
         return R.ok(dictService.internalItems(typeCode).stream()
-                .map(i -> new Option(i.getValue(), i.getLabel(), null, null, null, null, null, null))
+                .map(i -> new Option(i.getValue(), i.getLabel(), null, null, null, null, null, null, i.getRemark()))
                 .toList());
     }
 
@@ -77,7 +84,7 @@ public class PublicReferenceController {
         }
         return R.ok(bizItemService.internalItems(type).stream()
                 .map(i -> new Option(i.getCode(), i.getName(), i.getCategory(),
-                        i.getJobFamily(), i.getJobFamilyName(), i.getSeries(), i.getLevelNo(), i.getLevelName()))
+                        i.getJobFamily(), i.getJobFamilyName(), i.getSeries(), i.getLevelNo(), i.getLevelName(), null))
                 .toList());
     }
 
@@ -97,5 +104,7 @@ public class PublicReferenceController {
         private final Integer levelNo;
         /** 等级展示名（助理 / 初级 / 中级 / 高级 / 资深） */
         private final String levelName;
+        /** 字典项备注：财务报销类型用它承载「类型 → 会计科目」映射（JSON 文本） */
+        private final String remark;
     }
 }

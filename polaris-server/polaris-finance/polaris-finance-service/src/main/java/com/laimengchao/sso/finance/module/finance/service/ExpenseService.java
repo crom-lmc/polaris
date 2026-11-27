@@ -9,6 +9,12 @@ public interface ExpenseService {
 
     R.Page<FinanceVOs.ExpenseVO> page(String status, String keyword, String dept, LocalDate from, LocalDate to, int page, int size);
 
+    /**
+     * 发起报销的默认申请人/归属部门：服务端按当前账号从 EHR 反查。
+     * 前端不再用 accountId 本地匹配员工，规避 19 位雪花 ID 在浏览器丢精度导致部门为空。
+     */
+    FinanceVOs.ExpenseProfileVO myProfile();
+
     FinanceVOs.ExpenseVO detail(Long id);
 
     FinanceVOs.ExpenseVO create(FinanceRequests.ExpenseSave req);

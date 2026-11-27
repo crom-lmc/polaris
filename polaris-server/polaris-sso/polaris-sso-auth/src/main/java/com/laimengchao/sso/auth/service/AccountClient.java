@@ -187,6 +187,15 @@ public class AccountClient {
         target.setSuperAdmin(user.isSuperAdmin());
         target.setAppCode(user.getAppCode());
         target.setPermissions(user.getPermissions());
+        target.setMenus(user.getMenus() == null ? List.of() : user.getMenus().stream()
+                .map(m -> {
+                    com.laimengchao.sso.common.security.MenuMeta meta = new com.laimengchao.sso.common.security.MenuMeta();
+                    meta.setCode(m.getCode());
+                    meta.setName(m.getName());
+                    meta.setSort(m.getSort());
+                    meta.setParentCode(m.getParentCode());
+                    return meta;
+                }).toList());
         target.setApps(user.getApps());
         return target;
     }

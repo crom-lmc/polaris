@@ -7,7 +7,9 @@ INSERT IGNORE INTO `fin_subject` (`id`, `code`, `name`, `level`, `balance_direct
 (2026112600000000005, '6001', '主营业务收入', 1, 'CREDIT', 'INCOME', 'ENABLED', 'XC0001', NOW(), NOW(), 0),
 (2026112600000000006, '6601', '销售费用', 1, 'DEBIT', 'EXPENSE', 'ENABLED', 'XC0001', NOW(), NOW(), 0),
 (2026112600000000007, '6602', '管理费用', 1, 'DEBIT', 'EXPENSE', 'ENABLED', 'XC0001', NOW(), NOW(), 0),
-(2026112600000000008, '660201', '职工薪酬', 2, 'DEBIT', 'EXPENSE', 'ENABLED', 'XC0001', NOW(), NOW(), 0);
+(2026112600000000008, '660201', '职工薪酬', 2, 'DEBIT', 'EXPENSE', 'ENABLED', 'XC0001', NOW(), NOW(), 0),
+(2026112600000000009, '660205', '培训费', 2, 'DEBIT', 'EXPENSE', 'ENABLED', 'XC0001', NOW(), NOW(), 0),
+(2026112600000000010, '660206', '其他费用', 2, 'DEBIT', 'EXPENSE', 'ENABLED', 'XC0001', NOW(), NOW(), 0);
 
 INSERT IGNORE INTO `fin_budget_subject` (`id`, `code`, `name`, `year`, `annual_amount`, `account_subject_code`, `status`, `org_code`, `created_at`, `updated_at`, `deleted`) VALUES
 (2026112600000000101, 'BS-2026-001', '研发费用预算', 2026, 5200000.00, '6602', 'ENABLED', 'XC0001', NOW(), NOW(), 0),

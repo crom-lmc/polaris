@@ -20,7 +20,9 @@ import com.laimengchao.sso.contract.module.contract.entity.ContractPurchasePlanI
 import com.laimengchao.sso.contract.module.contract.mapper.ContractMaterialMapper;
 import com.laimengchao.sso.contract.module.contract.mapper.ContractPurchasePlanItemMapper;
 import com.laimengchao.sso.contract.module.contract.mapper.ContractPurchasePlanMapper;
+import com.laimengchao.sso.contract.module.contract.support.ContractAttachments;
 import com.laimengchao.sso.contract.module.contract.vo.ContractVOs;
+import com.laimengchao.sso.file.client.api.FileApi;
 import com.laimengchao.sso.contract.security.DataScopeService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -48,6 +50,7 @@ public class PurchasePlanServiceImpl implements PurchasePlanService {
     private final ContractService contractService;
     private final ContractItemService itemService;
     private final DataScopeService dataScopeService;
+    private final FileApi fileApi;
 
     public PageResult<ContractVOs.PurchasePlanVO> page(String no, String status, String keyword,
                                                         int page, int size) {
@@ -88,10 +91,12 @@ public class PurchasePlanServiceImpl implements PurchasePlanService {
         entity.setTitle(req.getTitle().trim());
         entity.setDept(nvl(req.getDept(), ""));
         entity.setApplicant(nvl(req.getApplicant(), ""));
+        entity.setDate(req.getDate() == null ? java.time.LocalDate.now() : req.getDate());
         entity.setNeedDate(req.getNeedDate());
         entity.setBudgetSubject(nvl(req.getBudgetSubject(), ""));
         entity.setStatus("DRAFT");
         entity.setOrgCode(nvl(req.getOrgCode(), ""));
+        entity.setFileIds(ContractAttachments.join(req.getFileIds()));
         entity.setCreatedAt(LocalDateTime.now());
         mapper.insert(entity);
         if (req.getItems() != null) {
@@ -114,9 +119,13 @@ public class PurchasePlanServiceImpl implements PurchasePlanService {
         entity.setTitle(req.getTitle().trim());
         entity.setDept(nvl(req.getDept(), ""));
         entity.setApplicant(nvl(req.getApplicant(), ""));
+        entity.setDate(req.getDate() == null ? entity.getDate() : req.getDate());
         entity.setNeedDate(req.getNeedDate());
         entity.setBudgetSubject(nvl(req.getBudgetSubject(), ""));
         entity.setOrgCode(nvl(req.getOrgCode(), entity.getOrgCode()));
+        if (req.getFileIds() != null) {
+            entity.setFileIds(ContractAttachments.join(req.getFileIds()));
+        }
         entity.setUpdatedAt(LocalDateTime.now());
         mapper.updateById(entity);
         if (req.getItems() != null) {
@@ -180,7 +189,8 @@ public class PurchasePlanServiceImpl implements PurchasePlanService {
                 ContractServiceImpl.PURCHASE, plan.getTitle(), req.getPartnerCode().trim(),
                 req.getProjectNo() == null ? null : req.getProjectNo().trim(),
                 nvl(req.getDept(), plan.getDept()), nvl(req.getOwner(), plan.getApplicant()),
-                nvl(req.getPaymentTerms(), ""), nvl(req.getSubject(), ""), nvl(plan.getBudgetSubject(), ""), orgCode);
+                nvl(req.getPaymentTerms(), ""), nvl(req.getSubject(), ""), nvl(plan.getBudgetSubject(), ""),
+                orgCode, plan.getFileIds(), plan.getNo());
         for (ContractPurchasePlanItem source : planItems) {
             ContractRequests.ItemSave itemReq = new ContractRequests.ItemSave();
             itemReq.setMaterialCode(source.getMaterialCode());
@@ -254,6 +264,7 @@ public class PurchasePlanServiceImpl implements PurchasePlanService {
         vo.setTitle(e.getTitle());
         vo.setDept(e.getDept());
         vo.setApplicant(e.getApplicant());
+        vo.setDate(e.getDate() == null ? null : e.getDate().toString());
         vo.setNeedDate(e.getNeedDate() == null ? null : e.getNeedDate().toString());
         vo.setBudgetSubject(e.getBudgetSubject());
         vo.setStatus(e.getStatus());
@@ -265,6 +276,9 @@ public class PurchasePlanServiceImpl implements PurchasePlanService {
         vo.setAmount(amount);
         vo.setItemCount(items.size());
         vo.setItems(new ArrayList<>(items.stream().map(this::toItemVO).toList()));
+        List<String> fileIds = ContractAttachments.split(e.getFileIds());
+        vo.setFileIds(fileIds);
+        vo.setAttachmentUrls(ContractAttachments.signedUrls(fileIds, fileApi));
         return vo;
     }
 

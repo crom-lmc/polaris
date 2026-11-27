@@ -21,12 +21,16 @@ public class ContractPurchasePlan extends BaseEntity {
     private String title;
     private String dept;
     private String applicant;
+    /** 计划日期（设计稿 date；与需求日期 needDate 区分） */
+    private LocalDate date;
     private LocalDate needDate;
     private String budgetSubject;
     /** DRAFT / PENDING / APPROVED / CONVERTED / REJECTED */
     private String status;
     private String contractNo;
     private String orgCode;
+    /** 附件 file_id，逗号分隔（统一文件服务 contract_attachment 策略） */
+    private String fileIds;
 
     /** 派生展示字段，不落库 */
     @TableField(exist = false)

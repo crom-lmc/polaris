@@ -31,6 +31,7 @@ level: L2
 - MUST 按本服务 Aspect 的 app 域口径写 `@Permit`：audit 多值 `app[]`、file/forum 单值、cms/ehr/job/settings/openapi 注解无 `app()` 由 Aspect 硬编码。
 - MUST `SsoHeaderAuthFilter` 在 finally 清理 `SecurityContextHolder` / `AccountContext`；网关 MUST 先剥离客户端自带的 `X-Account-*` 头。
 - MUST 权限码与前端路由/按钮使用同一字符串；内置权限码不可删，只能改名或改排序。
+- **菜单元数据口径**：业务应用侧栏的名称、顺序、层级 MUST 由 sso-account 通过 `GET /api/auth/me?app=<code>` 的 `menus`（`code/name/sort/parentCode`）下发，取自 `sso_permission` 中 `type=1` 且当前账号在该应用已授权的节点，与 `permissions` 同一过滤口径；MUST NOT 让业务前端自行保存菜单名称与排序。改名/调序 MUST 落在权限树（`PermissionConstants.*_BUILTIN` + `deploy/sql` 或管理端）而非前端字面量。
 
 ## 跨服务调用：向其他服务提供接口（对外暴露能力）
 
@@ -80,6 +81,17 @@ level: L2
 - MUST 审计上报异步且失败只 warn；脱敏规则在 common `AuditDataMasker` 与 audit-client 两份，改一处 MUST 同步另一处。
 - MUST audit 服务自身关闭日志采集（`polaris.system-log.enabled=false`）防递归。
 - MUST 埋点缺失或配置中心短暂不可用而走内置兜底属预期路径，用 `WARN`（如 `meeting.booking.*`），MUST NOT 记 ERROR 制造假异常。
+
+## 附件与存储策略
+
+- MUST 按业务模块建独立 `file_storage_policy`（合同统一 `contract_attachment`、财务报销 `finance_expense_attachment`），业务表只存逗号分隔 `file_id`，预览由后端 `FileApi.sign` 临时签发；MUST NOT 把签名 URL 落库。
+- MUST 为每类附件上传建独立按钮权限并挂所属菜单，MUST NOT 复用新增/编辑权限码；上传代理只接收 base64 并转 `FileApi.upload`。
+- MUST 局部更新未传 `fileIds` 时保留原值，防止只改项目/状态时清空附件。
+
+## 闭环字段完整性
+
+- MUST 设计稿明确画出的字段全部落到实体/表/DTO/VO，禁止只做流程不落字段；合同 `plan_no`/付款计划 `summary`/`voucher_no`、财务 `voucher_type`/`reviewer`/`poster`/付款单 7 字段等均为已确认必补字段。
+- MUST 跨服回写（合同付款计划状态/凭证号、验收凭证号）走 internal token 端点，业务域不自造对方域单号；字典字段存 value，前端跨应用读取的字典 MUST 加入 `PublicReferenceController.DICT_ALLOWED`。
 
 ## 交付验证
 

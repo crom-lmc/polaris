@@ -16,6 +16,7 @@ import com.laimengchao.sso.account.dto.request.UpdateAccountRequest;
 import com.laimengchao.sso.account.dto.response.AccountVO;
 import com.laimengchao.sso.account.dto.response.LoginResult;
 import com.laimengchao.sso.account.dto.response.OpenAccountResult;
+import com.laimengchao.sso.account.dto.response.PermissionVO;
 import com.laimengchao.sso.account.integration.EhrOrgClient;
 import com.laimengchao.sso.account.mapper.SsoAccountAppMapper;
 import com.laimengchao.sso.account.mapper.SsoAccountMapper;
@@ -27,10 +28,13 @@ import com.laimengchao.sso.common.security.ScopeCodeCache;
 import com.laimengchao.sso.settings.client.support.SettingsClient;
 import com.laimengchao.sso.account.service.AccountService;
 import com.laimengchao.sso.account.service.AuditLogService;
+import com.laimengchao.sso.account.service.PermissionService;
 import com.laimengchao.sso.common.BizException;
 import com.laimengchao.sso.common.ErrorCode;
 import com.laimengchao.sso.common.PageResult;
 import com.laimengchao.sso.common.enums.AccountStatus;
+import com.laimengchao.sso.common.enums.PermissionType;
+import com.laimengchao.sso.common.security.MenuMeta;
 import com.laimengchao.sso.utils.AccountContext;
 import com.laimengchao.sso.utils.Asserts;
 import lombok.RequiredArgsConstructor;
@@ -42,7 +46,11 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -64,6 +72,7 @@ public class AccountServiceImpl implements AccountService {
     private final AuditLogService auditLogService;
     private final ScopeCodeCache scopeCodeCache;
     private final SettingsClient settingsClient;
+    private final PermissionService permissionService;
 
     @Value("${sso.security.max-login-fail:5}")
     private int maxLoginFail;
@@ -380,8 +389,39 @@ public class AccountServiceImpl implements AccountService {
         r.setSuperAdmin(superAdmin);
         r.setAppCode(app);
         r.setPermissions(permissions);
+        r.setMenus(buildMenus(app, permissions));
         r.setApps(apps);
         return r;
+    }
+
+    /**
+     * 权限树里的菜单节点随身份快照下发：名称、排序、父子层级只认 SSO 维护的值。
+     * 前端据此渲染侧栏，不再保存自己的菜单名称与顺序。
+     */
+    private List<MenuMeta> buildMenus(String app, List<String> permissions) {
+        List<PermissionVO> all = permissionService.listAll(app);
+        Map<Long, String> codeById = new HashMap<>();
+        for (PermissionVO p : all) {
+            codeById.put(p.getId(), p.getCode());
+        }
+        Set<String> granted = new HashSet<>(permissions);
+        List<MenuMeta> menus = new ArrayList<>();
+        for (PermissionVO p : all) {
+            if (p.getType() == null || p.getType() != PermissionType.MENU.getCode()
+                    || !granted.contains(p.getCode())) {
+                continue;
+            }
+            MenuMeta m = new MenuMeta();
+            m.setCode(p.getCode());
+            m.setName(p.getName());
+            m.setSort(p.getSort() == null ? 0 : p.getSort());
+            m.setParentCode(p.getParentId() == null || p.getParentId() == 0L
+                    ? null : codeById.get(p.getParentId()));
+            menus.add(m);
+        }
+        // listAll 已按 sort 排序；这里再稳定排一次，确保任意调用方拿到的顺序一致
+        menus.sort(Comparator.comparingInt(MenuMeta::getSort));
+        return menus;
     }
 
     // ---------------- 内部工具 ----------------

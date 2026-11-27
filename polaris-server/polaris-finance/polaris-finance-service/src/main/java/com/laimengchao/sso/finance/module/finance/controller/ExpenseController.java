@@ -41,6 +41,13 @@ public class ExpenseController {
         return R.ok(expenseService.page(status, keyword, dept, from, to, page, size));
     }
 
+    /** 发起报销的默认申请人/归属部门：服务端从 EHR 反查，避免前端雪花 ID 精度丢失 */
+    @GetMapping("/my-profile")
+    @Permit(PermissionCodes.FINANCE_EXPENSE_CREATE)
+    public R<FinanceVOs.ExpenseProfileVO> myProfile() {
+        return R.ok(expenseService.myProfile());
+    }
+
     @GetMapping("/{id}")
     @Permit(PermissionCodes.FINANCE_EXPENSE_LIST)
     public R<FinanceVOs.ExpenseVO> detail(@PathVariable("id") Long id) {

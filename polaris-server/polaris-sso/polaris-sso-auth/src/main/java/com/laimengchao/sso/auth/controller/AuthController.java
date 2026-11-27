@@ -126,6 +126,8 @@ public class AuthController {
             user.setAppCode(claims.get(JwtClaims.APP, String.class));
             String perms = claims.get(JwtClaims.PERMISSIONS, String.class);
             user.setPermissions(splitCsv(perms));
+            // 令牌快照只带权限码；菜单名称/排序靠 ?app=xxx 实时查库，此处保持空
+            user.setMenus(List.of());
             user.setApps(splitCsv(claims.get(JwtClaims.APPS, String.class)));
             return R.ok(user);
         } catch (JwtException | IllegalArgumentException e) {

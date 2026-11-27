@@ -15,5 +15,8 @@ public interface PaymentService {
 
     void pay(Long id);
 
+    /** 支付并记录过账凭证号 */
+    void pay(Long id, String voucherNo);
+
     void cancel(Long id);
 }

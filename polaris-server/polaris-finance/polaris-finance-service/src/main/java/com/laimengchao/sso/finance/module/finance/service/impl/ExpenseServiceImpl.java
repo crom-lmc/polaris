@@ -7,19 +7,29 @@ import com.laimengchao.sso.finance.module.finance.service.VoucherService;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.laimengchao.sso.common.BizException;
 import com.laimengchao.sso.common.ErrorCode;
 import com.laimengchao.sso.common.R;
+import com.laimengchao.sso.ehr.client.api.EhrOrgApi;
+import com.laimengchao.sso.file.client.api.FileApi;
+import com.laimengchao.sso.file.client.dto.SignUrlRequest;
 import com.laimengchao.sso.finance.common.BizNoService;
 import com.laimengchao.sso.finance.common.EmbedPointService;
 import com.laimengchao.sso.finance.common.FinanceErrorCode;
 import com.laimengchao.sso.finance.module.finance.dto.FinanceRequests;
 import com.laimengchao.sso.finance.module.finance.entity.FinExpense;
+import com.laimengchao.sso.finance.module.finance.entity.FinSubject;
 import com.laimengchao.sso.finance.module.finance.mapper.FinExpenseMapper;
+import com.laimengchao.sso.finance.module.finance.mapper.FinSubjectMapper;
 import com.laimengchao.sso.finance.module.finance.support.FinanceApprovalLauncher;
 import com.laimengchao.sso.finance.module.finance.vo.FinanceVOs;
 import com.laimengchao.sso.finance.security.DataScopeService;
 import com.laimengchao.sso.settings.client.dto.ApprovalStartDTO;
+import com.laimengchao.sso.settings.client.dto.DictItemDTO;
+import com.laimengchao.sso.settings.client.support.SettingsClient;
+import com.laimengchao.sso.utils.AccountContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -30,7 +40,9 @@ import org.springframework.util.StringUtils;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 
 /** 费用报销单：草稿 → 提交 → 审批（可自动过账）→ 过账 → 付款。 */
 @Slf4j
@@ -56,6 +68,19 @@ public class ExpenseServiceImpl implements ExpenseService {
     /** 走审批引擎的 bizType；超高级审批线时用带 senior 的模板（双 bizType 模式，同 EHR 招聘） */
     public static final String BIZ_EXPENSE = "finance.expense";
     public static final String BIZ_EXPENSE_SENIOR = "finance.expense.senior";
+    /** 报销类型字典：字典项 remark 承载「类型 → 会计科目」映射（JSON：subjectCode/subjectName） */
+    public static final String EXPENSE_TYPE_DICT = "finance.expense_type";
+    /** 报销凭证统一文件服务策略键；file_storage_policy 必须有启用策略，否则上传报 8102 */
+    public static final String FILE_BIZ_TYPE = "finance_expense_attachment";
+    public static final String FILE_OWNER_TYPE = "FIN_EXPENSE";
+    private static final long SIGN_EXPIRE_SECONDS = 900L;
+    private static final String SUBJECT_ENABLED = "ENABLED";
+
+    private final FinSubjectMapper subjectMapper;
+    private final SettingsClient settingsClient;
+    private final EhrOrgApi ehrOrgApi;
+    private final FileApi fileApi;
+    private final ObjectMapper objectMapper;
 
     @Value("${finance.internal-base-url:http://127.0.0.1:9014}")
     private String internalBaseUrl;
@@ -71,6 +96,67 @@ public class ExpenseServiceImpl implements ExpenseService {
             rows.add(toVO(e));
         }
         return R.Page.of(rows, p.getTotal());
+    }
+
+    /**
+     * 发起报销的默认申请人/归属部门。服务端按账号 ID 在 EHR 员工与组织树中反查，
+     * 避免前端用 /api/auth/me 的雪花 ID 做本地匹配时丢精度导致部门静默为空。
+     */
+    @Override
+    public FinanceVOs.ExpenseProfileVO myProfile() {
+        FinanceVOs.ExpenseProfileVO vo = new FinanceVOs.ExpenseProfileVO();
+        Long accountId = AccountContext.getAccountId();
+        if (accountId == null) {
+            log.warn("报销默认部门解析失败：当前账号上下文为空");
+            return vo;
+        }
+        String account = String.valueOf(accountId);
+        Map<String, Object> emp = activeEmployees().stream()
+                .filter(e -> account.equals(text(e.get("id"))))
+                .findFirst().orElse(null);
+        if (emp == null) {
+            log.warn("报销默认部门解析失败：EHR 未找到账号 {} 对应的在职员工", account);
+            return vo;
+        }
+        vo.setApplicant(text(emp.get("name")));
+        String orgId = text(emp.get("orgId"));
+        if (!StringUtils.hasText(orgId)) {
+            log.warn("报销默认部门解析失败：账号 {} 对应员工未维护所属组织", account);
+            return vo;
+        }
+        Map<String, Object> org = orgTree().stream()
+                .filter(n -> orgId.equals(text(n.get("id"))))
+                .findFirst().orElse(null);
+        if (org == null) {
+            log.warn("报销默认部门解析失败：EHR 组织 {} 不存在", orgId);
+            return vo;
+        }
+        vo.setDept(text(org.get("name")));
+        return vo;
+    }
+
+    private List<Map<String, Object>> activeEmployees() {
+        try {
+            var resp = ehrOrgApi.activeEmployees();
+            return resp != null && resp.ok() && resp.getData() != null ? resp.getData() : List.of();
+        } catch (Exception e) {
+            log.warn("报销默认申请人读取 EHR 在职员工失败：{}", e.getMessage());
+            return List.of();
+        }
+    }
+
+    private List<Map<String, Object>> orgTree() {
+        try {
+            var resp = ehrOrgApi.tree();
+            return resp != null && resp.ok() && resp.getData() != null ? resp.getData() : List.of();
+        } catch (Exception e) {
+            log.warn("报销默认部门读取 EHR 组织树失败：{}", e.getMessage());
+            return List.of();
+        }
+    }
+
+    private static String text(Object value) {
+        return value == null ? "" : String.valueOf(value).trim();
     }
 
     private LambdaQueryWrapper<FinExpense> query(String status, String keyword, String dept,
@@ -99,10 +185,12 @@ public class ExpenseServiceImpl implements ExpenseService {
 
     @Transactional(rollbackFor = Exception.class)
     public FinanceVOs.ExpenseVO create(FinanceRequests.ExpenseSave req) {
+        fillDefaults(req);
+        SubjectRef subject = resolveSubject(req.getExpenseType());
         validate(req);
         FinExpense e = new FinExpense();
         e.setNo(bizNoService.next(BizNoServiceImpl.TABLE_EXPENSE));
-        apply(e, req);
+        apply(e, req, subject);
         e.setStatus(DRAFT);
         e.setOrgCode(dataScopeService.orgCodeOf(req.getOrgCode()));
         expenseMapper.insert(e);
@@ -116,8 +204,10 @@ public class ExpenseServiceImpl implements ExpenseService {
         if (!DRAFT.equals(e.getStatus()) && !REJECTED.equals(e.getStatus())) {
             throw new BizException(FinanceErrorCode.STATUS_INVALID, "仅草稿或已驳回的报销单可编辑");
         }
+        fillDefaults(req);
+        SubjectRef subject = resolveSubject(req.getExpenseType());
         validate(req);
-        apply(e, req);
+        apply(e, req, subject);
         expenseMapper.updateById(e);
         return toVO(e);
     }
@@ -165,6 +255,9 @@ public class ExpenseServiceImpl implements ExpenseService {
         form.put("dept", e.getDept());
         form.put("reason", e.getReason());
         form.put("applicant", e.getApplicant());
+        form.put("expenseType", e.getExpenseType());
+        form.put("subject", e.getSubject());
+        form.put("fileIds", fileIdsOf(e.getFileIds()));
         dto.setFormData(form);
         dto.setCallbackUrl(internalBaseUrl + "/internal/finance/approval-callback");
         return dto;
@@ -291,22 +384,130 @@ public class ExpenseServiceImpl implements ExpenseService {
         return e;
     }
 
+    /** 申请人/归属部门由服务端按当前账号从 EHR 补齐，客户端不得再靠 accountId 本地匹配 */
+    private void fillDefaults(FinanceRequests.ExpenseSave req) {
+        if (req == null) {
+            return;
+        }
+        if (StringUtils.hasText(req.getApplicant()) && StringUtils.hasText(req.getDept())) {
+            return;
+        }
+        FinanceVOs.ExpenseProfileVO profile = myProfile();
+        if (!StringUtils.hasText(req.getApplicant())) {
+            req.setApplicant(profile.getApplicant());
+        }
+        if (!StringUtils.hasText(req.getDept())) {
+            req.setDept(profile.getDept());
+        }
+    }
+
+    private record SubjectRef(String code, String name) {
+    }
+
+    /** 报销类型 → 会计科目：映射只维护在 settings 字典项 remark，财务服务不落本地配置表 */
+    private SubjectRef resolveSubject(String expenseType) {
+        if (!StringUtils.hasText(expenseType)) {
+            throw new BizException(ErrorCode.PARAM_ERROR, "请选择报销类型");
+        }
+        String type = expenseType.trim();
+        DictItemDTO item = settingsClient.items(EXPENSE_TYPE_DICT).stream()
+                .filter(i -> type.equals(i.getValue()))
+                .findFirst().orElse(null);
+        if (item == null) {
+            throw new BizException(ErrorCode.PARAM_ERROR, "报销类型无效或已停用：" + type);
+        }
+        String code = subjectCodeOf(item.getRemark());
+        if (!StringUtils.hasText(code)) {
+            throw new BizException(FinanceErrorCode.EXPENSE_TYPE_SUBJECT_MISSING);
+        }
+        FinSubject subject = subjectMapper.selectOne(new LambdaQueryWrapper<FinSubject>()
+                .eq(FinSubject::getCode, code)
+                .eq(FinSubject::getStatus, SUBJECT_ENABLED)
+                .last("limit 1"));
+        if (subject == null) {
+            throw new BizException(FinanceErrorCode.EXPENSE_TYPE_SUBJECT_MISSING,
+                    "报销类型 " + type + " 映射的科目 " + code + " 不存在或未启用");
+        }
+        return new SubjectRef(code, subject.getName());
+    }
+
+    /**
+     * 字典项 remark 优先按 JSON 读 subjectCode；兼容早期直接写科目编码的纯文本。
+     */
+    private String subjectCodeOf(String remark) {
+        if (!StringUtils.hasText(remark)) {
+            return "";
+        }
+        String raw = remark.trim();
+        try {
+            JsonNode node = objectMapper.readTree(raw);
+            if (node.isObject()) {
+                JsonNode code = node.get("subjectCode");
+                return code == null || code.isNull() ? "" : code.asText().trim();
+            }
+            if (node.isTextual()) {
+                return node.asText().trim();
+            }
+        } catch (Exception ignored) {
+            // 裸科目编码不是合法 JSON，直接按文本解析
+        }
+        return raw;
+    }
+
+    private String dictLabel(String type) {
+        if (!StringUtils.hasText(type)) {
+            return "";
+        }
+        return settingsClient.items(EXPENSE_TYPE_DICT).stream()
+                .filter(i -> type.trim().equals(i.getValue()))
+                .findFirst().map(DictItemDTO::getLabel).orElse("");
+    }
+
+    private static String normalizeFileIds(List<String> ids) {
+        if (ids == null || ids.isEmpty()) {
+            return "";
+        }
+        return String.join(",", ids.stream()
+                .filter(StringUtils::hasText).map(String::trim).distinct().toList());
+    }
+
+    private static List<String> fileIdsOf(String raw) {
+        if (!StringUtils.hasText(raw)) {
+            return List.of();
+        }
+        return Arrays.stream(raw.split(",")).map(String::trim)
+                .filter(StringUtils::hasText).distinct().toList();
+    }
+
     private void validate(FinanceRequests.ExpenseSave req) {
-        if (req == null || !StringUtils.hasText(req.getApplicant())
-                || !StringUtils.hasText(req.getReason()) || !StringUtils.hasText(req.getSubject())) {
-            throw new BizException(ErrorCode.PARAM_ERROR, "申请人、事由与科目不能为空");
+        if (req == null) {
+            throw new BizException(ErrorCode.PARAM_ERROR, "请求体不能为空");
+        }
+        if (!StringUtils.hasText(req.getApplicant()) || !StringUtils.hasText(req.getReason())
+                || !StringUtils.hasText(req.getDept())) {
+            throw new BizException(ErrorCode.PARAM_ERROR, "申请人、事由与归属部门不能为空");
         }
         if (req.getAmount() == null || req.getAmount().compareTo(BigDecimal.ZERO) <= 0) {
             throw new BizException(ErrorCode.PARAM_ERROR, "报销金额必须大于零");
         }
+        if (req.getFileIds() == null || req.getFileIds().stream().noneMatch(StringUtils::hasText)) {
+            throw new BizException(FinanceErrorCode.EXPENSE_ATTACHMENT_REQUIRED);
+        }
     }
 
-    private void apply(FinExpense e, FinanceRequests.ExpenseSave req) {
+    private void apply(FinExpense e, FinanceRequests.ExpenseSave req, SubjectRef subject) {
         e.setApplicant(req.getApplicant().trim());
+        e.setExpenseType(req.getExpenseType().trim());
         e.setReason(req.getReason().trim());
         e.setAmount(req.getAmount());
-        e.setSubject(req.getSubject().trim());
-        e.setDept(StringUtils.hasText(req.getDept()) ? req.getDept().trim() : "");
+        e.setDept(req.getDept().trim());
+        e.setSubject(subject.name());
+        e.setSubjectCode(subject.code());
+        e.setExpenseReason(req.getExpenseReason() == null ? "" : req.getExpenseReason().trim());
+        e.setInvoiceType(req.getInvoiceType() == null ? "" : req.getInvoiceType().trim());
+        e.setTaxRate(req.getTaxRate());
+        e.setTaxAmount(req.getTaxAmount());
+        e.setFileIds(normalizeFileIds(req.getFileIds()));
         e.setDate(req.getDate() == null ? LocalDate.now() : req.getDate());
     }
 
@@ -323,14 +524,38 @@ public class ExpenseServiceImpl implements ExpenseService {
         vo.setId(e.getId());
         vo.setNo(e.getNo());
         vo.setApplicant(e.getApplicant());
+        vo.setExpenseType(e.getExpenseType());
+        vo.setExpenseTypeName(dictLabel(e.getExpenseType()));
         vo.setReason(e.getReason());
         vo.setAmount(e.getAmount());
         vo.setDept(e.getDept());
         vo.setSubject(e.getSubject());
+        vo.setSubjectCode(e.getSubjectCode());
+        vo.setExpenseReason(e.getExpenseReason());
+        vo.setInvoiceType(e.getInvoiceType());
+        vo.setTaxRate(e.getTaxRate());
+        vo.setTaxAmount(e.getTaxAmount());
         vo.setStatus(e.getStatus());
         vo.setVoucherNo(e.getVoucherNo());
         vo.setDate(e.getDate());
         vo.setOrgCode(e.getOrgCode());
+        List<String> fileIds = fileIdsOf(e.getFileIds());
+        vo.setFileIds(fileIds);
+        List<String> urls = new ArrayList<>();
+        SignUrlRequest signReq = new SignUrlRequest();
+        signReq.setPurpose("VIEW");
+        signReq.setExpiresSeconds(SIGN_EXPIRE_SECONDS);
+        for (String fileId : fileIds) {
+            try {
+                var resp = fileApi.sign(fileId, signReq);
+                if (resp != null && resp.ok() && resp.getData() != null && resp.getData().getUrl() != null) {
+                    urls.add(resp.getData().getUrl());
+                }
+            } catch (Exception ex) {
+                log.warn("报销凭证签名失败：fileId={} {}", fileId, ex.getMessage());
+            }
+        }
+        vo.setAttachmentUrls(urls);
         vo.setCreatedAt(e.getCreatedAt());
         return vo;
     }

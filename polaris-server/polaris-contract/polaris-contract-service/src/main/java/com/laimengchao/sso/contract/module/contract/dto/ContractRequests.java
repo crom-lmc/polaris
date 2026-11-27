@@ -100,6 +100,8 @@ public final class ContractRequests {
         private String orgCode;
         /** 变更原因（仅用于变更留痕，不写入合同主表） */
         private String remark;
+        /** 附件 file_id 列表；null 表示本次未提交附件字段，保留原值 */
+        private List<String> fileIds;
     }
 
     @Data
@@ -123,6 +125,8 @@ public final class ContractRequests {
         private String result;
         private LocalDate date;
         private String remark;
+        /** 验收凭证 file_id 列表 */
+        private List<String> fileIds;
     }
 
     @Data
@@ -130,13 +134,21 @@ public final class ContractRequests {
         private String stage;
         private LocalDate dueDate;
         private BigDecimal amount;
+        /** 付款事由 */
+        private String summary;
         private String status;
+        /** 合同与验收凭证 file_id 列表；null 表示本次未提交，保留原值 */
+        private List<String> fileIds;
     }
 
     /** 付款申请：sourceDocNo 由财务域建单后回写，这里只接收不生成 */
     @Data
     public static class PaymentApplyRequest {
         private String sourceDocNo;
+        /** 付款事由（发起申请时补充） */
+        private String summary;
+        /** 合同与验收凭证 file_id 列表 */
+        private List<String> fileIds;
     }
 
     @Data
@@ -144,10 +156,14 @@ public final class ContractRequests {
         private String title;
         private String dept;
         private String applicant;
+        /** 计划日期（设计稿 date） */
+        private LocalDate date;
         private LocalDate needDate;
         private String budgetSubject;
         private String orgCode;
         private List<PurchasePlanItemSave> items;
+        /** 附件 file_id 列表；null 表示本次未提交附件字段，保留原值 */
+        private List<String> fileIds;
     }
 
     @Data

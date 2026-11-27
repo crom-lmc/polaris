@@ -589,6 +589,7 @@ public final class PermissionCodes {
     public static final String CONTRACT_MATERIAL_EDIT = "contract:material:edit";
     public static final String CONTRACT_MATERIAL_CATEGORY_ADD = "contract:material:category:add";
     public static final String CONTRACT_MATERIAL_CATEGORY_EDIT = "contract:material:category:edit";
+    public static final String CONTRACT_MATERIAL_CATEGORY_STATUS = "contract:material:category:status";
     public static final String CONTRACT_MATERIAL_ADD = "contract:material:add";
     public static final String CONTRACT_PROJECT_LIST = "contract:project:list";
     public static final String CONTRACT_PROJECT_EDIT = "contract:project:edit";
@@ -598,4 +599,9 @@ public final class PermissionCodes {
     public static final String CONTRACT_PAYMENT_LIST = "contract:payment:list";
     public static final String CONTRACT_PAYMENT_EDIT = "contract:payment:edit";
     public static final String CONTRACT_PARTNER_BANK_VIEW = "contract:partner:bank:view";
+    /** 合同附件：各类单据各自独立按钮权限，不复用新增/编辑权限 */
+    public static final String CONTRACT_PLAN_ATTACHMENT_UPLOAD = "contract:plan:attachment:upload";
+    public static final String CONTRACT_LEDGER_ATTACHMENT_UPLOAD = "contract:ledger:attachment:upload";
+    public static final String CONTRACT_ITEM_ATTACHMENT_UPLOAD = "contract:item:attachment:upload";
+    public static final String CONTRACT_PAYMENT_ATTACHMENT_UPLOAD = "contract:payment:attachment:upload";
 }

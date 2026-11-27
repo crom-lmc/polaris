@@ -22,6 +22,8 @@ public class ContractMaterialCategory extends BaseEntity {
     /** 分类编码 01 / 0101 / 010101 */
     private String code;
     private String name;
+    /** ENABLED 启用 / DISABLED 停用 */
+    private String status;
     private String orgCode;
 
     /** 树形展示用，不落库 */

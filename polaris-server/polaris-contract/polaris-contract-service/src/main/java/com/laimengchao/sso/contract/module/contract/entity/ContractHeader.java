@@ -37,7 +37,11 @@ public class ContractHeader extends BaseEntity {
     private String budgetSubject;
     /** 来源：DIRECT 直接新建 / FROM_PLAN 采购计划转入 */
     private String contractSource;
+    /** 来源采购计划号（FROM_PLAN 时由采购计划号带入，DIRECT 为空） */
+    private String planNo;
     private String orgCode;
+    /** 附件 file_id，逗号分隔（统一文件服务 contract_attachment 策略） */
+    private String fileIds;
 
     /** 以下均为派生展示字段，不落库 */
     @TableField(exist = false)

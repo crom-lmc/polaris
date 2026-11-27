@@ -54,7 +54,13 @@ public final class ContractVOs {
         private Long parentId;
         private String code;
         private String name;
+        /** ENABLED 启用 / DISABLED 停用 */
+        private String status;
         private String orgCode;
+        /** 直接子分类数 / 直接挂载物料数，供前端禁用删除按钮 */
+        private Long childCount;
+        private Long materialCount;
+        private Boolean canDelete;
         private List<MaterialCategoryVO> children;
     }
 
@@ -71,6 +77,8 @@ public final class ContractVOs {
         private Long parentId;
         private String code;
         private String name;
+        /** 所属分类名称：选料搜索结果展示用 */
+        private String categoryName;
         /** 兼容字段：CATEGORY / MATERIAL */
         private String kind;
         private String spec;
@@ -125,6 +133,8 @@ public final class ContractVOs {
         private String budgetSubject;
         /** 来源 DIRECT / FROM_PLAN */
         private String contractSource;
+        /** 来源采购计划号（FROM_PLAN 时带入） */
+        private String planNo;
         private String orgCode;
         private BigDecimal amount;
         private BigDecimal paidAmount;
@@ -134,6 +144,10 @@ public final class ContractVOs {
         private Integer itemCount;
         private Integer planCount;
         private Integer changeCount;
+        /** 附件 file_id 列表，顺序与 attachmentUrls 一致 */
+        private List<String> fileIds;
+        /** 附件只读预览 URL（统一文件服务临时签名） */
+        private List<String> attachmentUrls;
     }
 
     @Data
@@ -178,9 +192,17 @@ public final class ContractVOs {
         private String stage;
         private String dueDate;
         private BigDecimal amount;
+        /** 付款事由 */
+        private String summary;
         private String sourceDocNo;
+        /** 关联凭证号（财务域过账回写） */
+        private String voucherNo;
         private String status;
         private String orgCode;
+        /** 合同与验收凭证 file_id 列表 */
+        private java.util.List<String> fileIds;
+        /** 合同与验收凭证只读预览 URL */
+        private java.util.List<String> attachmentUrls;
         /** 是否临近到期（到期日前 N 天内，N 取埋点 contract.payment.remind-days） */
         private boolean dueSoon;
         /** 是否已逾期且未付款 */
@@ -197,6 +219,8 @@ public final class ContractVOs {
         private String title;
         private String dept;
         private String applicant;
+        /** 计划日期（设计稿 date） */
+        private String date;
         private String needDate;
         private String budgetSubject;
         private String status;
@@ -205,6 +229,10 @@ public final class ContractVOs {
         private BigDecimal amount;
         private Integer itemCount;
         private List<PurchasePlanItemVO> items;
+        /** 附件 file_id 列表，顺序与 attachmentUrls 一致 */
+        private List<String> fileIds;
+        /** 附件只读预览 URL（统一文件服务临时签名） */
+        private List<String> attachmentUrls;
     }
 
     @Data
@@ -234,7 +262,13 @@ public final class ContractVOs {
         private String date;
         private String result;
         private String status;
+        /** 过账凭证号（财务域回写） */
+        private String voucherNo;
         private String orgCode;
+        /** 验收凭证 file_id 列表，顺序与 attachmentUrls 一致 */
+        private List<String> fileIds;
+        /** 验收凭证只读预览 URL（统一文件服务临时签名） */
+        private List<String> attachmentUrls;
     }
 
     /** 项目可选清单（供合同侧下拉与可用性校验） */

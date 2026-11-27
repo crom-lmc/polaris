@@ -1,5 +1,6 @@
 package com.laimengchao.sso.auth.dto;
 
+import com.laimengchao.sso.common.security.MenuMeta;
 import lombok.Data;
 
 import java.util.List;
@@ -19,6 +20,8 @@ public class AuthUser {
     private String appCode;
     /** 按钮级权限码（仅限 appCode 指定的应用域内） */
     private List<String> permissions;
+    /** 当前应用内可见菜单（SSO 权限树的名称/排序/层级），前端侧栏据此渲染 */
+    private List<MenuMeta> menus;
     /** 可访问的应用编码（超管为全部启用应用），写入 JWT 的 apps claim */
     private List<String> apps;
 }

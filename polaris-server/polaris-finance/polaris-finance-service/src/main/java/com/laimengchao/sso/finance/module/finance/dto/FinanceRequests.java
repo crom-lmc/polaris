@@ -4,6 +4,7 @@ import lombok.Data;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.List;
 
 /** 财务域请求体集合（按单据类型分组，避免为每张表单建一个空壳类）。 */
 public final class FinanceRequests {
@@ -36,16 +37,31 @@ public final class FinanceRequests {
     @Data
     public static class ExpenseSave {
         private String applicant;
+        /** settings 字典 finance.expense_type 的 value；后端据此带出会计科目 */
+        private String expenseType;
         private String reason;
         private BigDecimal amount;
         private String dept;
+        /** 兼容历史数据；新单由 expenseType 映射生成，忽略客户端传值 */
         private String subject;
+        /** 报销事由（settings 字典 finance.expense_reason 的 value） */
+        private String expenseReason;
+        /** 发票类型（settings 字典 finance.invoice_type 的 value） */
+        private String invoiceType;
+        /** 税率（settings 字典 finance.tax_rate） */
+        private BigDecimal taxRate;
+        /** 税额 */
+        private BigDecimal taxAmount;
         private LocalDate date;
         private String orgCode;
+        /** 报销凭证附件 file_id 列表，落库为逗号分隔字符串 */
+        private List<String> fileIds;
     }
 
     @Data
     public static class VoucherSave {
+        /** 凭证类型（settings 字典 finance.voucher_type） */
+        private String voucherType;
         private String sourceType;
         private String sourceNo;
         private String summary;
@@ -55,6 +71,8 @@ public final class FinanceRequests {
         private String creator;
         private String dept;
         private String contractNo;
+        /** 凭证附件 file_id 列表 */
+        private List<String> fileIds;
         private String orgCode;
     }
 
@@ -69,6 +87,14 @@ public final class FinanceRequests {
         private String summary;
         private LocalDate date;
         private String dept;
+        /** 发票号 */
+        private String invoiceNo;
+        /** 发票类型（settings 字典 finance.invoice_type） */
+        private String invoiceType;
+        /** 账期天数 */
+        private Integer creditDays;
+        /** 到期日（不传则按 date + creditDays 派生） */
+        private LocalDate dueDate;
         private String orgCode;
     }
 
@@ -88,8 +114,20 @@ public final class FinanceRequests {
     public static class PaymentSave {
         private String contractNo;
         private String party;
+        /** 付款阶段（settings 字典 contract.payment_stage） */
+        private String stage;
         private BigDecimal amount;
+        /** 付款事由 */
+        private String summary;
+        /** 计划付款日期 */
+        private LocalDate dueDate;
+        /** 合同域来源单据号 */
+        private String sourceDocNo;
+        /** 结算方式（settings 字典 finance.settle_method） */
+        private String settleMethod;
         private LocalDate date;
+        /** 合同与验收凭证 file_id 列表 */
+        private List<String> fileIds;
         private String orgCode;
     }
 

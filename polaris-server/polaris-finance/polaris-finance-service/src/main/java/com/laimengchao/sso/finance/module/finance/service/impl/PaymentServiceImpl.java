@@ -14,6 +14,8 @@ import com.laimengchao.sso.finance.module.finance.entity.FinPayment;
 import com.laimengchao.sso.finance.module.finance.mapper.FinPaymentMapper;
 import com.laimengchao.sso.finance.module.finance.vo.FinanceVOs;
 import com.laimengchao.sso.finance.security.DataScopeService;
+import com.laimengchao.sso.file.client.api.FileApi;
+import com.laimengchao.sso.file.client.dto.SignUrlRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -32,10 +34,12 @@ public class PaymentServiceImpl implements PaymentService {
     public static final String PENDING = "PENDING";
     public static final String PAID = "PAID";
     public static final String CANCELLED = "CANCELLED";
+    private static final long SIGN_EXPIRE_SECONDS = 900L;
 
     private final FinPaymentMapper paymentMapper;
     private final BizNoService bizNoService;
     private final DataScopeService dataScopeService;
+    private final FileApi fileApi;
 
     public R.Page<FinanceVOs.PaymentVO> page(String contractNo, String status, String keyword,
                                               int page, int size) {
@@ -78,7 +82,13 @@ public class PaymentServiceImpl implements PaymentService {
         p.setNo(bizNoService.next(BizNoServiceImpl.TABLE_PAYMENT));
         p.setContractNo(req.getContractNo().trim());
         p.setParty(req.getParty() == null || req.getParty().isBlank() ? req.getContractNo().trim() : req.getParty().trim());
+        p.setStage(req.getStage() == null ? "" : req.getStage().trim());
         p.setAmount(req.getAmount());
+        p.setSummary(req.getSummary() == null ? "" : req.getSummary().trim());
+        p.setDueDate(req.getDueDate());
+        p.setSourceDocNo(req.getSourceDocNo() == null ? null : req.getSourceDocNo().trim());
+        p.setSettleMethod(req.getSettleMethod() == null ? "" : req.getSettleMethod().trim());
+        p.setFileIds(normalizeFileIds(req.getFileIds()));
         p.setDate(req.getDate() == null ? LocalDate.now() : req.getDate());
         p.setStatus(PENDING);
         p.setOrgCode(dataScopeService.orgCodeOf(req.getOrgCode()));
@@ -88,12 +98,21 @@ public class PaymentServiceImpl implements PaymentService {
 
     @Transactional(rollbackFor = Exception.class)
     public void pay(Long id) {
+        pay(id, null);
+    }
+
+    /** 支付并记录过账凭证号（内部回写或管理端按凭证过账后调用） */
+    @Transactional(rollbackFor = Exception.class)
+    public void pay(Long id, String voucherNo) {
         FinPayment p = require(id);
         dataScopeService.assertCanAccessOrg(p.getOrgCode());
         if (!PENDING.equals(p.getStatus())) {
             throw new BizException(FinanceErrorCode.STATUS_INVALID, "仅待付款的付款单可支付");
         }
         p.setStatus(PAID);
+        if (voucherNo != null && !voucherNo.isBlank()) {
+            p.setVoucherNo(voucherNo.trim());
+        }
         paymentMapper.updateById(p);
     }
 
@@ -129,11 +148,45 @@ public class PaymentServiceImpl implements PaymentService {
         vo.setNo(p.getNo());
         vo.setContractNo(p.getContractNo());
         vo.setParty(p.getParty());
+        vo.setStage(p.getStage());
         vo.setAmount(p.getAmount());
+        vo.setSummary(p.getSummary());
+        vo.setDueDate(p.getDueDate());
+        vo.setSourceDocNo(p.getSourceDocNo());
+        vo.setVoucherNo(p.getVoucherNo());
+        vo.setSettleMethod(p.getSettleMethod());
         vo.setStatus(p.getStatus());
         vo.setDate(p.getDate());
         vo.setOrgCode(p.getOrgCode());
+        java.util.List<String> fileIds = StringUtils.hasText(p.getFileIds())
+                ? java.util.Arrays.stream(p.getFileIds().split(",")).map(String::trim)
+                        .filter(s -> !s.isEmpty()).distinct().toList()
+                : java.util.List.<String>of();
+        vo.setFileIds(fileIds);
+        java.util.List<String> urls = new java.util.ArrayList<>();
+        SignUrlRequest signReq = new SignUrlRequest();
+        signReq.setPurpose("VIEW");
+        signReq.setExpiresSeconds(SIGN_EXPIRE_SECONDS);
+        for (String fileId : fileIds) {
+            try {
+                var resp = fileApi.sign(fileId, signReq);
+                if (resp != null && resp.ok() && resp.getData() != null && resp.getData().getUrl() != null) {
+                    urls.add(resp.getData().getUrl());
+                }
+            } catch (Exception ignored) {
+                // 签名失败不影响付款单主流程
+            }
+        }
+        vo.setAttachmentUrls(urls);
         vo.setCreatedAt(p.getCreatedAt());
         return vo;
+    }
+
+    private String normalizeFileIds(java.util.List<String> ids) {
+        if (ids == null || ids.isEmpty()) {
+            return "";
+        }
+        return String.join(",", ids.stream()
+                .filter(StringUtils::hasText).map(String::trim).distinct().toList());
     }
 }

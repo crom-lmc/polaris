@@ -30,6 +30,8 @@ public enum FinanceErrorCode implements IErrorCode {
     VOUCHER_PERIOD_CLOSED(8526, "凭证日期落在已关账期间，请调整日期或由管理员调整关账日"),
     BUDGET_STRICT_EXCEEDED(8527, "预算强控模式已开启，当前部门可用额度不足"),
     APPROVAL_START_FAILED(8528, "发起审批失败，请稍后重试"),
+    EXPENSE_TYPE_SUBJECT_MISSING(8529, "报销类型未配置会计科目映射，请联系财务在配置中心维护"),
+    EXPENSE_ATTACHMENT_REQUIRED(8530, "请上传报销凭证附件"),
 
     // ---------- 单号与配置 ----------
     NO_GENERATE_FAILED(8531, "业务单号生成失败，请稍后重试"),
@@ -51,7 +53,7 @@ public enum FinanceErrorCode implements IErrorCode {
     public int httpStatus() {
         return switch (code) {
             case 8501, 8502, 8511, 8512, 8513, 8514, 8515 -> 404;
-            case 8521, 8522, 8523, 8524, 8525, 8526, 8527, 8503, 8504, 8505, 8541, 8542 -> 400;
+            case 8521, 8522, 8523, 8524, 8525, 8526, 8527, 8529, 8530, 8503, 8504, 8505, 8541, 8542 -> 400;
             case 8531, 8543, 8528 -> 500;
             default -> 0;
         };

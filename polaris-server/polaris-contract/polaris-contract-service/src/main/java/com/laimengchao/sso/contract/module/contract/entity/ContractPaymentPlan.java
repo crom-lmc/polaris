@@ -18,9 +18,15 @@ public class ContractPaymentPlan extends BaseEntity {
     private String stage;
     private LocalDate dueDate;
     private BigDecimal amount;
+    /** 付款事由 */
+    private String summary;
     /** 财务域来源单据号，可为空 */
     private String sourceDocNo;
-    /** WAITING / PENDING / APPROVED / PAID / REJECTED */
+    /** 财务域过账生成的凭证号，回写 */
+    private String voucherNo;
+    /** WAITING / PENDING / APPROVED / POSTED / PAID / REJECTED */
     private String status;
     private String orgCode;
+    /** 合同与验收凭证 file_id，逗号分隔（统一文件服务 contract_attachment 策略） */
+    private String fileIds;
 }

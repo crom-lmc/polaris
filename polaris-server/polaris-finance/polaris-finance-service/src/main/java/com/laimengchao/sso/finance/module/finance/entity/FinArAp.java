@@ -28,6 +28,14 @@ public class FinArAp extends BaseEntity {
     private String subject;
     private String summary;
     private String paymentStage;
+    /** 发票号 */
+    private String invoiceNo;
+    /** 发票类型（settings 字典 finance.invoice_type） */
+    private String invoiceType;
+    /** 账期天数 */
+    private Integer creditDays;
+    /** 到期日（由发生日期 + 账期天数派生；手工账期可直填） */
+    private LocalDate dueDate;
     private String creator;
     private String dept;
     /** 累计已核销金额，余额 = amount - written_off_amount */

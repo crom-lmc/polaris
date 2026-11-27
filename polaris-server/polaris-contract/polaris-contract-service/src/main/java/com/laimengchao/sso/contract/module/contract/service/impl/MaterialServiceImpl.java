@@ -1,7 +1,9 @@
 package com.laimengchao.sso.contract.module.contract.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.laimengchao.sso.common.BizException;
+import com.laimengchao.sso.common.PageResult;
 import com.laimengchao.sso.common.ErrorCode;
 import com.laimengchao.sso.contract.common.ContractErrorCode;
 import com.laimengchao.sso.contract.common.EmbedPointService;
@@ -23,10 +25,17 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.Collection;
+import java.util.Deque;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -38,6 +47,8 @@ public class MaterialServiceImpl implements MaterialService {
 
     public static final String CATEGORY = "CATEGORY";
     public static final String MATERIAL = "MATERIAL";
+
+    private static final Long ROOT_PARENT_KEY = -1L;
 
     private final ContractMaterialMapper mapper;
     private final ContractMaterialCategoryMapper categoryMapper;
@@ -56,28 +67,64 @@ public class MaterialServiceImpl implements MaterialService {
 
     @Override
     public List<ContractVOs.MaterialVO> byCategory(Long categoryId) {
-        LambdaQueryWrapper<ContractMaterial> qw = new LambdaQueryWrapper<ContractMaterial>()
-                .orderByAsc(ContractMaterial::getCode);
         if (categoryId == null) {
-            qw.isNull(ContractMaterial::getCategoryId);
-        } else {
-            qw.eq(ContractMaterial::getCategoryId, categoryId);
+            LambdaQueryWrapper<ContractMaterial> qw = new LambdaQueryWrapper<ContractMaterial>()
+                    .isNull(ContractMaterial::getCategoryId)
+                    .orderByAsc(ContractMaterial::getCode);
+            dataScopeService.applyOrgScope(qw, ContractMaterial::getOrgCode);
+            return mapper.selectList(qw).stream().map(this::toVO).toList();
         }
+        ContractMaterialCategory category = categoryMapper.selectById(categoryId);
+        if (category == null) {
+            throw new BizException(ContractErrorCode.MATERIAL_NOT_FOUND);
+        }
+        dataScopeService.assertCanAccessOrg(category.getOrgCode());
+        // 选中一级/二级分类时汇总其全部子孙分类下的物料；三级分类时仅自身
+        Set<Long> categoryIds = withDescendantCategoryIds(categoryId);
+        LambdaQueryWrapper<ContractMaterial> qw = new LambdaQueryWrapper<ContractMaterial>()
+                .in(ContractMaterial::getCategoryId, categoryIds)
+                .orderByAsc(ContractMaterial::getCode);
         dataScopeService.applyOrgScope(qw, ContractMaterial::getOrgCode);
         return mapper.selectList(qw).stream().map(this::toVO).toList();
     }
 
+    /** 分类自身 + 全部子孙分类 ID，按编码顺序去重 */
+    private Set<Long> withDescendantCategoryIds(Long categoryId) {
+        LambdaQueryWrapper<ContractMaterialCategory> cqw = new LambdaQueryWrapper<ContractMaterialCategory>()
+                .orderByAsc(ContractMaterialCategory::getCode);
+        dataScopeService.applyOrgScope(cqw, ContractMaterialCategory::getOrgCode);
+        Map<Long, List<ContractMaterialCategory>> byParent = categoryMapper.selectList(cqw).stream()
+                .collect(Collectors.groupingBy(c -> c.getParentId() == null ? ROOT_PARENT_KEY : c.getParentId()));
+        Set<Long> ids = new LinkedHashSet<>();
+        ids.add(categoryId);
+        Deque<Long> queue = new ArrayDeque<>();
+        queue.add(categoryId);
+        while (!queue.isEmpty()) {
+            Long current = queue.poll();
+            for (ContractMaterialCategory child : byParent.getOrDefault(current, List.of())) {
+                if (ids.add(child.getId())) {
+                    queue.add(child.getId());
+                }
+            }
+        }
+        return ids;
+    }
+
     /**
-     * 分类 + 物料拼合树：仅供 internal 接口兼容，管理端已改分类树 + 物料列表。
-     * 物料节点 parentId 指向所属三级分类，kind=MATERIAL。
+     * 分类 + 物料拼合树：仅供合同清单/采购计划选料下拉使用。
+     * 停用分类及其子孙、其下物料都不进入下拉；物料节点 parentId 指向所属三级分类，kind=MATERIAL。
      */
     @Override
     public List<ContractVOs.MaterialVO> tree() {
         List<ContractVOs.MaterialVO> flat = new ArrayList<>();
+        Set<Long> enabledIds = enabledCategoryIds();
         LambdaQueryWrapper<ContractMaterialCategory> cqw = new LambdaQueryWrapper<ContractMaterialCategory>()
                 .orderByAsc(ContractMaterialCategory::getCode);
         dataScopeService.applyOrgScope(cqw, ContractMaterialCategory::getOrgCode);
         for (ContractMaterialCategory c : categoryMapper.selectList(cqw)) {
+            if (!enabledIds.contains(c.getId())) {
+                continue;
+            }
             ContractVOs.MaterialVO vo = new ContractVOs.MaterialVO();
             vo.setId(c.getId());
             vo.setParentId(c.getParentId());
@@ -88,6 +135,9 @@ public class MaterialServiceImpl implements MaterialService {
             flat.add(vo);
         }
         for (ContractVOs.MaterialVO m : list()) {
+            if (!enabledIds.contains(m.getCategoryId())) {
+                continue;
+            }
             m.setKind(MATERIAL);
             m.setParentId(m.getCategoryId());
             flat.add(m);
@@ -106,6 +156,91 @@ public class MaterialServiceImpl implements MaterialService {
             }
         }
         return roots;
+    }
+
+    /**
+     * 选料弹窗用分页查询：分类维度沿用「选中分类含子孙」口径，停用分类下物料不返回；
+     * 关键字同时匹配编码、名称、规格，避免一次性把全量物料拉到前端。
+     */
+    @Override
+    public PageResult<ContractVOs.MaterialVO> search(String keyword, Long categoryId, int page, int size) {
+        Set<Long> enabled = enabledCategoryIds();
+        LambdaQueryWrapper<ContractMaterial> qw = new LambdaQueryWrapper<ContractMaterial>();
+        if (categoryId == null) {
+            Collection<Long> scope = enabled.isEmpty() ? List.of(-1L) : enabled;
+            qw.in(ContractMaterial::getCategoryId, scope);
+        } else {
+            ContractMaterialCategory category = categoryMapper.selectById(categoryId);
+            if (category == null) {
+                throw new BizException(ContractErrorCode.MATERIAL_NOT_FOUND);
+            }
+            dataScopeService.assertCanAccessOrg(category.getOrgCode());
+            Set<Long> ids = withDescendantCategoryIds(categoryId);
+            ids.retainAll(enabled);
+            Collection<Long> scope = ids.isEmpty() ? List.of(-1L) : ids;
+            qw.in(ContractMaterial::getCategoryId, scope);
+        }
+        String kw = keyword == null ? "" : keyword.trim();
+        if (!kw.isEmpty()) {
+            String like = "%" + kw + "%";
+            qw.and(w -> w.like(ContractMaterial::getName, like)
+                    .or().like(ContractMaterial::getCode, like)
+                    .or().like(ContractMaterial::getSpec, like));
+        }
+        qw.orderByAsc(ContractMaterial::getCode);
+        Page<ContractMaterial> p = mapper.selectPage(
+                new Page<>(Math.max(page, 1), Math.min(Math.max(size, 1), 100)), qw);
+        LambdaQueryWrapper<ContractMaterialCategory> cqw = new LambdaQueryWrapper<ContractMaterialCategory>()
+                .select(ContractMaterialCategory::getId, ContractMaterialCategory::getName);
+        dataScopeService.applyOrgScope(cqw, ContractMaterialCategory::getOrgCode);
+        Map<Long, String> categoryNames = categoryMapper.selectList(cqw).stream().collect(Collectors.toMap(
+                ContractMaterialCategory::getId, ContractMaterialCategory::getName, (a, b) -> a));
+        List<ContractVOs.MaterialVO> vos = p.getRecords().stream().map(e -> {
+            ContractVOs.MaterialVO vo = toVO(e);
+            vo.setCategoryName(categoryNames.get(e.getCategoryId()));
+            return vo;
+        }).toList();
+        return PageResult.of(vos, p.getTotal(), p.getCurrent(), p.getSize());
+    }
+
+    /** 选料下拉可用分类：自身及所有祖先均为启用；父级不在数据范围内时按根节点处理 */
+    private Set<Long> enabledCategoryIds() {
+        LambdaQueryWrapper<ContractMaterialCategory> cqw = new LambdaQueryWrapper<ContractMaterialCategory>()
+                .orderByAsc(ContractMaterialCategory::getCode);
+        dataScopeService.applyOrgScope(cqw, ContractMaterialCategory::getOrgCode);
+        List<ContractMaterialCategory> all = categoryMapper.selectList(cqw);
+        Map<Long, ContractMaterialCategory> byId = all.stream().collect(Collectors.toMap(
+                ContractMaterialCategory::getId, Function.identity(), (a, b) -> a));
+        Map<Long, Boolean> memo = new HashMap<>();
+        Set<Long> enabled = new LinkedHashSet<>();
+        for (ContractMaterialCategory c : all) {
+            if (effectiveEnabled(c, byId, memo, new HashSet<>())) {
+                enabled.add(c.getId());
+            }
+        }
+        return enabled;
+    }
+
+    private boolean effectiveEnabled(ContractMaterialCategory category,
+                                     Map<Long, ContractMaterialCategory> byId,
+                                     Map<Long, Boolean> memo, Set<Long> chain) {
+        Boolean cached = memo.get(category.getId());
+        if (cached != null) {
+            return cached;
+        }
+        if (!chain.add(category.getId())) {
+            return false;
+        }
+        boolean result = !MaterialCategoryServiceImpl.STATUS_DISABLED.equals(category.getStatus());
+        if (result && category.getParentId() != null) {
+            ContractMaterialCategory parent = byId.get(category.getParentId());
+            if (parent != null) {
+                result = effectiveEnabled(parent, byId, memo, chain);
+            }
+        }
+        chain.remove(category.getId());
+        memo.put(category.getId(), result);
+        return result;
     }
 
     @Override
@@ -153,6 +288,9 @@ public class MaterialServiceImpl implements MaterialService {
             throw new BizException(ContractErrorCode.MATERIAL_CODE_INVALID, "只能挂在三级分类下");
         }
         dataScopeService.assertCanAccessOrg(category.getOrgCode());
+        if (MaterialCategoryServiceImpl.STATUS_DISABLED.equals(category.getStatus())) {
+            throw new BizException(ContractErrorCode.MATERIAL_STATUS_INVALID, "所属分类已停用，不能新增物料");
+        }
         String code = nextCode(categoryId, category.getCode());
         if (code.isEmpty()) {
             throw new BizException(ContractErrorCode.MATERIAL_CODE_INVALID);

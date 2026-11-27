@@ -27,4 +27,7 @@ public interface ContractItemService {
 
     /** 财务域过账后回写验收单状态 */
     ContractVOs.AcceptanceVO markPosted(String no);
+
+    /** 财务域过账后回写验收单状态与凭证号 */
+    ContractVOs.AcceptanceVO markPosted(String no, String voucherNo);
 }

@@ -19,6 +19,12 @@ public interface VoucherService {
     /** 手工新增：直接生成一张已过账凭证 */
     FinanceVOs.VoucherVO createManual(FinanceRequests.VoucherSave req);
 
+    /** 提交审核：DRAFT → REVIEW */
+    void submitReview(Long id);
+
+    /** 审核通过：REVIEW → DRAFT，记录审核人 */
+    void review(Long id);
+
     /** 过账草稿凭证 */
     void post(Long id);
 

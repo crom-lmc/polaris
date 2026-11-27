@@ -1,5 +1,6 @@
 package com.laimengchao.sso.account.dto.response;
 
+import com.laimengchao.sso.common.security.MenuMeta;
 import lombok.Data;
 
 import java.util.List;
@@ -21,6 +22,8 @@ public class LoginResult {
     private String appCode;
     /** 当前账户在该应用内的权限码（按钮级） */
     private List<String> permissions;
+    /** 当前账户在该应用内可见的菜单：名称/排序/层级来自 SSO 权限树 */
+    private List<MenuMeta> menus;
     /** 可访问的应用编码（超管为全部启用应用），写入 JWT 的 apps claim */
     private List<String> apps;
 }

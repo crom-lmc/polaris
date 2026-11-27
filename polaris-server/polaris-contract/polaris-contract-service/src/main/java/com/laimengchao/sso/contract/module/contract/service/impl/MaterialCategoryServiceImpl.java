@@ -18,10 +18,15 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.Deque;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -29,6 +34,11 @@ import java.util.stream.Collectors;
 @Service
 @RequiredArgsConstructor
 public class MaterialCategoryServiceImpl implements MaterialCategoryService {
+
+    public static final String STATUS_ENABLED = "ENABLED";
+    public static final String STATUS_DISABLED = "DISABLED";
+
+    private static final Long ROOT_PARENT_KEY = -1L;
 
     private final ContractMaterialCategoryMapper mapper;
     private final ContractMaterialMapper materialMapper;
@@ -41,6 +51,7 @@ public class MaterialCategoryServiceImpl implements MaterialCategoryService {
                 .orderByAsc(ContractMaterialCategory::getCode);
         dataScopeService.applyOrgScope(qw, ContractMaterialCategory::getOrgCode);
         List<ContractVOs.MaterialCategoryVO> flat = mapper.selectList(qw).stream().map(this::toVO).toList();
+        decorate(flat);
         return buildTree(flat);
     }
 
@@ -51,15 +62,124 @@ public class MaterialCategoryServiceImpl implements MaterialCategoryService {
 
     @Override
     public List<ContractVOs.MaterialCategoryVO> children(Long parentId) {
+        if (parentId == null) {
+            LambdaQueryWrapper<ContractMaterialCategory> qw = new LambdaQueryWrapper<ContractMaterialCategory>()
+                    .isNull(ContractMaterialCategory::getParentId)
+                    .orderByAsc(ContractMaterialCategory::getCode);
+            dataScopeService.applyOrgScope(qw, ContractMaterialCategory::getOrgCode);
+            List<ContractVOs.MaterialCategoryVO> roots = mapper.selectList(qw).stream().map(this::toVO).toList();
+            decorate(roots);
+            return roots;
+        }
+        require(parentId);
+        // 选中任意层级分类：列表展示其下全部子孙分类（含二级、三级），按编码排序
+        Map<Long, List<ContractMaterialCategory>> byParent = scopedCategories().stream()
+                .collect(Collectors.groupingBy(c -> c.getParentId() == null ? ROOT_PARENT_KEY : c.getParentId()));
+        Set<Long> visited = new HashSet<>();
+        visited.add(parentId);
+        Deque<Long> queue = new ArrayDeque<>();
+        queue.add(parentId);
+        List<ContractMaterialCategory> descendants = new ArrayList<>();
+        while (!queue.isEmpty()) {
+            Long current = queue.poll();
+            for (ContractMaterialCategory child : byParent.getOrDefault(current, List.of())) {
+                if (visited.add(child.getId())) {
+                    descendants.add(child);
+                    queue.add(child.getId());
+                }
+            }
+        }
+        List<ContractVOs.MaterialCategoryVO> vos = descendants.stream()
+                .sorted(Comparator.comparing(c -> c.getCode() == null ? "" : c.getCode()))
+                .map(this::toVO).toList();
+        decorate(vos);
+        return vos;
+    }
+
+    /** 选料弹窗树：只取一层，停用分类及其子孙不返回 */
+    @Override
+    public List<ContractVOs.MaterialCategoryVO> directChildren(Long parentId) {
+        List<ContractMaterialCategory> all = scopedCategories();
+        Map<Long, ContractMaterialCategory> byId = all.stream().collect(Collectors.toMap(
+                ContractMaterialCategory::getId, Function.identity(), (a, b) -> a));
+        Map<Long, Boolean> memo = new HashMap<>();
+        List<ContractMaterialCategory> enabledAll = all.stream()
+                .filter(c -> enabled(c, byId, memo, new HashSet<>())).toList();
+        Map<Long, Long> childCounts = enabledAll.stream().collect(Collectors.groupingBy(
+                c -> c.getParentId() == null ? ROOT_PARENT_KEY : c.getParentId(), Collectors.counting()));
         LambdaQueryWrapper<ContractMaterialCategory> qw = new LambdaQueryWrapper<ContractMaterialCategory>()
                 .orderByAsc(ContractMaterialCategory::getCode);
         if (parentId == null) {
             qw.isNull(ContractMaterialCategory::getParentId);
         } else {
+            require(parentId);
             qw.eq(ContractMaterialCategory::getParentId, parentId);
         }
         dataScopeService.applyOrgScope(qw, ContractMaterialCategory::getOrgCode);
-        return mapper.selectList(qw).stream().map(this::toVO).toList();
+        List<ContractVOs.MaterialCategoryVO> vos = mapper.selectList(qw).stream()
+                .filter(c -> enabled(c, byId, memo, new HashSet<>()))
+                .map(this::toVO).toList();
+        for (ContractVOs.MaterialCategoryVO vo : vos) {
+            vo.setChildCount(childCounts.getOrDefault(vo.getId(), 0L));
+        }
+        return vos;
+    }
+
+    /** 自身及所有祖先均启用才可选；父级不在数据范围内时按根节点处理 */
+    private boolean enabled(ContractMaterialCategory category,
+                            Map<Long, ContractMaterialCategory> byId,
+                            Map<Long, Boolean> memo, Set<Long> chain) {
+        Boolean cached = memo.get(category.getId());
+        if (cached != null) {
+            return cached;
+        }
+        if (!chain.add(category.getId())) {
+            return false;
+        }
+        boolean result = !STATUS_DISABLED.equals(category.getStatus());
+        if (result && category.getParentId() != null) {
+            ContractMaterialCategory parent = byId.get(category.getParentId());
+            if (parent != null) {
+                result = enabled(parent, byId, memo, chain);
+            }
+        }
+        chain.remove(category.getId());
+        memo.put(category.getId(), result);
+        return result;
+    }
+
+    /**
+     * 补齐直接子分类数、直接物料数与可删除标记，供列表禁用删除按钮；
+     * 服务端 delete() 仍做二次校验，前端禁用不能替代服务端规则。
+     */
+    private void decorate(List<ContractVOs.MaterialCategoryVO> vos) {
+        if (vos == null || vos.isEmpty()) {
+            return;
+        }
+        Map<Long, Long> childCounts = scopedCategories().stream()
+                .collect(Collectors.groupingBy(
+                        c -> c.getParentId() == null ? ROOT_PARENT_KEY : c.getParentId(), Collectors.counting()));
+        LambdaQueryWrapper<ContractMaterial> mqw = new LambdaQueryWrapper<ContractMaterial>()
+                .select(ContractMaterial::getCategoryId);
+        dataScopeService.applyOrgScope(mqw, ContractMaterial::getOrgCode);
+        Map<Long, Long> materialCounts = materialMapper.selectList(mqw).stream()
+                .collect(Collectors.groupingBy(
+                        m -> m.getCategoryId() == null ? ROOT_PARENT_KEY : m.getCategoryId(), Collectors.counting()));
+        for (ContractVOs.MaterialCategoryVO vo : vos) {
+            long children = childCounts.getOrDefault(vo.getId(), 0L);
+            long materials = materialCounts.getOrDefault(vo.getId(), 0L);
+            vo.setChildCount(children);
+            vo.setMaterialCount(materials);
+            vo.setCanDelete(children == 0 && materials == 0);
+        }
+    }
+
+    /** 带数据范围的平铺分类，按编码排序 */
+    private List<ContractMaterialCategory> scopedCategories() {
+        LambdaQueryWrapper<ContractMaterialCategory> qw = new LambdaQueryWrapper<ContractMaterialCategory>()
+                .orderByAsc(ContractMaterialCategory::getCode);
+        dataScopeService.applyOrgScope(qw, ContractMaterialCategory::getOrgCode);
+        return mapper.selectList(qw);
     }
 
     /** 把平铺节点按 parentId 拼成树，根节点为 parentId 为空的节点 */
@@ -82,7 +202,9 @@ public class MaterialCategoryServiceImpl implements MaterialCategoryService {
 
     @Override
     public ContractVOs.MaterialCategoryVO detail(Long id) {
-        return toVO(require(id));
+        ContractVOs.MaterialCategoryVO vo = toVO(require(id));
+        decorate(List.of(vo));
+        return vo;
     }
 
     @Override
@@ -117,6 +239,9 @@ public class MaterialCategoryServiceImpl implements MaterialCategoryService {
             throw new BizException(ErrorCode.PARAM_ERROR, "分类名称不能为空");
         }
         ContractMaterialCategory parent = req.getParentId() == null ? null : require(req.getParentId());
+        if (parent != null && STATUS_DISABLED.equals(parent.getStatus())) {
+            throw new BizException(ContractErrorCode.MATERIAL_STATUS_INVALID, "上级分类已停用，不能新增子分类");
+        }
         int width = categoryWidth();
         int categoryLen = 3 * width;
         if (parent != null && (parent.getCode() == null || parent.getCode().length() >= categoryLen)) {
@@ -130,6 +255,7 @@ public class MaterialCategoryServiceImpl implements MaterialCategoryService {
         entity.setParentId(parent == null ? null : parent.getId());
         entity.setCode(code);
         entity.setName(req.getName().trim());
+        entity.setStatus(STATUS_ENABLED);
         entity.setOrgCode(nvl(req.getOrgCode(), parent == null ? "" : parent.getOrgCode()));
         entity.setCreatedAt(LocalDateTime.now());
         mapper.insert(entity);
@@ -144,6 +270,19 @@ public class MaterialCategoryServiceImpl implements MaterialCategoryService {
             throw new BizException(ErrorCode.PARAM_ERROR, "分类名称不能为空");
         }
         entity.setName(req.getName().trim());
+        entity.setUpdatedAt(LocalDateTime.now());
+        mapper.updateById(entity);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void changeStatus(Long id, String status) {
+        String target = status == null ? "" : status.trim();
+        if (!STATUS_ENABLED.equals(target) && !STATUS_DISABLED.equals(target)) {
+            throw new BizException(ContractErrorCode.MATERIAL_STATUS_INVALID);
+        }
+        ContractMaterialCategory entity = require(id);
+        entity.setStatus(target);
         entity.setUpdatedAt(LocalDateTime.now());
         mapper.updateById(entity);
     }
@@ -176,6 +315,7 @@ public class MaterialCategoryServiceImpl implements MaterialCategoryService {
         vo.setParentId(entity.getParentId());
         vo.setCode(entity.getCode());
         vo.setName(entity.getName());
+        vo.setStatus(entity.getStatus() == null ? STATUS_ENABLED : entity.getStatus());
         vo.setOrgCode(entity.getOrgCode());
         return vo;
     }

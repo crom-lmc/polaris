@@ -14,8 +14,10 @@ import com.laimengchao.sso.contract.module.contract.entity.ContractHeader;
 import com.laimengchao.sso.contract.module.contract.entity.ContractPaymentPlan;
 import com.laimengchao.sso.contract.module.contract.mapper.ContractAcceptanceMapper;
 import com.laimengchao.sso.contract.module.contract.mapper.ContractPaymentPlanMapper;
+import com.laimengchao.sso.contract.module.contract.support.ContractAttachments;
 import com.laimengchao.sso.contract.module.contract.vo.ContractVOs;
 import com.laimengchao.sso.contract.security.DataScopeService;
+import com.laimengchao.sso.file.client.api.FileApi;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -35,6 +37,7 @@ public class PaymentPlanServiceImpl implements PaymentPlanService {
     private final ContractService contractService;
     private final EmbedPointService embedPointService;
     private final DataScopeService dataScopeService;
+    private final FileApi fileApi;
 
     public List<ContractVOs.PaymentPlanVO> list(String contractNo) {
         ContractHeader header = contractService.requireByNo(contractNo);
@@ -70,6 +73,8 @@ public class PaymentPlanServiceImpl implements PaymentPlanService {
         entity.setStage(nvl(req.getStage(), "其他付款"));
         entity.setDueDate(req.getDueDate());
         entity.setAmount(req.getAmount());
+        entity.setSummary(nvl(req.getSummary(), ""));
+        entity.setFileIds(ContractAttachments.join(req.getFileIds()));
         entity.setStatus(nvl(req.getStatus(), "WAITING"));
         entity.setOrgCode(header.getOrgCode());
         entity.setCreatedAt(LocalDateTime.now());
@@ -90,6 +95,12 @@ public class PaymentPlanServiceImpl implements PaymentPlanService {
         entity.setDueDate(req.getDueDate() == null ? entity.getDueDate() : req.getDueDate());
         if (req.getAmount() != null) {
             entity.setAmount(req.getAmount());
+        }
+        if (req.getSummary() != null) {
+            entity.setSummary(req.getSummary().trim());
+        }
+        if (req.getFileIds() != null) {
+            entity.setFileIds(ContractAttachments.join(req.getFileIds()));
         }
         entity.setStatus(nvl(req.getStatus(), entity.getStatus()));
         entity.setUpdatedAt(LocalDateTime.now());
@@ -128,8 +139,16 @@ public class PaymentPlanServiceImpl implements PaymentPlanService {
                         "埋点要求付款前完成验收：合同 " + entity.getContractNo() + " 尚无合格且已过账的验收单");
             }
         }
-        if (req != null && req.getSourceDocNo() != null && !req.getSourceDocNo().isBlank()) {
-            entity.setSourceDocNo(req.getSourceDocNo().trim());
+        if (req != null) {
+            if (req.getSourceDocNo() != null && !req.getSourceDocNo().isBlank()) {
+                entity.setSourceDocNo(req.getSourceDocNo().trim());
+            }
+            if (req.getSummary() != null && !req.getSummary().isBlank()) {
+                entity.setSummary(req.getSummary().trim());
+            }
+            if (req.getFileIds() != null) {
+                entity.setFileIds(ContractAttachments.join(req.getFileIds()));
+            }
         }
         entity.setStatus("PENDING");
         entity.setUpdatedAt(LocalDateTime.now());
@@ -137,7 +156,29 @@ public class PaymentPlanServiceImpl implements PaymentPlanService {
         return toVO(entity);
     }
 
-    /** 财务域回写来源单据与状态（YS/FK 由财务域规则生成） */
+    /**
+     * 财务域回写来源单据号、凭证号与状态（YS/FK 与凭证号由财务域规则生成）。
+     * internal token 准入，无登录上下文，故不套 dataScope assert；按 status 白名单幂等推进。
+     */
+    @Transactional(rollbackFor = Exception.class)
+    public ContractVOs.PaymentPlanVO writeBack(Long id, String sourceDocNo, String voucherNo, String status) {
+        ContractPaymentPlan entity = id == null ? null : mapper.selectById(id);
+        if (entity == null) {
+            throw new BizException(ContractErrorCode.PAYMENT_PLAN_NOT_FOUND);
+        }
+        if (sourceDocNo != null && !sourceDocNo.isBlank()) {
+            entity.setSourceDocNo(sourceDocNo.trim());
+        }
+        if (voucherNo != null && !voucherNo.isBlank()) {
+            entity.setVoucherNo(voucherNo.trim());
+        }
+        if (status != null && !status.isBlank()) {
+            entity.setStatus(status.trim());
+        }
+        entity.setUpdatedAt(LocalDateTime.now());
+        mapper.updateById(entity);
+        return toVO(entity);
+    }
 
     private ContractVOs.PaymentPlanVO toVO(ContractPaymentPlan e) {
         ContractVOs.PaymentPlanVO vo = new ContractVOs.PaymentPlanVO();
@@ -146,9 +187,14 @@ public class PaymentPlanServiceImpl implements PaymentPlanService {
         vo.setStage(e.getStage());
         vo.setDueDate(e.getDueDate() == null ? null : e.getDueDate().toString());
         vo.setAmount(e.getAmount());
+        vo.setSummary(e.getSummary());
         vo.setSourceDocNo(e.getSourceDocNo());
+        vo.setVoucherNo(e.getVoucherNo());
         vo.setStatus(e.getStatus());
         vo.setOrgCode(e.getOrgCode());
+        java.util.List<String> fileIds = ContractAttachments.split(e.getFileIds());
+        vo.setFileIds(fileIds);
+        vo.setAttachmentUrls(ContractAttachments.signedUrls(fileIds, fileApi));
         // 付款到期提醒：天数来自埋点；仅未完成（非 PAID/POSTED）的计划参与判定
         int remind = embedPointService.paymentRemindDays();
         vo.setRemindDays(remind);

@@ -14,8 +14,11 @@ public interface MaterialCategoryService {
     /** 平铺分类列表 */
     List<ContractVOs.MaterialCategoryVO> list();
 
-    /** 指定父分类下的子分类 */
+    /** 指定分类下的全部子孙分类（含二级、三级，不含自身）；parentId 为空时返回一级分类 */
     List<ContractVOs.MaterialCategoryVO> children(Long parentId);
+
+    /** 只返回指定父节点的直接子分类，供选料弹窗树按需展开；停用分类不返回 */
+    List<ContractVOs.MaterialCategoryVO> directChildren(Long parentId);
 
     ContractVOs.MaterialCategoryVO detail(Long id);
 
@@ -27,6 +30,9 @@ public interface MaterialCategoryService {
     ContractVOs.MaterialCategoryVO save(ContractRequests.MaterialCategorySave req);
 
     void update(Long id, ContractRequests.MaterialCategorySave req);
+
+    /** 启用/停用分类：ENABLED / DISABLED */
+    void changeStatus(Long id, String status);
 
     void delete(Long id);
 

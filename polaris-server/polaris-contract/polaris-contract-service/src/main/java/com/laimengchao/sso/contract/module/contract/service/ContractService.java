@@ -30,8 +30,8 @@ public interface ContractService {
 
     ContractVOs.ContractVO save(ContractRequests.ContractSave req);
 
-    /** 采购计划转合同复用：直接落库并返回实体，清单由调用方写入 */
-    ContractHeader createForPlan(String type, String name, String partnerCode, String projectNo, String dept, String owner, String paymentTerms, String subject, String budgetSubject, String orgCode);
+    /** 采购计划转合同复用：直接落库并返回实体，清单由调用方写入；fileIds 逗号分隔 file_id 串，planNo 为来源采购计划号 */
+    ContractHeader createForPlan(String type, String name, String partnerCode, String projectNo, String dept, String owner, String paymentTerms, String subject, String budgetSubject, String orgCode, String fileIds, String planNo);
 
     void update(Long id, ContractRequests.ContractSave req);
 

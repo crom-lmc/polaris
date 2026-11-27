@@ -21,6 +21,8 @@ public class AccountUser {
     private String appCode;
     /** 按钮级权限码（仅限 appCode 指定的应用域内） */
     private List<String> permissions;
+    /** 当前应用内可见菜单（SSO 权限树的名称/排序/层级） */
+    private List<MenuMeta> menus;
     /** 可访问的应用编码，写入 JWT 的 apps claim */
     private List<String> apps;
 }

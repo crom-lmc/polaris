@@ -29,5 +29,9 @@ public class ContractAcceptance extends BaseEntity {
     private String result;
     /** DRAFT / POSTED */
     private String status;
+    /** 过账生成的凭证号（财务域回写） */
+    private String voucherNo;
     private String orgCode;
+    /** 验收凭证 file_id，逗号分隔（统一文件服务 contract_attachment 策略） */
+    private String fileIds;
 }
