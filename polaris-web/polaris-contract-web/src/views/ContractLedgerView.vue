@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref, watch } from 'vue'
+import { computed, nextTick, onMounted, reactive, ref, watch } from 'vue'
 import { message, Modal } from 'ant-design-vue'
 import { useUserStore } from '@/stores/user'
 import { useIsMobile } from '@/composables/useIsMobile'
@@ -233,10 +233,11 @@ async function submitCreate() {
   if (createForm.note && createForm.note.length > 200) { message.warning('备注最多 200 字'); return }
   saving.value = true
   try {
-    await saveContract({ ...createForm, name: createForm.name.trim() })
+    const saved = await saveContract({ ...createForm, name: createForm.name.trim() })
     createOpen.value = false
-    message.success('合同已创建，可在详情中维护清单与付款计划')
+    message.success('合同已创建，已打开详情，请维护清单与付款计划')
     resetAndLoad()
+    await openDetail(saved.id, true)
   } catch (e: any) { message.error(e?.message || '保存失败') }
   finally { saving.value = false }
 }
@@ -245,12 +246,20 @@ async function submitCreate() {
 const detailOpen = ref(false)
 const detailLoading = ref(false)
 const detail = ref<ContractVO | null>(null)
-async function openDetail(id: string) {
+/** focusItems=true 时，详情加载后滚动到合同清单区（新建合同后引导维护清单/付款计划） */
+const itemsSectionRef = ref<HTMLElement | null>(null)
+async function openDetail(id: string, focusItems = false) {
   detailOpen.value = true
   detailLoading.value = true
   try { detail.value = await getContract(id) }
   catch (e: any) { message.error(e?.message || '加载详情失败') }
-  finally { detailLoading.value = false }
+  finally {
+    detailLoading.value = false
+    if (focusItems) {
+      await nextTick()
+      itemsSectionRef.value?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    }
+  }
 }
 /* 变更记录 */
 const changeOpen = ref(false)
@@ -419,7 +428,7 @@ onMounted(() => { load(); loadOptions(); loadOrgDirectory() })
             </a-form-item>
           </a-card>
 
-          <div class="drawer-section-title">合同清单</div>
+          <div ref="itemsSectionRef" class="drawer-section-title">合同清单</div>
           <ContractItemsEditor v-if="detail" :contract-no="detail.no" />
 
           <div class="drawer-section-title">付款计划</div>
