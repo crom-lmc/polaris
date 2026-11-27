@@ -39,6 +39,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -229,7 +230,8 @@ public class ContractServiceImpl implements ContractService {
     @Transactional(rollbackFor = Exception.class)
     public ContractHeader createForPlan(String type, String name, String partnerCode, String projectNo,
                                         String dept, String owner, String paymentTerms, String subject,
-                                        String orgCode, String fileIds, String planNo) {
+                                        String orgCode, String fileIds, String planNo,
+                                        LocalDate signedDate, LocalDate effectiveDate, LocalDate endDate, String note) {
         ContractHeader entity = new ContractHeader();
         entity.setNo(bizNoService.next(PURCHASE.equals(type)
                 ? BizNoServiceImpl.TABLE_CONTRACT_PURCHASE : BizNoServiceImpl.TABLE_CONTRACT_SALES));
@@ -239,7 +241,10 @@ public class ContractServiceImpl implements ContractService {
         entity.setProjectNo(projectNo);
         entity.setDept(dept);
         entity.setOwner(owner);
-        entity.setSignedDate(LocalDateTime.now().toLocalDate());
+        entity.setSignedDate(signedDate == null ? LocalDateTime.now().toLocalDate() : signedDate);
+        entity.setEffectiveDate(effectiveDate == null ? entity.getSignedDate() : effectiveDate);
+        entity.setEndDate(endDate);
+        entity.setNote(nvl(note, ""));
         entity.setPaymentTerms(paymentTerms);
         entity.setSubject(subject);
         entity.setContractSource("FROM_PLAN");
@@ -346,6 +351,14 @@ public class ContractServiceImpl implements ContractService {
         }
         ContractHeader entity = require(id);
         assertManualTransition(entity, target);
+        // 提交审批必须有清单：合同金额由清单派生，空清单金额恒为 0，审批/授信校验均失去意义；付款计划可后建，不强制
+        if ("PENDING".equals(target)) {
+            Long itemCount = itemMapper.selectCount(new LambdaQueryWrapper<ContractItem>()
+                    .eq(ContractItem::getContractNo, entity.getNo()));
+            if (itemCount == null || itemCount == 0) {
+                throw new BizException(ContractErrorCode.CONTRACT_STATUS_INVALID, "请先维护合同清单，再提交审批");
+            }
+        }
         // 销售合同提交审批前做信用额度校验（埋点开启才生效，credit_limit=0 表示不限制）
         if ("PENDING".equals(target) && SALES.equals(entity.getType())) {
             requireCreditOk(entity);

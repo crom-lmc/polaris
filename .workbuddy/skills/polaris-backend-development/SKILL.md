@@ -43,6 +43,7 @@ agent_created: true
 - 合同状态 MUST 只能由状态机推进：`DRAFT→PENDING→(EFFECTIVE|DRAFT)→EXECUTING→COMPLETED`，中途可 `EFFECTIVE|EXECUTING→TERMINATED`；终态不可再流转。采购合同 `PENDING→EFFECTIVE|DRAFT` 只能由审批中心回调 `handleApprovalResult` 写入，MUST NOT 允许手工接口改。
 - 新建/编辑保存接口 MUST NOT 接受请求体 `status` 覆盖：新建固定 `DRAFT`，编辑保持原状态；状态只能走 `POST /api/contract/contracts/{id}/status`。
 - `changeStatus` MUST 校验当前状态 + 合同类型对应的目标白名单，非法迁移抛 `CONTRACT_STATUS_INVALID`；前端按钮集合只是可见入口，不是唯一防线。
+- 提交审批（`target=PENDING`）MUST 校验合同清单非空（查 `ContractItem` 按 `contract_no` count），空清单抛 `CONTRACT_STATUS_INVALID`「请先维护合同清单，再提交审批」——合同金额由清单派生，空清单金额恒为 0，审批线与授信校验均失去意义。付款计划可后建（合同编辑页可先建 WAITING、付款计划页有独立发起申请入口），MUST NOT 作为提交审批的前置条件。
 - 采购合同提交时清单金额达到 `contract.purchase.approval-amount` 才发起审批并停在 `PENDING`；未达线 MUST 直接置 `EFFECTIVE`，不得让单据永远停在审批中。
 
 ## 合同主信息必填与往来单位角色口径（2026-11-27 落地）
@@ -56,6 +57,8 @@ agent_created: true
 - 所有带 `org_code` 的业务单据，服务端新建 MUST 落非空归属组织，MUST NOT 只信前端传值：查询统一 `applyOrgScope`（`org_code LIKE 'scopeCode%'`），空值必被过滤成空集（2026-11-27 采购计划新建后列表查不到即此根因——前端不传 orgCode、后端 `nvl(req.getOrgCode(),"")` 落空串）。
 - 无父表可依赖的单据（采购计划等）MUST 在服务端按 `AccountContext` 从 EHR 员工→组织树反查当前登录人部门编码落 `org_code`，口径与 `myProfile` 一致；反查不到依次退回前端传值、账号数据范围根 `currentScopeCode()`，仍为空则拒绝保存或记录 warn，不允许静默落空串。
 - 有父表/项目依赖的单据（合同→项目、清单/付款计划→合同头、物料→分类）沿用从父表带出 `org_code`，不必逐单反查；编辑时若原 `org_code` 非空 MUST 保持不变（编辑人不等于创建人时不漂移），只补历史空值。
+- **主子表一体，子表查询不重复过滤（2026-11-27 落地，MUST）**：明细/清单/付款计划等子表归属 MUST 跟随主表，详情/列表查子表 MUST NOT 再单独 `applyOrgScope`——调用方已通过 `require(id)→assertCanAccessOrg` 或主表列表过滤完成校验，重复过滤会误伤历史空 `org_code` 子表（2026-11-27 采购计划 CGJH-2026-000006 的 3 条明细被过滤成 0，详情明细空、明细数 0、金额 0）。子表落库仍以主表 `org_code` 为准；历史空值用幂等 SQL 按主表回填。
+- **采购计划转合同完整主信息（2026-11-27 落地，MUST）**：`PlanConvertRequest` 除 partnerCode/projectNo/dept/owner 外 MUST 接收 name/signedDate/effectiveDate/endDate/note/fileIds；`convert()` 以请求值优先、计划值兜底（合同名←计划名称、签订/生效日期←计划日期、到期日期←计划需求日期、附件←计划附件），`createForPlan` MUST 落完整字段，MUST NOT 固定 signedDate=now 而其余日期留空（转合同后编辑页日期为空即此根因）。转合同成功返回合同 VO 供前端切换编辑态，明细由后端复制计划清单，前端不重复写入。
 
 ## 当前登录人/部门默认带出口径（2026-11-27 落地）
 

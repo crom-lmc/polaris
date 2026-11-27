@@ -254,13 +254,20 @@ public class PurchasePlanServiceImpl implements PurchasePlanService {
         if (planItems.isEmpty()) {
             throw new BizException(ContractErrorCode.PLAN_STATUS_INVALID, "采购计划没有明细，不能转合同");
         }
+        if (req.getNote() != null && req.getNote().length() > 200) {
+            throw new BizException(ErrorCode.PARAM_ERROR, "备注最多 200 字");
+        }
         String orgCode = nvl(req.getOrgCode(), plan.getOrgCode());
+        // 计划数据兜底：主信息与附件以用户在转合同抽屉填写为准，未填则沿用采购计划
+        String fileIds = req.getFileIds() == null || req.getFileIds().isEmpty()
+                ? plan.getFileIds() : ContractAttachments.join(req.getFileIds());
         ContractHeader header = contractService.createForPlan(
-                ContractServiceImpl.PURCHASE, plan.getTitle(), req.getPartnerCode().trim(),
+                ContractServiceImpl.PURCHASE, nvl(req.getName(), plan.getTitle()), req.getPartnerCode().trim(),
                 req.getProjectNo() == null ? null : req.getProjectNo().trim(),
                 nvl(req.getDept(), plan.getDept()), nvl(req.getOwner(), plan.getApplicant()),
                 nvl(req.getPaymentTerms(), ""), nvl(req.getSubject(), ""),
-                orgCode, plan.getFileIds(), plan.getNo());
+                orgCode, fileIds, plan.getNo(),
+                req.getSignedDate(), req.getEffectiveDate(), req.getEndDate(), nvl(req.getNote(), ""));
         for (ContractPurchasePlanItem source : planItems) {
             ContractRequests.ItemSave itemReq = new ContractRequests.ItemSave();
             itemReq.setMaterialCode(source.getMaterialCode());
@@ -319,11 +326,14 @@ public class PurchasePlanServiceImpl implements PurchasePlanService {
         itemMapper.insert(entity);
     }
 
+    /**
+     * 明细跟随主表归属：调用方（detail / convert / toVO）均已通过 require(id) 或列表 applyOrgScope 校验主表数据权限，
+     * 子表不再单独套 applyOrgScope，避免历史空 org_code 明细被过滤掉（详情明细、明细数、计划金额全变 0）。
+     */
     private List<ContractPurchasePlanItem> itemsOf(String planNo) {
         LambdaQueryWrapper<ContractPurchasePlanItem> qw = new LambdaQueryWrapper<ContractPurchasePlanItem>()
                 .eq(ContractPurchasePlanItem::getPlanNo, planNo)
                 .orderByAsc(ContractPurchasePlanItem::getId);
-        dataScopeService.applyOrgScope(qw, ContractPurchasePlanItem::getOrgCode);
         return itemMapper.selectList(qw);
     }
 

@@ -4,6 +4,7 @@ import com.laimengchao.sso.common.PageResult;
 import com.laimengchao.sso.contract.module.contract.dto.ContractRequests;
 import com.laimengchao.sso.contract.module.contract.entity.ContractHeader;
 import com.laimengchao.sso.contract.module.contract.vo.ContractVOs;
+import java.time.LocalDate;
 import java.util.List;
 
 public interface ContractService {
@@ -31,7 +32,7 @@ public interface ContractService {
     ContractVOs.ContractVO save(ContractRequests.ContractSave req);
 
     /** 采购计划转合同复用：直接落库并返回实体，清单由调用方写入；fileIds 逗号分隔 file_id 串，planNo 为来源采购计划号 */
-    ContractHeader createForPlan(String type, String name, String partnerCode, String projectNo, String dept, String owner, String paymentTerms, String subject, String orgCode, String fileIds, String planNo);
+    ContractHeader createForPlan(String type, String name, String partnerCode, String projectNo, String dept, String owner, String paymentTerms, String subject, String orgCode, String fileIds, String planNo, LocalDate signedDate, LocalDate effectiveDate, LocalDate endDate, String note);
 
     void update(Long id, ContractRequests.ContractSave req);
 

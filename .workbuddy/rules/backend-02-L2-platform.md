@@ -42,6 +42,8 @@ level: L2
 - MUST 新建业务表若数据天然归属组织（即使本期只按创建人过滤），预留的字段一律命名 **`org_code`**（存平台组织编码，如 `XC000100010001`），MUST NOT 用 `org_id` 或自造枚举代替；与 `DataScopeHelper.canAccessOrg(scopeCode, orgCode)` 的前缀匹配口径保持一致。
 - MUST NOT 把 `scopeCode` 当成 `SELF / ORG / DEPT / ALL` 枚举：平台 `scopeCode` 是账号级数据权限根组织编码（如 `XC00010001`，支持逗号多值），空值一律 fail-closed 返回空集。详见 `../skills/polaris-backend-development/references/platform-capabilities.md` 第 4 节。
 - MUST 新建单据落非空 `org_code`：无父表依赖的单据（采购计划等）服务端按 `AccountContext` 从 EHR 员工→组织树反查当前登录人部门编码，退回前端传值、再退回 `currentScopeCode()`；MUST NOT 只信前端传值落空串——`applyOrgScope` 的 `LIKE 'scopeCode%'` 必把空值过滤成空集，表现为「新建成功但列表查不到」。有父表/项目依赖的沿用父表带出，编辑时原 `org_code` 非空 MUST 保持不变。
+- MUST 主子表一体的数据权限只在主表校验：明细/清单/付款计划子表查询 MUST NOT 再单独 `applyOrgScope`（主表已 `require(id)→assertCanAccessOrg` 或列表已过滤），否则历史空 `org_code` 子表被误过滤，表现为「详情明细空、明细数 0、金额 0」；子表落库 `org_code` 跟随主表，历史空值用幂等 SQL 按主表回填。
+- MUST 采购计划转合同落完整主信息：`PlanConvertRequest` 接收 name/三个日期/note/fileIds，`createForPlan` 落库，请求缺省时回退计划名称/日期/附件；MUST NOT 只落 partnerCode/dept/owner 而让合同日期为空。
 
 - MUST 全员应用（当前为 `portal` 北极星门、`forum` 北极星空、`meeting` 北极星会）同时落到 `ehr.account.default-apps` 埋点、EHR `AccountClient.FALLBACK_APPS` 兜底、前端 `AppCenterNav.PUBLIC_APP_CODES` 白名单与存量账号迁移脚本，且补 `forum` 应用授权时同步绑定 `FORUM_MEMBER` 角色；MUST NOT 只改新开账号默认值而遗漏存量账号。**授权一致性**：账号通过角色拥有某 `app_code` 的任意有效权限码时，Must 在 `sso_account_app` 补该应用授权（sso 权限码映射到 `sso-center`），否则应用中心隐藏入口且 OAuth 换票 403；非全员应用（如 `file` 北极星云）按显式授权维护，MUST NOT 因角色有权限码就自动全员开放。
 

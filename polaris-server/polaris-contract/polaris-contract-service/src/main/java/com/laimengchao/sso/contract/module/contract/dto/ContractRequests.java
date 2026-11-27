@@ -177,6 +177,8 @@ public final class ContractRequests {
     /** 采购计划转采购合同：合同主信息由调用方补充，清单从计划明细带入 */
     @Data
     public static class PlanConvertRequest {
+        /** 合同名称，缺省用采购计划名称 */
+        private String name;
         private String partnerCode;
         private String projectNo;
         private String dept;
@@ -184,8 +186,12 @@ public final class ContractRequests {
         private LocalDate signedDate;
         private LocalDate effectiveDate;
         private LocalDate endDate;
+        /** 备注（非必填，200 字） */
+        private String note;
+        /** 附件 file_id 列表，缺省沿用采购计划附件 */
+        private List<String> fileIds;
         private String paymentTerms;
-        /** 合同标的（前端手输） */
+        /** 合同标的（历史列，前端不再录入） */
         private String subject;
         private String orgCode;
     }
