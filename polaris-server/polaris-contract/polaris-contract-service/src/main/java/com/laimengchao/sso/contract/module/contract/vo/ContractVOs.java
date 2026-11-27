@@ -239,6 +239,8 @@ public final class ContractVOs {
     public static class PurchasePlanProfileVO {
         private String applicant;
         private String dept;
+        /** 当前登录人所在部门组织编码：新建/编辑单据 org_code 的服务端权威来源 */
+        private String orgCode;
     }
 
     @Data

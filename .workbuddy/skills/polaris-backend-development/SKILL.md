@@ -51,6 +51,12 @@ agent_created: true
 - 往来单位按合同类型校验角色：PURCHASE 只允许 SUPPLIER/BOTH，SALES 只允许 CUSTOMER/BOTH，不匹配拒绝保存（与前端弹窗过滤同口径）。
 - 合同备注用独立字段 `note`（`contract_header.note varchar(200)`，迁移 50），MUST NOT 复用 `ContractSave.remark`——后者是「变更原因」只写入 `contract_change_log` 不落主表。局部更新未传 note 时保留原值，新建落空串；长度 >200 拒绝。
 
+## 新建单据 org_code 服务端兜底口径（2026-11-27 落地，MUST）
+
+- 所有带 `org_code` 的业务单据，服务端新建 MUST 落非空归属组织，MUST NOT 只信前端传值：查询统一 `applyOrgScope`（`org_code LIKE 'scopeCode%'`），空值必被过滤成空集（2026-11-27 采购计划新建后列表查不到即此根因——前端不传 orgCode、后端 `nvl(req.getOrgCode(),"")` 落空串）。
+- 无父表可依赖的单据（采购计划等）MUST 在服务端按 `AccountContext` 从 EHR 员工→组织树反查当前登录人部门编码落 `org_code`，口径与 `myProfile` 一致；反查不到依次退回前端传值、账号数据范围根 `currentScopeCode()`，仍为空则拒绝保存或记录 warn，不允许静默落空串。
+- 有父表/项目依赖的单据（合同→项目、清单/付款计划→合同头、物料→分类）沿用从父表带出 `org_code`，不必逐单反查；编辑时若原 `org_code` 非空 MUST 保持不变（编辑人不等于创建人时不漂移），只补历史空值。
+
 ## 当前登录人/部门默认带出口径（2026-11-27 落地）
 
 - 所有「申请人/需求部门/归属部门」默认当前登录人及其部门时，MUST 由服务端按 `AccountContext.getAccountId()` 从 EHR 员工（`activeEmployees`）→ 组织树（`tree`）反查，提供 `GET /<域>/<资源>/my-profile` 端点（如 finance `/api/finance/expenses/my-profile`、contract `/api/contract/purchase-plans/my-profile`）。

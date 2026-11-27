@@ -91,6 +91,7 @@ public class PurchasePlanServiceImpl implements PurchasePlanService {
             return vo;
         }
         vo.setDept(text(org.get("name")));
+        vo.setOrgCode(text(org.get("code")));
         return vo;
     }
 
@@ -162,7 +163,7 @@ public class PurchasePlanServiceImpl implements PurchasePlanService {
         entity.setDate(req.getDate() == null ? java.time.LocalDate.now() : req.getDate());
         entity.setNeedDate(req.getNeedDate());
         entity.setStatus("DRAFT");
-        entity.setOrgCode(nvl(req.getOrgCode(), ""));
+        entity.setOrgCode(orgCodeForSave(profile, req.getOrgCode()));
         entity.setFileIds(ContractAttachments.join(req.getFileIds()));
         entity.setCreatedAt(LocalDateTime.now());
         mapper.insert(entity);
@@ -184,11 +185,14 @@ public class PurchasePlanServiceImpl implements PurchasePlanService {
             throw new BizException(ErrorCode.PARAM_ERROR, "采购计划标题不能为空");
         }
         entity.setTitle(req.getTitle().trim());
-        entity.setDept(nvl(req.getDept(), ""));
-        entity.setApplicant(nvl(req.getApplicant(), ""));
+        entity.setDept(nvl(req.getDept(), entity.getDept()));
+        entity.setApplicant(nvl(req.getApplicant(), entity.getApplicant()));
         entity.setDate(req.getDate() == null ? entity.getDate() : req.getDate());
         entity.setNeedDate(req.getNeedDate());
-        entity.setOrgCode(nvl(req.getOrgCode(), entity.getOrgCode()));
+        // 归属组织：已有值保持不变（编辑人不等于创建人时不漂移）；历史空值才按当前登录人部门补齐
+        if (!StringUtils.hasText(entity.getOrgCode())) {
+            entity.setOrgCode(orgCodeForSave(myProfile(), req.getOrgCode()));
+        }
         if (req.getFileIds() != null) {
             entity.setFileIds(ContractAttachments.join(req.getFileIds()));
         }
@@ -359,6 +363,20 @@ public class PurchasePlanServiceImpl implements PurchasePlanService {
         vo.setPrice(e.getPrice());
         vo.setAmount(e.getAmount());
         return vo;
+    }
+
+    /**
+     * 采购计划归属组织落库口径：当前登录人所在部门编码（服务端 EHR 反查）优先，
+     * 其次前端传值，最后退回账号数据范围根；必须落非空，否则列表会被 applyOrgScope 过滤成空集。
+     */
+    private String orgCodeForSave(ContractVOs.PurchasePlanProfileVO profile, String requested) {
+        if (StringUtils.hasText(profile.getOrgCode())) {
+            return profile.getOrgCode();
+        }
+        if (StringUtils.hasText(requested)) {
+            return requested.trim();
+        }
+        return nvl(dataScopeService.currentScopeCode(), "");
     }
 
     private String nvl(String value, String fallback) {
