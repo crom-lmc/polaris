@@ -3,19 +3,20 @@ import { computed, onMounted, reactive, ref } from 'vue'
 import { message } from 'ant-design-vue'
 import { useUserStore } from '@/stores/user'
 import { useIsMobile } from '@/composables/useIsMobile'
-import { useOrgDirectory, filterOption as orgFilterOption } from '@/composables/useOrgDirectory'
+import { useOrgDirectory } from '@/composables/useOrgDirectory'
 import {
   listPurchasePlans, getPurchasePlan, savePurchasePlan, approvePurchasePlan, rejectPurchasePlan,
-  convertPurchasePlan, listPartners, uploadContractAttachment, fetchPurchasePlanProfile, type PurchasePlanVO
+  uploadContractAttachment, fetchPurchasePlanProfile, type PurchasePlanVO, type ContractVO
 } from '@/api/contract'
 import { loadMaterialChildren, loadMaterialPage } from '@/composables/useMaterialPicker'
 import MaterialPickerModal, { type MaterialPick } from '@shared/components/MaterialPickerModal.vue'
 import AttachmentUpload from '@shared/components/AttachmentUpload.vue'
+import ContractFormDrawer from '@/components/ContractFormDrawer.vue'
 import { yuan } from '@/utils/format'
 
 const store = useUserStore()
 const isMobile = useIsMobile()
-const { orgNodes, employees, deptOptions, employeeOptions, load: loadOrgDirectory } = useOrgDirectory()
+const { orgNodes, employees, load: loadOrgDirectory } = useOrgDirectory()
 const drawerWidth = computed(() => (isMobile.value ? '100%' : 760))
 
 const loading = ref(false)
@@ -98,18 +99,6 @@ async function openDetail(id: string) {
   detailLoading.value = true
   try { detail.value = await getPurchasePlan(id) } catch (e: any) { message.error(e?.message || '加载详情失败') }
   finally { detailLoading.value = false }
-}
-
-/* 往来单位（真实数据派生，不写死常量）；物料改由公共弹窗按需加载 */
-const partnerPicks = ref<{ label: string; value: string }[]>([])
-async function loadOptions() {
-  try {
-    const res = await listPartners({ role: 'SUPPLIER', page: 1, size: 200 })
-    partnerPicks.value = (res.records || []).map((p) => ({ label: `${p.code} · ${p.name}`, value: p.code }))
-  } catch { /* 往来单位不可用时保持空 */ }
-}
-function filterOption(input: string, option: any) {
-  return orgFilterOption(input, option)
 }
 
 /* 新建 */
@@ -200,35 +189,27 @@ async function doReject(id: string) {
   try { await rejectPurchasePlan(id); message.success('已驳回'); detailOpen.value = false; load() }
   catch (e: any) { message.error(e?.message || '驳回失败') }
 }
-const convertOpen = ref(false)
-const convertSaving = ref(false)
-const convertId = ref('')
-const convertForm = reactive({ partnerCode: undefined as string | undefined, projectNo: '', dept: '', owner: '' })
-function openConvert(id: string) {
-  convertId.value = id
-  convertForm.partnerCode = undefined
-  convertForm.projectNo = ''
-  convertForm.dept = ''
-  convertForm.owner = ''
+/* 转合同：复用合同表单抽屉，计划数据由组件预填；保存后切换为编辑态继续维护清单/付款计划 */
+const contractFormOpen = ref(false)
+const convertPlan = ref<PurchasePlanVO | null>(null)
+const editingContract = ref<ContractVO | null>(null)
+function openConvert(plan: PurchasePlanVO) {
+  convertPlan.value = plan
+  editingContract.value = null
   detailOpen.value = false
-  convertOpen.value = true
+  contractFormOpen.value = true
 }
-async function submitConvert() {
-  if (!convertForm.partnerCode) { message.warning('请选择往来单位'); return }
-  convertSaving.value = true
-  try {
-    const contract = await convertPurchasePlan(convertId.value, {
-      partnerCode: convertForm.partnerCode, projectNo: convertForm.projectNo || undefined,
-      dept: convertForm.dept || undefined, owner: convertForm.owner || undefined
-    })
-    convertOpen.value = false
-    message.success(`已生成采购合同 ${contract.no}，明细已带入合同清单`)
-    resetAndLoad()
-  } catch (e: any) { message.error(e?.message || '转合同失败') }
-  finally { convertSaving.value = false }
+function onFormSaved(saved: ContractVO) {
+  resetAndLoad()
+  convertPlan.value = null
+  // 仅转合同/新建后进入编辑态；编辑态保存后关闭抽屉
+  if (!editingContract.value) {
+    editingContract.value = saved
+    contractFormOpen.value = true
+  }
 }
 
-onMounted(() => { load(); loadOptions(); loadOrgDirectory() })
+onMounted(() => { load(); loadOrgDirectory() })
 </script>
 
 <template>
@@ -274,7 +255,7 @@ onMounted(() => { load(); loadOptions(); loadOrgDirectory() })
               <template v-if="store.can('contract:plan:edit')">
                 <a v-if="record.status === 'PENDING' || record.status === 'DRAFT'" @click="doApprove(record.id)">审批</a>
                 <a v-if="record.status === 'PENDING'" @click="doReject(record.id)">驳回</a>
-                <a v-if="record.status === 'APPROVED'" @click="openConvert(record.id)">转合同</a>
+                <a v-if="record.status === 'APPROVED'" @click="openConvert(record)">转合同</a>
               </template>
             </a-space>
           </template>
@@ -323,41 +304,13 @@ onMounted(() => { load(); loadOptions(); loadOrgDirectory() })
           <a-button @click="detailOpen = false">关闭</a-button>
           <template v-if="store.can('contract:plan:edit') && detail">
             <a-button v-if="detail.status === 'PENDING' || detail.status === 'DRAFT'" type="primary" @click="doApprove(detail.id)">审批通过</a-button>
-            <a-button v-if="detail.status === 'APPROVED'" type="primary" @click="openConvert(detail.id)">转采购合同</a-button>
+            <a-button v-if="detail.status === 'APPROVED'" type="primary" @click="openConvert(detail)">转采购合同</a-button>
           </template>
         </div>
       </template>
     </a-drawer>
 
-    <a-drawer v-model:open="convertOpen" title="采购计划转合同" :width="drawerWidth" placement="right">
-      <a-form layout="vertical">
-        <a-form-item label="往来单位" required>
-          <a-select v-model:value="convertForm.partnerCode" :options="partnerPicks" placeholder="请选择供应商" show-search
-                    :filter-option="filterOption" style="width: 100%" />
-        </a-form-item>
-        <a-form-item label="所属项目编码"><a-input v-model:value="convertForm.projectNo" placeholder="选填，项目编码" /></a-form-item>
-        <a-row :gutter="12">
-          <a-col :span="12">
-            <a-form-item label="需求部门">
-              <a-select v-model:value="convertForm.dept" :options="deptOptions" placeholder="从组织架构选择" show-search
-                        :filter-option="filterOption" allow-clear style="width: 100%" />
-            </a-form-item>
-          </a-col>
-          <a-col :span="12">
-            <a-form-item label="负责人">
-              <a-select v-model:value="convertForm.owner" :options="employeeOptions" placeholder="从组织架构选择" show-search
-                        :filter-option="filterOption" allow-clear style="width: 100%" />
-            </a-form-item>
-          </a-col>
-        </a-row>
-      </a-form>
-      <template #footer>
-        <div class="drawer-footer">
-          <a-button @click="convertOpen = false">取消</a-button>
-          <a-button type="primary" :loading="convertSaving" @click="submitConvert">生成采购合同</a-button>
-        </div>
-      </template>
-    </a-drawer>
+    <ContractFormDrawer v-model:open="contractFormOpen" :convert-plan="convertPlan" :contract="editingContract" @saved="onFormSaved" />
 
     <a-drawer v-model:open="createOpen" title="新建采购计划" :width="drawerWidth" placement="right">
       <a-form layout="vertical">

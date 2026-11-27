@@ -602,6 +602,7 @@ export interface PurchasePlanSave {
 }
 
 export interface PlanConvertRequest {
+  name?: string
   partnerCode: string
   projectNo?: string
   dept?: string
@@ -609,6 +610,8 @@ export interface PlanConvertRequest {
   signedDate?: string
   effectiveDate?: string
   endDate?: string
+  note?: string
+  fileIds?: string[]
   paymentTerms?: string
   subject?: string
   orgCode?: string
