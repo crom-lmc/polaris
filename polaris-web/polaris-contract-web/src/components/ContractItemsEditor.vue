@@ -172,6 +172,9 @@ async function submitAccept() {
   if (!acceptForm.qty || acceptForm.qty < 1 || acceptForm.qty > acceptRemain.value) {
     message.warning(`验收数量须在 1 ~ ${acceptRemain.value} 之间`); return
   }
+  if (!acceptForm.date) {
+    message.warning('请选择验收日期'); return
+  }
   acceptSaving.value = true
   try {
     await acceptItem(props.contractNo, acceptId.value, {
@@ -289,7 +292,7 @@ onMounted(() => { load() })
         <a-form-item label="本次验收数量" required>
           <a-input-number v-model:value="acceptForm.qty" :min="1" :max="acceptRemain" style="width: 100%" />
         </a-form-item>
-        <a-form-item label="验收日期"><a-date-picker v-model:value="acceptForm.date" value-format="YYYY-MM-DD" format="YYYY-MM-DD" style="width: 100%" /></a-form-item>
+        <a-form-item label="验收日期" required><a-date-picker v-model:value="acceptForm.date" value-format="YYYY-MM-DD" format="YYYY-MM-DD" style="width: 100%" placeholder="请选择验收日期" /></a-form-item>
         <a-form-item label="验收结果">
           <a-select v-model:value="acceptForm.result" :options="[{ label: '合格', value: '合格' }, { label: '不合格', value: '不合格' }]" />
         </a-form-item>

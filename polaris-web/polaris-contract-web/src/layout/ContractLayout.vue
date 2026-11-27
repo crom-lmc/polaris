@@ -36,11 +36,19 @@
       <a-layout-sider v-if="!mobile" class="sider" :theme="theme.mode === 'dark' ? 'dark' : 'light'"
                       width="208" collapsible :collapsed="collapsed" :trigger="null"
                       @collapse="(v: boolean) => (collapsed = v)">
-        <a-menu mode="inline" :selected-keys="selectedKeys" @click="handleMenuClick">
-          <a-menu-item v-for="m in menus" v-show="store.can(m.perm)" :key="m.path">
-            <template #icon><component :is="m.icon" /></template>
-            {{ m.title }}
-          </a-menu-item>
+        <a-menu mode="inline" :selected-keys="selectedKeys" :open-keys="openKeys"
+                @openChange="handleOpenChange" @click="handleMenuClick">
+          <template v-for="m in menus" :key="m.path">
+            <a-sub-menu v-if="m.children?.length" :key="m.path">
+              <template #icon><component :is="m.icon" /></template>
+              <template #title>{{ m.title }}</template>
+              <a-menu-item v-for="c in m.children" v-show="store.can(c.perm)" :key="c.path">{{ c.title }}</a-menu-item>
+            </a-sub-menu>
+            <a-menu-item v-else v-show="store.can(m.perm)" :key="m.path">
+              <template #icon><component :is="m.icon" /></template>
+              {{ m.title }}
+            </a-menu-item>
+          </template>
         </a-menu>
       </a-layout-sider>
       <a-layout-content class="content" :class="{ 'has-tabs': mobile }">
@@ -51,7 +59,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import {
   AppstoreOutlined, DownOutlined, EditOutlined, FileTextOutlined, LogoutOutlined,
@@ -76,7 +84,15 @@ const theme = useThemeStore()
 const collapsed = useResponsiveCollapsed()
 useSessionGuard()
 
-// 前端只保存「权限码 -> 路由/图标」映射；菜单名称、排序一律来自 SSO 权限树
+interface AppMenuItem {
+  path: string
+  title: string
+  icon: any
+  perm: string
+  children?: AppMenuItem[]
+}
+
+// 前端只保存「权限码 -> 路由/图标」映射；菜单名称、排序、层级一律来自 SSO 权限树
 const menuRoutes: Record<string, { path: string; icon: any }> = {
   'contract:plan:list': { path: '/purchase-plan', icon: ShoppingCartOutlined },
   'contract:partner:list': { path: '/partner', icon: TeamOutlined },
@@ -84,14 +100,29 @@ const menuRoutes: Record<string, { path: string; icon: any }> = {
   'contract:material-maintain:list': { path: '/material-maintain', icon: EditOutlined },
   'contract:project:list': { path: '/project', icon: ProjectOutlined },
   'contract:ledger:list': { path: '/contract', icon: FileTextOutlined },
+  'contract:ledger:purchase:list': { path: '/contract/purchase', icon: FileTextOutlined },
+  'contract:ledger:sales:list': { path: '/contract/sales', icon: FileTextOutlined },
   'contract:payment:list': { path: '/payment-plan', icon: WalletOutlined }
 }
 
-const menus = computed(() => store.menus
-  .filter((m) => menuRoutes[m.code])
-  .map((m) => ({ ...menuRoutes[m.code], perm: m.code, title: m.name, sort: m.sort }))
-  // 只按 sort 排；同值保持 SSO 权限树返回的先后（后端已按 sort、id 排好）
-  .sort((a, b) => a.sort - b.sort))
+const menus = computed<AppMenuItem[]>(() => {
+  const granted = new Set(store.menus.map((m) => m.code))
+  // 父权限未授权时子菜单提升为一级，避免整块菜单消失
+  const build = (parentCode: string | null): AppMenuItem[] =>
+    store.menus
+      .filter((m) => parentCode
+        ? m.parentCode === parentCode
+        : !m.parentCode || !granted.has(m.parentCode))
+      // 只按 sort 排；同值保持 SSO 权限树返回的先后（后端已按 sort、id 排好）
+      .sort((a, b) => a.sort - b.sort)
+      .flatMap((m) => {
+        const meta = menuRoutes[m.code]
+        if (!meta) return []
+        const children = build(m.code)
+        return [{ ...meta, perm: m.code, title: m.name, ...(children.length ? { children } : {}) }]
+      })
+  return build(null)
+})
 
 const mobile = ref(false)
 const mq = window.matchMedia('(max-width: 767px)')
@@ -99,13 +130,20 @@ const syncMobile = () => { mobile.value = mq.matches }
 onMounted(() => { syncMobile(); mq.addEventListener('change', syncMobile) })
 onBeforeUnmount(() => mq.removeEventListener('change', syncMobile))
 
-// 窄屏侧栏收起时，标题旁的更多菜单放主流程入口
-const moreMenus = computed(() => menus.value.filter((m) => store.can(m.perm)))
+const flatMenus = computed(() => menus.value.flatMap((m) => m.children ?? [m]))
+// 窄屏侧栏收起时，标题旁的更多菜单放主流程入口（含二级菜单）
+const moreMenus = computed(() => flatMenus.value.filter((m) => store.can(m.perm)))
 const pageTitle = computed(() =>
-  menus.value.find((m) => m.path === route.path)?.title || (route.meta.title as string) || appName.value)
+  flatMenus.value.find((m) => m.path === route.path)?.title || (route.meta.title as string) || appName.value)
 const selectedKeys = computed(() => [route.path])
+const openKeys = ref<string[]>([])
+watch(() => route.path, (p) => {
+  const parent = menus.value.find((m) => m.children?.some((c) => c.path === p))
+  if (parent && !openKeys.value.includes(parent.path)) openKeys.value = [...openKeys.value, parent.path]
+}, { immediate: true })
 
 function toggleCollapse() { collapsed.value = !collapsed.value }
+function handleOpenChange(keys: any) { openKeys.value = keys as string[] }
 function handleMenuClick({ key }: { key: string }) { router.push(key as string) }
 function onUserMenuClick({ key }: { key: string }) {
   if (key !== 'logout') return

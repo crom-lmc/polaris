@@ -27,6 +27,8 @@ const statusColor: Record<string, string> = {
   WAITING: 'default', PENDING: 'orange', APPROVED: 'blue', POSTED: 'green', PAID: 'green', REJECTED: 'red'
 }
 const statusOptions = Object.entries(statusLabel).map(([value, label]) => ({ value, label }))
+/** 待审批由谁审：与 settings 审批模板 contract.payment / contract.payment.senior 保持一致 */
+const approvalHint = '审批中：合同归口部门负责人 → 财务中心负责人；本期金额超过升级线时加总经理终审（settings 埋点 contract.payment.approval-amount）'
 const contractOptions = computed(() => contracts.value.map((c) => ({ label: `${c.no} · ${c.name}`, value: c.no })))
 const dictStages = ref<DictOption[]>([])
 const stageOptions = computed(() => dictStages.value.map((d) => ({ value: d.value, label: d.label })))
@@ -189,7 +191,10 @@ onMounted(() => {
             </a-tooltip>
           </template>
           <template v-else-if="column.key === 'status'">
-            <a-tag :color="statusColor[record.status] || 'default'">{{ statusLabel[record.status] || record.status }}</a-tag>
+            <a-tooltip v-if="record.status === 'PENDING'" :title="approvalHint">
+              <a-tag color="orange">{{ statusLabel[record.status] }}</a-tag>
+            </a-tooltip>
+            <a-tag v-else :color="statusColor[record.status] || 'default'">{{ statusLabel[record.status] || record.status }}</a-tag>
           </template>
           <template v-else-if="column.key === 'sourceDocNo'">
             <a-tooltip v-if="record.sourceDocNo" :title="record.sourceDocNo">

@@ -220,9 +220,11 @@
     padding-bottom: 8px;
   }
 
-  /* 固定宽度表格允许横向滚动，不再强制撑开页面 */
-  .shell [style*='--ft-min-width'] {
-    --ft-min-width: 0px !important;
+  /* 列表列宽在窄屏保持不折叠：各页 --ft-min-width 继续生效，
+     多出的宽度由 .ft-scroll 出横向滚动条（分页条上方），不压缩列宽。
+     选择器限定到显式声明了该变量的元素，避免没有声明的表格被 0px !important 压扁。 */
+  .shell [style*='--ft-min-width'] .ant-table table {
+    min-width: var(--ft-min-width, 0px) !important;
   }
 }
 

@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
+import { useRoute } from 'vue-router'
 import { message, Modal } from 'ant-design-vue'
 import { useUserStore } from '@/stores/user'
 import {
@@ -14,13 +15,18 @@ import ContractItemsEditor from '@/components/ContractItemsEditor.vue'
 import { useIsMobile } from '@/composables/useIsMobile'
 
 const store = useUserStore()
+const route = useRoute()
+
+/** 合同台账按菜单拆分为采购/销售两个入口，类型由当前路由固定，不再由用户切换 */
+const fixedType = computed(() => route.meta.contractType as 'PURCHASE' | 'SALES' | undefined)
+const partnerLabel = computed(() => fixedType.value === 'SALES' ? '客户' : '供应商')
 
 const loading = ref(false)
 const rows = ref<ContractVO[]>([])
 const total = ref(0)
 const stats = ref<ContractStats>({ total: 0, amount: 0, paidAmount: 0, inFlightAmount: 0, pendingAmount: 0 })
 const query = reactive({
-  type: undefined as string | undefined, status: undefined as string | undefined,
+  type: fixedType.value, status: undefined as string | undefined,
   keyword: '', projectNo: undefined as string | undefined, partnerCode: undefined as string | undefined,
   page: 1, size: 20
 })
@@ -32,7 +38,6 @@ const statusLabel: Record<string, string> = {
 const statusColor: Record<string, string> = {
   DRAFT: 'default', PENDING: 'orange', EFFECTIVE: 'blue', EXECUTING: 'geekblue', COMPLETED: 'green', TERMINATED: 'red'
 }
-const typeOptions = [{ label: '采购合同', value: 'PURCHASE' }, { label: '销售合同', value: 'SALES' }]
 const statusOptions = Object.entries(statusLabel).map(([value, label]) => ({ value, label }))
 
 interface StatusAction { label: string; target: string; kind?: 'primary' | 'danger' }
@@ -93,17 +98,19 @@ async function loadOptions() {
     projectOptions.value = (ps || []).map((p) => ({ label: `${p.code} · ${p.name}`, value: p.code }))
   } catch { projectOptions.value = [] }
   try {
-    const res = await listPartners({ page: 1, size: 200 })
+    const res = await listPartners({
+      role: fixedType.value === 'SALES' ? 'CUSTOMER' : 'SUPPLIER', page: 1, size: 200
+    })
     partnerOptions.value = (res.records || []).map((p) => ({ label: `${p.code} · ${p.name}`, value: p.code }))
   } catch { partnerOptions.value = [] }
 }
 
-const columns = [
+const columns = computed(() => [
   { title: '合同编号', dataIndex: 'no', key: 'no', width: 170 },
   { title: '类型', key: 'type', align: 'center' as const, width: 100 },
   { title: '来源', key: 'contractSource', align: 'center' as const, width: 90 },
   { title: '合同名称', key: 'name', width: 230 },
-  { title: '供应商/客户', key: 'partnerName', width: 180 },
+  { title: partnerLabel.value, key: 'partnerName', width: 180 },
   { title: '所属项目', key: 'projectName', width: 180 },
   { title: '归属部门', dataIndex: 'dept', key: 'dept', width: 100 },
   { title: '合同金额', key: 'amount', align: 'right' as const, width: 130 },
@@ -115,7 +122,7 @@ const columns = [
   { title: '到期日期', dataIndex: 'endDate', key: 'endDate', width: 110 },
   { title: '附件', key: 'attachments', align: 'center' as const, width: 110 },
   { title: '操作', key: 'action', width: 270 }
-]
+])
 
 /* 新增 / 编辑合同：公共表单抽屉 */
 const createOpen = ref(false)
@@ -168,19 +175,27 @@ function remove(row: ContractVO) {
     onOk: async () => { try { await deleteContract(row.id); message.success('已删除'); load() } catch (e: any) { message.error(e?.message || '删除失败') } }
   })
 }
+// 两个菜单复用同一个组件实例，切换路由时按新类型重新查询
+watch(() => route.path, () => {
+  query.type = fixedType.value
+  query.page = 1
+  query.partnerCode = undefined
+  load()
+  loadOptions()
+})
+
 onMounted(() => { load(); loadOptions() })
 </script>
 
 <template>
   <section class="ft-page">
     <section class="ft-head toolbar">
-      <a-select v-model:value="query.type" :options="typeOptions" placeholder="全部类型" style="width: 140px" allow-clear @change="resetAndLoad" />
-      <a-input-search v-model:value="query.keyword" placeholder="编号 / 名称 / 供应商 / 客户" style="width: 240px" allow-clear @search="resetAndLoad" />
+      <a-input-search v-model:value="query.keyword" :placeholder="`编号 / 名称 / ${partnerLabel}`" style="width: 240px" allow-clear @search="resetAndLoad" />
       <a-select v-model:value="query.status" :options="statusOptions" placeholder="合同状态" style="width: 120px" allow-clear @change="resetAndLoad" />
       <a-select v-model:value="query.projectNo" :options="projectOptions" placeholder="所属项目" style="width: 180px" allow-clear show-search @change="resetAndLoad" />
-      <a-select v-model:value="query.partnerCode" :options="partnerOptions" placeholder="往来单位" style="width: 170px" allow-clear show-search @change="resetAndLoad" />
+      <a-select v-model:value="query.partnerCode" :options="partnerOptions" :placeholder="partnerLabel" style="width: 170px" allow-clear show-search @change="resetAndLoad" />
       <span class="grow" />
-      <a-button v-if="store.can('contract:ledger:edit')" type="primary" @click="openCreate">＋ 新增合同</a-button>
+      <a-button v-if="store.can('contract:ledger:edit')" type="primary" @click="openCreate">＋ 新增{{ fixedType === 'SALES' ? '销售合同' : '采购合同' }}</a-button>
     </section>
     <section class="ft-scroll ft-bottom">
       <div class="stat-grid">
@@ -239,7 +254,7 @@ onMounted(() => { load(); loadOptions() })
               <template v-if="store.can('contract:ledger:edit')">
                 <a v-for="action in statusActionsOf(record)" :key="action.target" @click="requestStatusAction(action, record)">{{ action.label }}</a>
               </template>
-              <a v-if="store.can('contract:ledger:edit')" @click="remove(record)">删除</a>
+              <a v-if="store.can('contract:ledger:edit') && record.status === 'DRAFT'" @click="remove(record)">删除</a>
             </a-space>
           </template>
         </template>
@@ -259,6 +274,6 @@ onMounted(() => { load(); loadOptions() })
       <template #footer><div class="drawer-footer"><a-button @click="acceptOpen = false">关闭</a-button></div></template>
     </a-drawer>
 
-    <ContractFormDrawer v-model:open="createOpen" :contract="editingContract" @saved="onFormSaved" />
+    <ContractFormDrawer v-model:open="createOpen" :contract="editingContract" :default-type="fixedType" @saved="onFormSaved" />
   </section>
 </template>

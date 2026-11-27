@@ -17,7 +17,9 @@ const router = createRouter({
         { path: 'material', component: () => import('@/views/MaterialView.vue'), meta: { title: '物料库', perm: 'contract:material:list' } },
         { path: 'material-maintain', component: () => import('@/views/MaterialMaintainView.vue'), meta: { title: '物料维护', perm: 'contract:material-maintain:list' } },
         { path: 'project', component: () => import('@/views/ProjectView.vue'), meta: { title: '项目维护', perm: 'contract:project:list' } },
-        { path: 'contract', component: () => import('@/views/ContractLedgerView.vue'), meta: { title: '合同台账', perm: 'contract:ledger:list' } },
+        { path: 'contract', redirect: '/contract/purchase' },
+        { path: 'contract/purchase', component: () => import('@/views/ContractLedgerView.vue'), meta: { title: '采购合同', perm: 'contract:ledger:purchase:list', contractType: 'PURCHASE' } },
+        { path: 'contract/sales', component: () => import('@/views/ContractLedgerView.vue'), meta: { title: '销售合同', perm: 'contract:ledger:sales:list', contractType: 'SALES' } },
         { path: 'payment-plan', component: () => import('@/views/PaymentPlanView.vue'), meta: { title: '合同付款计划', perm: 'contract:payment:list' } },
         { path: 'no-access', component: () => import('@/views/NoAccessView.vue'), meta: { title: '无权限', public: true } }
       ]

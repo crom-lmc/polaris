@@ -36,6 +36,7 @@ agent_created: true
    - **列表铺满 + 分页固定右下角（合同/财务所有模块统一，MUST）**：列表默认铺满页面剩余高度，分页条 MUST 用 `.ft-bottom` 的 sticky bottom:0 固定在右下角（z-index 5 高于操作列 3）、`margin:auto 0 0` 贴底，MUST NOT 让分页随内容流走或只固定在顶部；`pageSize` 默认 20、开 `showSizeChanger` 与 `showTotal`。树+表布局变体（如物料维护）用 `.panel-tree-main.ft-bottom` + `.tree-table-card` 让右侧表格撑满卡片、分页 sticky 贴底。列表骨架、空态铺满与树表变体细则见 `../../rules/frontend-01-L2-conventions.md`「表格与交互」。
    - **进度列百分比只显示一次（合同/财务所有模块统一，MUST）**：AntDV `a-progress` 默认 `showInfo=true` 自带百分比文字；若同时渲染 `<span class="rate-text">{{ rate }}%</span>` 会重复。进度条 + 外部百分比文字的形态 MUST 给 `a-progress` 加 `:show-info="false"`（合同台账执行进度、财务预算执行率、设计稿对应列）；只用进度条时不加外部文字。
    - **操作列不折叠 + 横向滚动条贴分页（所有后台应用统一，MUST）**：操作列最后一列的单元格/表头 MUST `white-space:nowrap`，`a-space` 与 `.action-links` MUST `flex-wrap:nowrap` 且 item `flex:0 0 auto`；按钮按状态最多可同时出现几个就给足列宽，并同步加宽 `scroll.x` 与 `--ft-min-width`（合同台账 170、采购计划 180、项目档案 200、凭证 220），MUST NOT 让「详情 / 清单」「删除」等断行。横向滚动条 MUST 落在分页条正上方而不是紧贴首行数据：`_shared/styles/responsive.css` 统一给 `.ft-scroll.ft-bottom .ant-table-container` 设 `flex:1 1 auto; min-height:0; display:flex; flex-direction:column`，`.ant-table-content` 设 `flex:1 1 auto; min-height:0`，让表格内容区撑满剩余高度；MUST NOT 让少量数据时滚动条停在数据行下方、与分页之间留大片空白。
+   - **窄屏列不折叠（所有后台应用统一，MUST）**：列表列宽在任何屏宽下 MUST NOT 被压缩/折叠；`_shared/styles/responsive.css` MUST NOT 在 `@media (max-width:768px)` 把 `--ft-min-width` 覆写为 `0px`。≤768px 时各页 `--ft-min-width` 继续生效（选择器限定 `[style*='--ft-min-width']` 的后代表格，避免无声明表格被 0px `!important` 压扁），多出的宽度由 `.ft-scroll` 出横向滚动条，表头与操作列保持单行；MUST NOT 用隐藏列、换行或省略号代替横向滚动。
    - **置灰操作按钮口径（合同/财务所有模块统一，MUST）**：禁用的链接式操作（删除/编辑等）只置灰、不改字号，MUST 用 `.link-disabled { color: var(--muted); cursor: not-allowed }`（继承 `<a>` 默认 14px，与相邻的「编辑/停用」同字号）；MUST NOT 用 `.muted`（带 `font-size:12px` 会让置灰按钮比其它操作小一号），也 MUST NOT 用 `a-button disabled` 的缩小样式。禁用原因用 `a-tooltip` hover 展示即可。
    - **常驻说明提示口径（合同/财务所有模块统一，MUST）**：列表页 MUST NOT 放常驻的说明性 `a-alert`（如「维护口径」）、顶部 `hint` 编码说明、左侧「共 N 个分类/条」计数等提示文字；页面只保留标题、搜索栏、操作按钮与表格。禁用原因、字段来源等解释只在 hover（`a-tooltip`/`title`）或弹窗里出现，不在页面常驻。
    - **工具栏不重复放页面标题 / 右侧说明（合同/财务/采购计划所有模块统一，MUST）**：`ft-head.toolbar` MUST NOT 放 `<h2>` 独立页面标题及紧随的 `divider`，也 MUST NOT 在右侧放 `hint`/`panel-hint` 常驻说明（如「审批通过后转采购合同并带入清单」）；侧栏/页签已标明页面名，工具栏只留筛选控件、`grow` 与操作按钮。卡片/表单内的静态区块标题保留。`polaris-design-web` 设计稿对应页面同步适用。
@@ -64,15 +65,21 @@ agent_created: true
 - 财务侧选项多为一次性加载的候选，用 `useEntityPickers.ts` 的 `paginatePicker`/`orgRows` 做本地过滤分页；合同侧可直连后端分页接口。
 - 字典枚举字段（企业类型、结算账期、账期天数、付款阶段、评级等）不属于主数据实体，MUST 用 settings 字典下拉，MUST NOT 手输；与主数据弹窗口径不冲突。往来单位档案「结算账期」复用 `finance.credit_period`（30/60/90/180/365），存量「30 天账期」文本在展示/编辑时归一化为档位值（提取数字匹配字典 value）后再保存；提交时若字典已加载 MUST 校验选中值为字典档位，字典加载失败可降级放行。
 
+## 合同台账采购/销售菜单拆分口径（2026-11-27 落地，MUST）
+
+- 合同台账在 SSO 权限树拆为父菜单 `contract:ledger:list` + 两个二级菜单 `contract:ledger:purchase:list` / `contract:ledger:sales:list`；侧栏 MUST 按权限树 `parentCode` 渲染 `a-sub-menu`，前端只写权限码→路由/图标映射（父码映射 `/contract` 仅作目录，子码映射各自路由）。业务接口 `@Permit` 仍用父码，角色授权 MUST 同时含父子码，否则子菜单可见但接口 403。
+- 两个二级菜单 MUST 复用同一个 `ContractLedgerView`（路由 `meta.contractType` 固定 `PURCHASE`/`SALES`），组件监听 `route.path` 变化按新类型重查（Vue Router 复用同一组件实例，`onMounted` 只触发一次）。列表 MUST 隐藏类型筛选（菜单已定类型），列名、搜索占位、表单与详情标签按类型显示「供应商」/「客户」，新增表单锁定当前菜单类型并清空往来单位避免角色错配。
+
 ## 合同状态流转口径（2026-11-27 落地，MUST）
 
 - 合同详情里的「状态」MUST 只读展示（`a-tag`），MUST NOT 用 `a-select` 让用户直接选 DRAFT/PENDING/EFFECTIVE/EXECUTING/COMPLETED/TERMINATED；状态是流程结果，不是可编辑业务字段。
-- 状态流转 MUST 由明确按钮或服务端条件推进，**按钮统一放在合同列表操作列**（详情纯只读不放任何状态按钮；草稿编辑页 footer 另有「提交审批」入口）。按当前状态收敛：草稿→「提交审批 / 编辑」；销售合同审批中→「审批通过 / 退回草稿」（采购合同审批中不提供手工按钮，等审批中心回调）；已生效 / 执行中→「验收 / 终止合同」；已完成/已终止无按钮。危险流转（终止）先 `Modal.confirm`，确认后再调状态接口。
+- 状态流转 MUST 由明确按钮或服务端条件推进，**按钮统一放在合同列表操作列**（详情纯只读不放任何状态按钮；草稿编辑页 footer 另有「提交审批」入口）。按当前状态收敛：草稿→「提交审批 / 编辑 / 删除」；销售合同审批中→「审批通过 / 退回草稿」（采购合同审批中不提供手工按钮，等审批中心回调）；已生效 / 执行中→「验收 / 终止合同」；已完成/已终止无按钮。**「编辑 / 提交审批 / 删除」MUST 仅在 `status === 'DRAFT'` 显示**（2026-11-27 用户定稿），非草稿合同是业务凭证不可编辑/删除；服务端 `update()`/`delete()` 同步硬校验。危险流转（终止）先 `Modal.confirm`，确认后再调状态接口。
 - **执行中 / 完成不提供手工按钮（2026-11-27 定稿）**：首次验收由服务端自动推进「已生效→执行中」，全部付款结清自动推进「执行中→完成」，前端 MUST NOT 再显示「开始执行 / 完成合同」按钮。已生效/执行中的合同在列表操作点「验收」打开独立抽屉，复用 `ContractItemsEditor` 并传 `contract-status`，此时只开放验收与验收记录、隐藏清单增删改。
 - **清单/付款按钮按状态显隐（2026-11-27 定稿）**：`ContractItemsEditor` 收 `contract-status`，新增/编辑/删除仅 DRAFT（`canEditItems`），验收仅 EFFECTIVE/EXECUTING（`canAccept`）；`PaymentPlanEditor` 收 `contract-status`，「发起申请」仅 EFFECTIVE/EXECUTING 显示，且服务端会再校验验收完成度。前端显隐只是可见入口，服务端校验才是防线。
 - 前端按钮 MUST NOT 自行拼状态值绕过状态机，统一调 `changeContractStatus(id, target)`；服务端按状态机白名单校验，前端按钮集合只是可见入口，不是唯一防线。
 - 提交审批（`target=PENDING`）前端 MUST 先校验已有清单：列表操作列用 `row.itemCount`，编辑抽屉用 `listItems(contract.no)` 实时查，为空则 `message.warning('请先维护合同清单，再提交审批')` 并中止，不弹确认框。付款计划可后建（合同编辑页可先建 WAITING、付款计划页有独立「发起付款申请」入口），MUST NOT 作为提交审批的前置校验。
 - 采购合同未达审批线提交后服务端直接置「已生效」，前端 MUST 以接口返回的最新详情刷新状态，不得假设一定停在审批中。
+- 到货验收弹窗的「验收日期」MUST 必填：`a-form-item` 带 `required` 星号，`submitAccept` 未选日期时 `message.warning('请选择验收日期')` 并中止；后端 `accept()` 同步硬校验 `ACCEPTANCE_DATE_REQUIRED`，前端校验只是可见入口（2026-11-27 用户定稿）。验收结果选项值 MUST 用中文「合格/不合格」，与后端入库及付款埋点口径一致。
 
 ## 当前登录人/部门默认带出口径（合同/财务所有模块统一，MUST）
 
@@ -105,7 +112,7 @@ agent_created: true
 - 合同付款计划：新增付款事由、关联凭证、附件列与录入（`uploadContractAttachment(file, 'payment-plan')`）；合同详情加执行步骤条，来源计划转入展示 `planNo`；变更所属项目时支持填变更原因（`updateContract(..., { remark })`）。
 - 付款申请表单（2026-11-27 追加）：付款阶段 MUST 读 settings 字典 `contract.payment_stage` 下拉（列表/详情显示 label，不显示裸 value）；「应付金额」改名为「合同剩余金额」，选中合同后用合同 VO 的 `pendingAmount`（合同金额 - 已付 - 在途）只读自动带出；另加必填「本期付款金额」与必填「应付日期」，本期金额 MUST <= 合同剩余金额。合同详情内嵌编辑器通过父级传入 `remainingAmount`，不另造查询接口。
 - 付款申请派生金额口径（2026-11-27 追加）：付款申请/付款计划表单 MUST 有只读「剩余未付金额」= 合同剩余金额 - 本期付款金额，随两者变化实时重算（金额按 2 位小数四舍五入，避免浮点误差）；该字段为纯展示派生值，MUST NOT 落库或作为提交参数，服务端仍以本期付款金额 <= 合同剩余金额为准校验。
-- 付款计划列表页按钮口径（2026-11-27 追加）：MUST NOT 同时放「新增计划」与「发起付款申请」两个都打开同一抽屉的按钮；列表页只保留「发起付款申请」，点击后保存计划并立即发起申请（保存到 WAITING 后调 apply），抽屉标题/按钮文案与行为一致。仅生成待申请计划（WAITING）的入口放合同详情的付款计划编辑器，再由列表行「发起申请」推进；发起失败（如验收未过账）时保留已存的 WAITING 计划供重试。
+- 付款计划列表页按钮口径（2026-11-27 追加）：MUST NOT 同时放「新增计划」与「发起付款申请」两个都打开同一抽屉的按钮；列表页只保留「发起付款申请」，点击后保存计划并立即发起申请（保存到 WAITING 后调 apply），抽屉标题/按钮文案与行为一致。仅生成待申请计划（WAITING）的入口放合同详情的付款计划编辑器，再由列表行「发起申请」推进；发起失败（如验收未完成/合同状态不符）时保留已存的 WAITING 计划供重试。付款申请不以验收单过账（POSTED）为前提——验收登记完成即可发起，过账在应付单之后发生。
 - 凭证：凭证类型读字典 `finance.voucher_type`，状态草稿/待审核/已入账（DRAFT/REVIEW/POSTED），列表展示审核人/过账人、附件列，新增/详情可上传凭证附件；操作列按状态给 提交审核/审核/过账。
 - 报销（2026-11-27 追加）：报销类型读 `finance.expense_type` 并映射会计科目；「报销事由（字典）」`finance.expense_reason` 与类型重复，MUST NOT 出现在新建表单（历史列与字典保留兼容存量数据），自由文本「费用事由」保留用于凭证摘要/搜索。发票类型/税率读公共字典；**税额 = 金额 × 税率（字典值为百分数）自动计算且只读**，金额或税率变化即重算，MUST NOT 提供手输位。字典项走 `fetchPublicDict(typeCode)`，新增字典 MUST 已在 `PublicReferenceController.DICT_ALLOWED` 白名单，否则返回空数组。
 - 应收应付（2026-11-27 追加）：新增单里的往来单位、关联合同号、会计科目、账期天数 MUST 用下拉，MUST NOT 手输——往来单位取 `/api/finance/partners/options?role=CUSTOMER|SUPPLIER`（合同域主数据经财务代理），合同取 `fetchContractOptions()`，会计科目取 `subjectOptions()`，账期取 settings 字典 `finance.credit_period`（30/60/90/180/365 天）。类型切换时清空并重拉往来单位；账期或发生日期变化即推算到期日（`date + creditDays`），日期仍可手工微调。

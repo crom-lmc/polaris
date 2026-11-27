@@ -29,6 +29,7 @@ const sourceLabel: Record<string, string> = { DIRECT: '直接新建', FROM_PLAN:
 
 const detailLoading = ref(false)
 const detail = ref<ContractVO | null>(null)
+const partnerLabel = computed(() => detail.value?.type === 'SALES' ? '客户' : '供应商')
 const changeOpen = ref(false)
 const changeLoading = ref(false)
 const changes = ref<ChangeLogVO[]>([])
@@ -78,7 +79,7 @@ function close() { emit('update:open', false) }
             <a-descriptions-item label="合同编号">{{ detail.no }}</a-descriptions-item>
             <a-descriptions-item label="合同名称">{{ detail.name }}</a-descriptions-item>
             <a-descriptions-item label="类型">{{ typeLabel[detail.type] || detail.type }}</a-descriptions-item>
-            <a-descriptions-item label="供应商/客户">{{ detail.partnerName || detail.partnerCode }}</a-descriptions-item>
+            <a-descriptions-item :label="partnerLabel">{{ detail.partnerName || detail.partnerCode }}</a-descriptions-item>
             <a-descriptions-item label="归属部门">{{ detail.dept || '-' }} · {{ detail.owner || '-' }}</a-descriptions-item>
             <a-descriptions-item label="所属项目">{{ detail.projectName || '未关联' }}</a-descriptions-item>
             <a-descriptions-item label="签订 / 生效 / 到期">{{ detail.signedDate || '-' }} / {{ detail.effectiveDate || '-' }} / {{ detail.endDate || '-' }}</a-descriptions-item>

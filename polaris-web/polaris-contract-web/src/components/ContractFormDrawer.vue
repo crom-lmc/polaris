@@ -25,6 +25,8 @@ const props = defineProps<{
   open: boolean
   contract?: ContractVO | null
   convertPlan?: PurchasePlanVO | null
+  /** 台账入口菜单已指定合同类型时，新增表单锁定该类型 */
+  defaultType?: 'PURCHASE' | 'SALES'
 }>()
 const emit = defineEmits<{
   'update:open': [value: boolean]
@@ -86,7 +88,7 @@ const createForm = reactive<ContractSave & { partnerName?: string; projectName?:
 
 function resetCreate() {
   Object.assign(createForm, {
-    type: 'PURCHASE', name: '', partnerCode: '', partnerName: '', projectNo: undefined, projectName: '', dept: '', owner: '',
+    type: props.defaultType || 'PURCHASE', name: '', partnerCode: '', partnerName: '', projectNo: undefined, projectName: '', dept: '', owner: '',
     signedDate: undefined, effectiveDate: undefined, endDate: undefined, note: '', fileIds: []
   })
 }
@@ -248,7 +250,7 @@ onMounted(() => { loadOrgDirectory() })
     <a-form layout="vertical">
       <a-card class="panel-card" size="small" title="合同主信息">
         <a-row :gutter="12">
-          <a-col :span="12"><a-form-item label="合同类型"><a-select v-model:value="createForm.type" :options="typeOptions" :disabled="isEdit || isConvert" /></a-form-item></a-col>
+          <a-col :span="12"><a-form-item label="合同类型"><a-select v-model:value="createForm.type" :options="typeOptions" :disabled="isEdit || isConvert || !!defaultType" /></a-form-item></a-col>
           <a-col :span="12"><a-form-item label="合同名称" required><a-input v-model:value="createForm.name" /></a-form-item></a-col>
         </a-row>
         <a-row :gutter="12">
