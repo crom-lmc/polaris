@@ -13,6 +13,24 @@
  * 引入顺序：必须在各应用自己的 global.css / theme.css 之后，保证覆盖。
  */
 
+/* ---------------- 列表表格统一布局（所有后台应用，覆盖各应用 global.css） ---------------- */
+/* 操作列按钮横排不折叠：a-space 在窄列里会收缩 item，导致「详情 / 清单」「删除」断行 */
+.ft-table .ant-table-thead > tr > th:last-child,
+.ft-table .ant-table-tbody > tr > td:last-child { white-space: nowrap; }
+.ft-table .ant-table-tbody > tr > td:last-child .ant-space,
+.ft-table .ant-table-tbody > tr > td:last-child .ant-space-item,
+.ft-table .ant-table-tbody > tr > td:last-child .action-links {
+  flex-wrap: nowrap; white-space: nowrap;
+}
+.ft-table .ant-table-tbody > tr > td:last-child .ant-space-item { flex: 0 0 auto; }
+/* ft-bottom 列表：表格内容区撑满剩余高度，横向滚动条落在分页条正上方 */
+.ft-scroll.ft-bottom .ant-table-wrapper .ant-table .ant-table-container {
+  flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column;
+}
+.ft-scroll.ft-bottom .ant-table-wrapper .ant-table .ant-table-content {
+  flex: 1 1 auto; min-height: 0;
+}
+
 /* ---------------- 基础防溢出（所有宽度） ---------------- */
 .shell {
   width: 100%;

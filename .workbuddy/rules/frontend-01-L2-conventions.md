@@ -67,6 +67,10 @@ level: L2
 - MUST 表头单行不折叠：两个应用 `src/styles/global.css` 对 `.ant-table-thead > tr > th` 及 `.ant-table-column-title` 设 `white-space: nowrap !important`；同时把「列宽合计 > `scroll.x`」的表格加宽 `scroll.x` 与 `--ft-min-width`，MUST NOT 只加 nowrap 不加宽导致列被挤压。
 
 **操作列固定**：MUST 用 `.ft-table` + CSS `position:sticky; right:0; z-index:3` 固定最后一列；MUST NOT 用 antd 的 `fixed:'right'`（会在表格内部再开一层横向滚动，与整页滚动容器冲突；审计 `EventsView.vue` 是历史例外）。按钮左对齐不换行，靠 `.ft-table .ant-btn-link` 的 padding 规则实现。
+- **按钮不折叠（所有后台应用，MUST）**：最后一列表头/单元格 MUST `white-space:nowrap`，`a-space`、`.action-links` MUST `flex-wrap:nowrap`、`a-space-item` MUST `flex:0 0 auto`；`_shared/styles/responsive.css` 已统一定义，MUST NOT 在页面里重复写一套冲突样式。按钮集合最多的状态也要放得下：合同台账操作列 170px、采购计划 180px、项目档案 200px、凭证 220px；加宽列宽 MUST 同步加宽 `scroll.x` 与 `--ft-min-width`（2026-11-27 合同台账「详情 / 清单 / 删除」被挤断行即此根因）。
+- **横向滚动条位置（所有后台应用，MUST）**：`.ft-scroll.ft-bottom` 列表的横向滚动条 MUST 紧贴分页条上方，MUST NOT 停在首行数据下方。`.ant-table-container` MUST `flex:1 1 auto; min-height:0; display:flex; flex-direction:column`、`.ant-table-content` MUST `flex:1 1 auto; min-height:0`（统一在 `_shared/styles/responsive.css` 覆盖，导入顺序在应用 global.css 之后）；这样表格内容区撑满剩余高度，滚动条自然落到内容区底边、分页条正上方（2026-11-27 合同台账截图反馈）。
+- **合同主信息不重复放标的/付款条款（MUST）**：「合同标的」= 清单，「付款条款」= 付款计划，MUST NOT 在合同新增/编辑表单、详情描述列表、采购计划转合同抽屉、设计稿对应页面再放这两个字段（2026-11-27 用户确认取消）；后端 `subject`/`paymentTerms` 字段保留兼容存量，前端不再录入或展示。
+- **进度列百分比只显示一次（MUST）**：AntDV `a-progress` 的 `showInfo` 默认为 true，自带百分比文字；若同一单元格再写 `<span class="rate-text">{{ rate }}%</span>`，会出现两个百分比。两种形态二选一：单独用 `a-progress` 保留内置文字，或进度条 + 外部文字时 MUST 给 `a-progress` 加 `:show-info="false"`（合同台账执行进度、财务预算执行率、设计稿对应列均已按后者修正）。
 
 **列表字段类型归一化**：后端实体用逗号分隔 String 存储、而提交 DTO 是 `List` 的字段（如会议室 `fileIds`），前端 TS 类型 MUST 写成 `string[] | string`，回填与提交 MUST 经统一函数归一为数组（按逗号 split + trim + 过滤空值），MUST NOT 用 `record.xxx || []` 直接回填——字符串会被原样提交，Jackson 反序列化 `ArrayList` 失败报「系统异常」（meeting 编辑会议室曾因此报错）。
 
@@ -108,6 +112,7 @@ level: L2
 
 - MUST 设计稿画出的字段全部有录入与展示，不因流程闭环而省字段；长文本 `.cell-ellipsis` + `a-tooltip`。
 - MUST 字典类下拉走公共字典 `fetchPublicDict(typeCode)`，新增字典先在 settings `PublicReferenceController.DICT_ALLOWED` 放开；凭证状态机按 DRAFT/REVIEW/POSTED 给 提交审核/审核/过账 操作。
+- MUST 合同详情「状态」只读展示，MUST NOT 用 `a-select` 让用户自由改状态；只能按当前状态给明确按钮（提交审批/审批通过/退回草稿/开始执行/完成合同/终止合同），危险动作先确认，统一调状态接口并刷新详情。采购合同审批中不显示手工按钮，由审批回调推进；未达审批线提交后直接显示已生效。
 
 ## 工程与交付
 

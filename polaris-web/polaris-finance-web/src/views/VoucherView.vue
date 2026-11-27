@@ -62,7 +62,7 @@ const columns = [
   { title: '附件', key: 'attachments', width: 90 },
   { title: '制单人', dataIndex: 'creator', key: 'creator', width: 90 },
   { title: '日期', dataIndex: 'date', key: 'date', width: 110 },
-  { title: '操作', key: 'action', width: 180 }
+  { title: '操作', key: 'action', width: 220 }
 ]
 const pagination = () => ({
   current: page.value, pageSize: size.value, total: total.value,
@@ -205,10 +205,10 @@ async function submit() {
       <a-button v-if="canEdit()" type="primary" @click="openCreate">＋ 新增凭证</a-button>
     </section>
     <section class="ft-scroll ft-bottom">
-      <a-table class="ft-table" style="--ft-min-width: 1740px" row-key="id" :columns="columns" :data-source="rows"
+      <a-table class="ft-table" style="--ft-min-width: 1780px" row-key="id" :columns="columns" :data-source="rows"
                :loading="loading" :pagination="pagination()" @change="onTableChange"
                :class="{ 'tbl-empty-mode': !loading && !rows.length }"
-               :scroll="rows.length ? { x: 1740 } : undefined">
+               :scroll="rows.length ? { x: 1780 } : undefined">
         <template #bodyCell="{ column, record }">
           <template v-if="column.key === 'voucherType'">
             {{ voucherTypeLabel(record.voucherType) }}

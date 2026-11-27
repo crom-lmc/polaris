@@ -155,7 +155,7 @@ function onDelete(row: BudgetVO) {
           </template>
           <template v-else-if="column.key === 'rate'">
             <div class="rate-cell">
-              <a-progress :percent="record.rate" size="small" :status="progressStatus(record)" :stroke-color="stroke(record)" />
+              <a-progress :percent="record.rate" size="small" :show-info="false" :status="progressStatus(record)" :stroke-color="stroke(record)" />
               <span class="rate-text">{{ record.rate }}%</span>
             </div>
           </template>

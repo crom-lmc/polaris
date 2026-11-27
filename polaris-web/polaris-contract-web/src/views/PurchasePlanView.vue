@@ -77,7 +77,7 @@ const columns = [
   { title: '状态', key: 'status', align: 'center' as const, width: 110 },
   { title: '关联合同', key: 'contract', width: 170 },
   { title: '附件', key: 'attachments', align: 'center' as const, width: 110 },
-  { title: '操作', key: 'action', width: 160 }
+  { title: '操作', key: 'action', width: 180 }
 ]
 const itemColumns = [
   { title: '物料编码', dataIndex: 'materialCode', key: 'materialCode', width: 130 },
@@ -203,15 +203,13 @@ async function doReject(id: string) {
 const convertOpen = ref(false)
 const convertSaving = ref(false)
 const convertId = ref('')
-const convertForm = reactive({ partnerCode: undefined as string | undefined, projectNo: '', dept: '', owner: '', paymentTerms: '', subject: '' })
+const convertForm = reactive({ partnerCode: undefined as string | undefined, projectNo: '', dept: '', owner: '' })
 function openConvert(id: string) {
   convertId.value = id
   convertForm.partnerCode = undefined
   convertForm.projectNo = ''
   convertForm.dept = ''
   convertForm.owner = ''
-  convertForm.paymentTerms = ''
-  convertForm.subject = ''
   detailOpen.value = false
   convertOpen.value = true
 }
@@ -221,8 +219,7 @@ async function submitConvert() {
   try {
     const contract = await convertPurchasePlan(convertId.value, {
       partnerCode: convertForm.partnerCode, projectNo: convertForm.projectNo || undefined,
-      dept: convertForm.dept || undefined, owner: convertForm.owner || undefined,
-      paymentTerms: convertForm.paymentTerms || undefined, subject: convertForm.subject || undefined
+      dept: convertForm.dept || undefined, owner: convertForm.owner || undefined
     })
     convertOpen.value = false
     message.success(`已生成采购合同 ${contract.no}，明细已带入合同清单`)
@@ -253,7 +250,7 @@ onMounted(() => { load(); loadOptions(); loadOrgDirectory() })
       </div>
       <a-table class="ft-table" row-key="id" :columns="columns" :data-source="rows" :loading="loading"
                :pagination="pagination" :class="{ 'tbl-empty-mode': !loading && !rows.length }"
-               :scroll="rows.length ? { x: 1590 } : undefined" style="--ft-min-width: 1590px">
+               :scroll="rows.length ? { x: 1610 } : undefined" style="--ft-min-width: 1610px">
         <template #bodyCell="{ column, record }">
           <template v-if="column.key === 'title'">
             <a-tooltip :title="record.title"><span class="cell-ellipsis">{{ record.title }}</span></a-tooltip>
@@ -353,8 +350,6 @@ onMounted(() => { load(); loadOptions(); loadOrgDirectory() })
             </a-form-item>
           </a-col>
         </a-row>
-        <a-form-item label="付款条款"><a-input v-model:value="convertForm.paymentTerms" /></a-form-item>
-        <a-form-item label="合同标的"><a-input v-model:value="convertForm.subject" /></a-form-item>
       </a-form>
       <template #footer>
         <div class="drawer-footer">

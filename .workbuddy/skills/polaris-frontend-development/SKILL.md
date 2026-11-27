@@ -34,11 +34,15 @@ agent_created: true
 3. **做决策**：新页面按 `../../rules/frontend-02-L2-platform.md` 判断是否接字典/应用中心/水印等能力，配置类数据不写死前端。涉及侧栏菜单时，先对照 SSO 权限树的 `name/sort/parentCode`（`/api/auth/me?app=<code>` 的 `menus`），前端只写路由/图标映射，不写菜单名称与顺序。
 4. **实现**：`<script setup lang="ts">`；选物料统一接 `_shared/components/MaterialPickerModal.vue`（懒加载分类树 + 分页搜索），禁止再写全量下拉；列表页用 `ft-scroll ft-bottom` + `.ft-table` CSS sticky 固定操作列 + 表头 `align` 一致（表头 `white-space: nowrap`，列宽合计超过 `scroll.x` 时同步加宽）；`ft-head` 加 `.toolbar`（gap/margin-bottom 12px）让标题、搜索栏、卡片之间留白；长文本用 `.cell-ellipsis` 省略 + `a-tooltip` 悬浮展示完整值；**合同/财务所有模块 MUST NOT 在表格上方加由选中节点或筛选值拼出的额外动态标题**（如「子分类：X」「物料清单：X」），静态区块标题保留；颜色走 CSS 变量。
    - **列表铺满 + 分页固定右下角（合同/财务所有模块统一，MUST）**：列表默认铺满页面剩余高度，分页条 MUST 用 `.ft-bottom` 的 sticky bottom:0 固定在右下角（z-index 5 高于操作列 3）、`margin:auto 0 0` 贴底，MUST NOT 让分页随内容流走或只固定在顶部；`pageSize` 默认 20、开 `showSizeChanger` 与 `showTotal`。树+表布局变体（如物料维护）用 `.panel-tree-main.ft-bottom` + `.tree-table-card` 让右侧表格撑满卡片、分页 sticky 贴底。列表骨架、空态铺满与树表变体细则见 `../../rules/frontend-01-L2-conventions.md`「表格与交互」。
+   - **进度列百分比只显示一次（合同/财务所有模块统一，MUST）**：AntDV `a-progress` 默认 `showInfo=true` 自带百分比文字；若同时渲染 `<span class="rate-text">{{ rate }}%</span>` 会重复。进度条 + 外部百分比文字的形态 MUST 给 `a-progress` 加 `:show-info="false"`（合同台账执行进度、财务预算执行率、设计稿对应列）；只用进度条时不加外部文字。
+   - **操作列不折叠 + 横向滚动条贴分页（所有后台应用统一，MUST）**：操作列最后一列的单元格/表头 MUST `white-space:nowrap`，`a-space` 与 `.action-links` MUST `flex-wrap:nowrap` 且 item `flex:0 0 auto`；按钮按状态最多可同时出现几个就给足列宽，并同步加宽 `scroll.x` 与 `--ft-min-width`（合同台账 170、采购计划 180、项目档案 200、凭证 220），MUST NOT 让「详情 / 清单」「删除」等断行。横向滚动条 MUST 落在分页条正上方而不是紧贴首行数据：`_shared/styles/responsive.css` 统一给 `.ft-scroll.ft-bottom .ant-table-container` 设 `flex:1 1 auto; min-height:0; display:flex; flex-direction:column`，`.ant-table-content` 设 `flex:1 1 auto; min-height:0`，让表格内容区撑满剩余高度；MUST NOT 让少量数据时滚动条停在数据行下方、与分页之间留大片空白。
    - **置灰操作按钮口径（合同/财务所有模块统一，MUST）**：禁用的链接式操作（删除/编辑等）只置灰、不改字号，MUST 用 `.link-disabled { color: var(--muted); cursor: not-allowed }`（继承 `<a>` 默认 14px，与相邻的「编辑/停用」同字号）；MUST NOT 用 `.muted`（带 `font-size:12px` 会让置灰按钮比其它操作小一号），也 MUST NOT 用 `a-button disabled` 的缩小样式。禁用原因用 `a-tooltip` hover 展示即可。
    - **常驻说明提示口径（合同/财务所有模块统一，MUST）**：列表页 MUST NOT 放常驻的说明性 `a-alert`（如「维护口径」）、顶部 `hint` 编码说明、左侧「共 N 个分类/条」计数等提示文字；页面只保留标题、搜索栏、操作按钮与表格。禁用原因、字段来源等解释只在 hover（`a-tooltip`/`title`）或弹窗里出现，不在页面常驻。
    - **工具栏不重复放页面标题 / 右侧说明（合同/财务/采购计划所有模块统一，MUST）**：`ft-head.toolbar` MUST NOT 放 `<h2>` 独立页面标题及紧随的 `divider`，也 MUST NOT 在右侧放 `hint`/`panel-hint` 常驻说明（如「审批通过后转采购合同并带入清单」）；侧栏/页签已标明页面名，工具栏只留筛选控件、`grow` 与操作按钮。卡片/表单内的静态区块标题保留。`polaris-design-web` 设计稿对应页面同步适用。
    - **详情抽屉内嵌区块同样不放常驻说明（合同/财务，MUST）**：合同/财务详情抽屉里的内嵌区块（如合同清单、付款计划）工具栏 MUST NOT 放 `hint`（如「合同金额由清单合计派生」「付款计划从属于合同」）常驻说明；区块标题（`drawer-section-title`）只写短名（「合同清单」「付款计划」），MUST NOT 带括号说明（如「（在详情内维护，不做独立菜单）」）。需要留按钮时用 `<span class="grow" />` 占位保持靠右。字段来源、派生口径等解释只在 hover 或弹窗出现，不在页面常驻。
    - **主子表新建后引导到详情（合同，MUST）**：合同主信息与清单/付款计划是主子表关系，清单依赖合同号、付款计划依赖清单合计派生的金额，MUST NOT 在新建表单里内嵌清单/付款计划的子表编辑（避免先建号再批量落子的复杂事务与校验时序）。新建合同保存成功后 MUST 用返回的 `id` 自动打开详情并滚动定位到清单区（`openDetail(saved.id, true)` + `ref` 锚点 `scrollIntoView`），让用户直接维护清单与付款计划，MUST NOT 只提示「可在详情中维护」后停在原页。
+   - **合同主信息不放「合同标的 / 付款条款」（合同/采购计划转合同，MUST）**：这两个字段的语义已由合同清单（标的具体化）和付款计划（付款条款执行明细）完整承载，主信息表单与详情描述列表 MUST NOT 再出现「合同标的」「付款条款 / 付款 / 验收条款」录入位或展示位（含采购计划转合同抽屉、设计稿对应页面）；仅保留后端字段兼容历史数据，不作为新增/编辑的录入项。用户 2026-11-27 明确取消。
+   - **合同主信息编辑入口（MUST）**：合同列表操作列 MUST 仅在 `status === 'DRAFT'` 且有编辑权限时显示「编辑」，点击复用新增合同抽屉并回填完整主信息（`openEdit(row)` + `editingId`），抽屉标题/保存按钮文案随编辑态变化，保存走 `updateContract(id, payload)`；合同类型在编辑态 MUST 禁用，避免往来单位角色错配。MUST NOT 在详情抽屉里再塞一套主信息可编辑表单；草稿「保存」是列表编辑入口，详情里的「提交审批」是状态流转按钮，两者不合并（2026-11-27 用户确认选列表编辑方案）。
    - **表单标签左对齐口径（合同/财务所有模块统一，MUST）**：表单（含抽屉/弹窗内表单）字段标签文字 MUST 左对齐，必填星号 MUST NOT 挤占标签文字位置——必填项与非必填项的标签文字起点 MUST 在同一条竖线上。AntDV 4 的 `required` 靠 `label::before` 的 `inline-block + margin-inline-end` 占位，会推右必填项文字，因此两个应用的 `src/styles/global.css` MUST 统一覆盖（选择器 MUST 带 `.ant-form .ant-form-item` 前缀提高特异性，压过 AntDV CSS-in-JS 运行时的 `:not()` 规则）：`.ant-form .ant-form-item .ant-form-item-label > label { padding-left: 14px }` 预留星号位；`.ant-form .ant-form-item .ant-form-item-label > label.ant-form-item-required::before { position:absolute; left:0; top:50%; transform:translateY(-50%); margin-inline-end:0 }` 让星号落在预留区不占文字流。MUST NOT 让必填标签文字被星号推后、与非必填标签错位（2026-11-27 客户/供应商新增抽屉曾因此被要求整改）。
 5. **自检**：按 L1 + L2 检查权限、表格、长文本、响应式、主题、回调、监听器清理、换行符与 BOM。
 6. **验证**：`vue-tsc --noEmit` + `vite build` 通过；改 `_shared/` 时 11 个应用全量验证；本地清理守卫拦截时用 `--outDir /tmp/<唯一目录> --emptyOutDir false`。
@@ -56,6 +60,13 @@ agent_created: true
 - 负责人选中后 MUST 自动带出其所属部门写入归属部门（只读、不可手改）；部门为空时给出提示不允许保存。
 - 财务侧选项多为一次性加载的候选，用 `useEntityPickers.ts` 的 `paginatePicker`/`orgRows` 做本地过滤分页；合同侧可直连后端分页接口。
 - 字典枚举字段（企业类型、结算账期、账期天数、付款阶段、评级等）不属于主数据实体，MUST 用 settings 字典下拉，MUST NOT 手输；与主数据弹窗口径不冲突。往来单位档案「结算账期」复用 `finance.credit_period`（30/60/90/180/365），存量「30 天账期」文本在展示/编辑时归一化为档位值（提取数字匹配字典 value）后再保存；提交时若字典已加载 MUST 校验选中值为字典档位，字典加载失败可降级放行。
+
+## 合同状态流转口径（2026-11-27 落地，MUST）
+
+- 合同详情里的「状态」MUST 只读展示（`a-tag`），MUST NOT 用 `a-select` 让用户直接选 DRAFT/PENDING/EFFECTIVE/EXECUTING/COMPLETED/TERMINATED；状态是流程结果，不是可编辑业务字段。
+- 状态流转 MUST 由明确按钮或服务端条件推进，按钮按当前状态收敛：草稿→「提交审批」；销售合同审批中→「审批通过 / 退回草稿」（采购合同审批中不提供手工按钮，等审批中心回调）；已生效→「开始执行 / 终止合同」；执行中→「完成合同 / 终止合同」；已完成/已终止无按钮。危险流转（终止/完成）先 `Modal.confirm`，确认后再调状态接口。
+- 前端按钮 MUST NOT 自行拼状态值绕过状态机，统一调 `changeContractStatus(id, target)`；服务端按状态机白名单校验，前端按钮集合只是可见入口，不是唯一防线。
+- 采购合同未达审批线提交后服务端直接置「已生效」，前端 MUST 以接口返回的最新详情刷新状态，不得假设一定停在审批中。
 
 ## 当前登录人/部门默认带出口径（合同/财务所有模块统一，MUST）
 

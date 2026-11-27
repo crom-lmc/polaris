@@ -75,7 +75,7 @@ const columns = [
   { title: '已入账', key: 'usedAmount', align: 'right' as const, width: 120 },
   { title: '执行率', key: 'usage', width: 140 },
   { title: '状态', key: 'status', align: 'center' as const, width: 100 },
-  { title: '操作', key: 'action', width: 170 }
+  { title: '操作', key: 'action', width: 200 }
 ]
 const contractColumns = [
   { title: '合同编号', dataIndex: 'no', key: 'no', width: 170 },
@@ -234,11 +234,9 @@ onMounted(() => { load(); loadOrg() })
         <div class="stat-card"><span class="st-label">项目预算合计</span><strong class="st-value">{{ yuan(stats.budget) }}</strong><span class="st-foot"><b>本页合计</b></span></div>
         <div class="stat-card"><span class="st-label">预算执行率</span><strong class="st-value">{{ stats.budget ? (stats.used / stats.budget * 100).toFixed(1) : '0' }}%</strong><span class="st-foot"><b>已入账 {{ yuan(stats.used) }}</b></span></div>
       </div>
-      <a-alert class="panel-card" type="info" show-icon message="业务项目 ≠ 组织架构里的项目组"
-               description="项目档案承载合同、预算、成本与收入归集，有自己的流水编码；成本中心引用公司主体、项目组引用组织节点，归属组织由项目组带出。合同通过「所属项目」单向挂到项目，项目侧不维护合同。" />
       <a-table class="ft-table" row-key="id" :columns="columns" :data-source="rows" :loading="loading"
                :pagination="pagination" :class="{ 'tbl-empty-mode': !loading && !rows.length }"
-               :scroll="rows.length ? { x: 1750 } : undefined">
+               :scroll="rows.length ? { x: 1780 } : undefined" style="--ft-min-width: 1780px">
         <template #bodyCell="{ column, record }">
           <template v-if="column.key === 'name'">
             <a-tooltip :title="record.name"><span class="cell-ellipsis">{{ record.name }}</span></a-tooltip>
