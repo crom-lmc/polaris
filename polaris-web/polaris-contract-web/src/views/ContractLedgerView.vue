@@ -104,7 +104,7 @@ async function loadOptions() {
 }
 
 const columns = computed(() => [
-  { title: '合同编号', dataIndex: 'no', key: 'no', width: 170 },
+  { title: '合同编号', dataIndex: 'no', key: 'no', width: 240 },
   { title: '类型', key: 'type', align: 'center' as const, width: 100 },
   { title: '来源', key: 'contractSource', align: 'center' as const, width: 90 },
   { title: '合同名称', key: 'name', width: 230 },
@@ -221,9 +221,12 @@ onMounted(() => { load(); loadOptions() })
       </div>
       <a-table class="ft-table" row-key="id" :columns="columns" :data-source="rows" :loading="loading"
                :pagination="pagination" :class="{ 'tbl-empty-mode': !loading && !rows.length }"
-               :scroll="rows.length ? { x: 2370 } : undefined" style="--ft-min-width: 2370px">
+               :scroll="rows.length ? { x: 2440 } : undefined" style="--ft-min-width: 2440px">
         <template #bodyCell="{ column, record }">
-          <template v-if="column.key === 'name'">
+          <template v-if="column.key === 'no'">
+            <a-tooltip :title="record.no"><span class="cell-ellipsis">{{ record.no }}</span></a-tooltip>
+          </template>
+          <template v-else-if="column.key === 'name'">
             <a-tooltip :title="record.name"><span class="cell-ellipsis">{{ record.name }}</span></a-tooltip>
           </template>
           <template v-else-if="column.key === 'partnerName'">

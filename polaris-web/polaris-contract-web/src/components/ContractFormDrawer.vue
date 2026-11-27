@@ -11,7 +11,7 @@ import { useIsMobile } from '@/composables/useIsMobile'
 import { useOrgDirectory } from '@/composables/useOrgDirectory'
 import {
   saveContract, updateContract, changeContractStatus, convertPurchasePlan,
-  getProjectOptions, listPartners, uploadContractAttachment, fetchActiveEmployees, listItems, listPaymentTerms,
+  getProjectOptions, listPartners, uploadContractAttachment, fetchActiveEmployees, listItems,
   type ContractVO, type ContractSave, type ProjectOptionVO, type PartnerVO, type OrgEmployeeVO,
   type PurchasePlanVO, type PurchasePlanItemVO
 } from '@/api/contract'
@@ -62,6 +62,8 @@ const partnerPickerOpen = ref(false)
 const projectPickerOpen = ref(false)
 const ownerPickerOpen = ref(false)
 const saving = ref(false)
+/** 付款节点组件实例：提交审批时先自动保存编辑态节点，避免「填了没保存」被拦 */
+const termsRef = ref<InstanceType<typeof PaymentTermsEditor> | null>(null)
 /** 清单变更版本号：通知付款节点组件重算清单合计（锁定金额预览） */
 const itemsVersion = ref(0)
 
@@ -226,14 +228,16 @@ async function submitAndApprove() {
   try {
     const items = await listItems(props.contract.no)
     if (!items?.length) { message.warning('请先维护合同清单，再提交审批'); return }
-    const terms = await listPaymentTerms(props.contract.no)
-    if (!terms?.length) { message.warning('请先配置付款节点，再提交审批（比例合计 100%，须含验收款）'); return }
-  } catch (e: any) { message.error(e?.message || '检查合同清单/付款节点失败'); return }
+  } catch (e: any) { message.error(e?.message || '检查合同清单失败'); return }
+  // 付款节点：编辑态可能填了但没点「保存节点」，提交前自动保存（比例/验收款校验由节点组件负责）
+  if (termsRef.value && !(await termsRef.value.save())) return
   Modal.confirm({
     centered: true,
     title: '提交审批',
     content: '提交后将进入审批流程，由审批中心审批通过后合同才生效，确认吗？',
     onOk: async () => {
+      // 用户在确认弹窗停留期间可能又改了节点，确认后再保存一次保证落库最新值
+      if (termsRef.value && !(await termsRef.value.save())) return
       saving.value = true
       try {
         const id = props.contract!.id
@@ -321,7 +325,7 @@ onMounted(() => { loadOrgDirectory() })
         <ContractItemsEditor :contract-no="contract.no" :contract-status="contract.status" :contract-type="contract.type"
                              @changed="itemsVersion++" />
 
-        <PaymentTermsEditor :contract-no="contract.no" :contract-status="contract.status" :items-version="itemsVersion" />
+        <PaymentTermsEditor ref="termsRef" :contract-no="contract.no" :contract-status="contract.status" :items-version="itemsVersion" />
       </template>
 
       <template v-else-if="isConvert">

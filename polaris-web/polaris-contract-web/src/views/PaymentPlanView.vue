@@ -82,7 +82,7 @@ function resetPage() { localPage.value = 1 }
 
 const columns = [
   { title: '付款申请单号', dataIndex: 'no', key: 'no', width: 170 },
-  { title: '合同编号', dataIndex: 'contractNo', key: 'contractNo', width: 170 },
+  { title: '合同编号', dataIndex: 'contractNo', key: 'contractNo', width: 240 },
   { title: '合同名称', key: 'contractName', width: 220 },
   { title: '付款阶段', dataIndex: 'stage', key: 'stage', width: 140 },
   { title: '本期付款金额', key: 'amount', align: 'right' as const, width: 140 },
@@ -269,11 +269,14 @@ onMounted(() => {
       </div>
       <a-table class="ft-table" row-key="id" :columns="columns" :data-source="paged" :loading="loading"
                :pagination="pagination" :class="{ 'tbl-empty-mode': !loading && !paged.length }"
-               :scroll="paged.length ? { x: 1530 } : undefined">
+               :scroll="paged.length ? { x: 1600 } : undefined">
           <template #bodyCell="{ column, record }">
           <template v-if="column.key === 'no'">
             <a-tooltip v-if="record.no" :title="record.no"><span class="cell-ellipsis">{{ record.no }}</span></a-tooltip>
             <span v-else class="muted">-</span>
+          </template>
+          <template v-else-if="column.key === 'contractNo'">
+            <a-tooltip :title="record.contractNo"><span class="cell-ellipsis">{{ record.contractNo || '-' }}</span></a-tooltip>
           </template>
           <template v-else-if="column.key === 'contractName'">
             <a-tooltip :title="record.contractName"><span class="cell-ellipsis">{{ record.contractName || '-' }}</span></a-tooltip>

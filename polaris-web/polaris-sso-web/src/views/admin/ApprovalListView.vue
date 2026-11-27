@@ -882,13 +882,15 @@ onMounted(load)
   margin-bottom: 10px;
   color: var(--muted);
 }
-/* 批量审批弹窗：默认 footer 按钮紧贴文本框右下角的“0/200”计数。
-   改用自定义 footer——按钮另起一行、留出上边距，右缘与输入框/弹窗右边框对齐。 */
-.batch-modal :deep(.ant-modal-footer) {
-  padding: 20px 24px 16px;
+/* 批量审批弹窗：按钮组往右下角移，与文本框右下角的“0/200”计数拉开距离。
+   Modal 内容 teleport 到 body，scoped/:deep 选择器拿不到 data-v 属性，必须用 :global 全局选择器；
+   自定义 footer 撑满宽度才能真正右对齐，上边距加大让按钮另起一行。 */
+:global(.batch-modal .ant-modal-footer) {
+  padding: 30px 16px 18px !important;
 }
-.batch-footer {
+:global(.batch-modal .batch-footer) {
   display: flex;
+  width: 100%;
   justify-content: flex-end;
   gap: 8px;
 }

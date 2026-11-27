@@ -69,12 +69,13 @@ function addRow() {
 }
 function removeRow(index: number) { rows.value.splice(index, 1) }
 
-async function save() {
-  if (!editable.value) return
-  if (!rows.value.length) { message.warning('请至少配置一个付款节点'); return }
-  if (totalRatio.value !== 100) { message.warning(`付款节点比例合计必须为 100%，当前 ${totalRatio.value}%`); return }
-  if (!hasAccept.value) { message.warning('付款节点必须包含验收款'); return }
-  if (rows.value.some((r) => !r.ratio || Number(r.ratio) <= 0)) { message.warning('每个付款节点比例必须大于 0'); return }
+/** 保存节点；silent=true 供提交审批自动调用，不重复弹成功提示。返回是否就绪（true=已保存/无需保存） */
+async function save(silent = false): Promise<boolean> {
+  if (!editable.value || props.readonly) return true
+  if (!rows.value.length) { message.warning('请至少配置一个付款节点'); return false }
+  if (totalRatio.value !== 100) { message.warning(`付款节点比例合计必须为 100%，当前 ${totalRatio.value}%`); return false }
+  if (!hasAccept.value) { message.warning('付款节点必须包含验收款'); return false }
+  if (rows.value.some((r) => !r.ratio || Number(r.ratio) <= 0)) { message.warning('每个付款节点比例必须大于 0'); return false }
   saving.value = true
   try {
     const payload: PaymentTermSave[] = rows.value.map((r) => ({
@@ -83,11 +84,15 @@ async function save() {
     }))
     const saved = await savePaymentTerms(props.contractNo, payload)
     rows.value = saved
-    message.success('付款节点已保存，金额按当前清单合计锁定')
+    if (!silent) message.success('付款节点已保存，金额按当前清单合计锁定')
     emit('saved', saved)
-  } catch (e: any) { message.error(e?.message || '付款节点保存失败') }
+    return true
+  } catch (e: any) { message.error(e?.message || '付款节点保存失败'); return false }
   finally { saving.value = false }
 }
+
+/** 供父组件提交审批前调用：自动保存编辑态节点，未保存/校验失败返回 false 阻止提交 */
+defineExpose({ save: () => save(true) })
 </script>
 
 <template>
@@ -99,7 +104,7 @@ async function save() {
       </span>
       <span class="grow" />
       <a-button v-if="editable" size="small" @click="addRow">＋ 添加节点</a-button>
-      <a-button v-if="editable" size="small" type="primary" :loading="saving" @click="save">保存节点</a-button>
+      <a-button v-if="editable" size="small" type="primary" :loading="saving" @click="save()">保存节点</a-button>
     </div>
     <a-table class="ft-table" row-key="stage" size="small" :columns="columns" :data-source="rows"
              :loading="loading" :pagination="false" :scroll="rows.length ? { x: editable ? 720 : 640 } : undefined">

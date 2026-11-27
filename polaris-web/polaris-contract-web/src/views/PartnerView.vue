@@ -80,11 +80,11 @@ async function load() {
 function resetAndLoad() { query.page = 1; load() }
 
 const columns = [
-  { title: '单位编码', dataIndex: 'code', key: 'code', width: 120 },
+  { title: '单位编码', dataIndex: 'code', key: 'code', width: 170 },
   { title: '单位名称', key: 'name', width: 200 },
   { title: '角色', key: 'role', align: 'center' as const, width: 90 },
   { title: '主体类型', key: 'subjectType', align: 'center' as const, width: 100 },
-  { title: '企业类型', dataIndex: 'type', key: 'type', width: 110 },
+  { title: '企业类型', dataIndex: 'type', key: 'type', width: 150 },
   { title: '信用代码 / 身份证号', dataIndex: 'creditCode', key: 'creditCode', width: 200 },
   { title: '法定代表人', dataIndex: 'legalPerson', key: 'legalPerson', width: 100 },
   { title: '联系人', dataIndex: 'contact', key: 'contact', width: 100 },
@@ -233,9 +233,12 @@ onMounted(() => {
       </div>
       <a-table class="ft-table partner-table" row-key="id" :columns="columns" :data-source="displayRows" :loading="loading"
                :pagination="pagination" :class="{ 'tbl-empty-mode': !loading && !displayRows.length }"
-               :scroll="displayRows.length ? { x: 1750 } : undefined">
+               :scroll="displayRows.length ? { x: 1840 } : undefined">
         <template #bodyCell="{ column, record }">
-          <template v-if="column.key === 'name'">
+          <template v-if="column.key === 'code'">
+            <a-tooltip :title="record.code"><span class="cell-ellipsis">{{ record.code }}</span></a-tooltip>
+          </template>
+          <template v-else-if="column.key === 'name'">
             <a-tooltip :title="record.name"><span class="cell-ellipsis">{{ record.name }}</span></a-tooltip>
           </template>
           <template v-else-if="column.key === 'creditCode'">
@@ -247,7 +250,9 @@ onMounted(() => {
           <template v-else-if="column.key === 'subjectType'">
             <a-tag :color="record.subjectType === 'PERSON' ? 'purple' : 'default'">{{ subjectTypeLabel[record.subjectType] || '企业' }}</a-tag>
           </template>
-          <template v-else-if="column.key === 'type'">{{ enterpriseTypeLabel(record.type) }}</template>
+          <template v-else-if="column.key === 'type'">
+            <a-tooltip :title="enterpriseTypeLabel(record.type)"><span class="cell-ellipsis">{{ enterpriseTypeLabel(record.type) }}</span></a-tooltip>
+          </template>
           <template v-else-if="column.key === 'terms'">{{ termsLabel(record.terms) }}</template>
           <template v-else-if="column.key === 'rating'"><a-tag>{{ record.rating }} 级</a-tag></template>
           <template v-else-if="column.key === 'status'">

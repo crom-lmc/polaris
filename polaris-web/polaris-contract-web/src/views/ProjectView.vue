@@ -78,7 +78,7 @@ const columns = [
   { title: '操作', key: 'action', width: 200 }
 ]
 const contractColumns = [
-  { title: '合同编号', dataIndex: 'no', key: 'no', width: 170 },
+  { title: '合同编号', dataIndex: 'no', key: 'no', width: 240 },
   { title: '类型', key: 'type', align: 'center' as const, width: 80 },
   { title: '合同名称', key: 'name', width: 220 },
   { title: '金额', key: 'amount', align: 'right' as const, width: 130 }
@@ -143,6 +143,7 @@ async function openDetail(id: string) {
 /* 新增 / 编辑 */
 const editOpen = ref(false)
 const editing = ref<string | null>(null)
+const editingCode = ref('')
 const saving = ref(false)
 const form = reactive<ProjectSave>({
   name: '', type: 'INTERNAL', orgCode: '', teamCode: '', costCenterCode: '', owner: '',
@@ -157,6 +158,7 @@ function resetForm() {
 function openEdit(row?: ProjectVO) {
   detailOpen.value = false
   editing.value = row?.id || null
+  editingCode.value = row?.code || ''
   resetForm()
   if (row) {
     Object.assign(form, {
@@ -258,9 +260,9 @@ onMounted(() => { load(); loadOrg() })
             <a-space :size="4">
               <a @click="openDetail(record.id)">详情</a>
               <template v-if="store.can('contract:project:edit')">
-                <a @click="openEdit(record)">编辑</a>
+                <a v-if="record.status === 'DRAFT'" @click="openEdit(record)">编辑</a>
                 <a v-if="nextStatus(record.status)" @click="applyStatus(record)">{{ nextStatus(record.status)?.label }}</a>
-                <a @click="remove(record)">删除</a>
+                <a v-if="record.status === 'DRAFT'" @click="remove(record)">删除</a>
               </template>
             </a-space>
           </template>
@@ -300,9 +302,12 @@ onMounted(() => { load(); loadOrg() })
         </a-card>
         <div class="panel-section-title">归集合同（{{ detailContracts.length }} 份 · 在合同台账维护「所属项目」，此处只读反查）</div>
         <a-table class="ft-table" row-key="no" :columns="contractColumns" :data-source="detailContracts" :pagination="false"
-                 :scroll="detailContracts.length ? { x: 620 } : undefined">
+                 :scroll="detailContracts.length ? { x: 690 } : undefined">
           <template #bodyCell="{ column, record }">
-            <template v-if="column.key === 'name'">
+            <template v-if="column.key === 'no'">
+              <a-tooltip :title="record.no"><span class="cell-ellipsis">{{ record.no }}</span></a-tooltip>
+            </template>
+            <template v-else-if="column.key === 'name'">
               <a-tooltip :title="record.name"><span class="cell-ellipsis">{{ record.name }}</span></a-tooltip>
             </template>
             <template v-else-if="column.key === 'type'">{{ record.type === 'SALES' ? '销售' : '采购' }}</template>
@@ -314,7 +319,7 @@ onMounted(() => { load(); loadOrg() })
       <template #footer>
         <div class="drawer-footer">
           <a-button @click="detailOpen = false">关闭</a-button>
-          <a-button v-if="store.can('contract:project:edit') && detail" type="primary" @click="openEdit(detail)">编辑档案</a-button>
+          <a-button v-if="store.can('contract:project:edit') && detail?.status === 'DRAFT'" type="primary" @click="openEdit(detail)">编辑档案</a-button>
         </div>
       </template>
     </a-drawer>
@@ -323,7 +328,7 @@ onMounted(() => { load(); loadOrg() })
       <a-form layout="vertical">
         <a-card class="panel-card" size="small" title="基本信息">
           <a-row :gutter="12">
-            <a-col :span="12"><a-form-item label="项目编码"><a-input :value="editing && detail ? detail.code : ''" disabled :placeholder="editing ? '' : '保存时自动生成'" /></a-form-item></a-col>
+            <a-col :span="12"><a-form-item label="项目编码"><a-input :value="editingCode" disabled :placeholder="editing ? '' : '保存时自动生成'" /></a-form-item></a-col>
             <a-col :span="12"><a-form-item label="项目名称" required><a-input v-model:value="form.name" /></a-form-item></a-col>
           </a-row>
           <a-row :gutter="12">
