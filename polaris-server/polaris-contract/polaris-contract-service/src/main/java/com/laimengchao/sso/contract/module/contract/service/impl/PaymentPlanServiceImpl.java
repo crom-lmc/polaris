@@ -21,7 +21,10 @@ import com.laimengchao.sso.contract.module.contract.mapper.ContractPaymentPlanMa
 import com.laimengchao.sso.contract.module.contract.support.ContractApprovalLauncher;
 import com.laimengchao.sso.contract.module.contract.support.ContractAttachments;
 import com.laimengchao.sso.contract.module.contract.vo.ContractVOs;
+import com.laimengchao.sso.settings.client.api.ApprovalApi;
+import com.laimengchao.sso.settings.client.dto.ApprovalInstanceDTO;
 import com.laimengchao.sso.settings.client.dto.ApprovalStartDTO;
+import com.laimengchao.sso.settings.client.dto.ApprovalTaskDTO;
 import com.laimengchao.sso.contract.security.DataScopeService;
 import com.laimengchao.sso.file.client.api.FileApi;
 import lombok.RequiredArgsConstructor;
@@ -58,6 +61,7 @@ public class PaymentPlanServiceImpl implements PaymentPlanService {
     private final DataScopeService dataScopeService;
     private final FileApi fileApi;
     private final ContractApprovalLauncher approvalLauncher;
+    private final ApprovalApi approvalApi;
     private final BizNoService bizNoService;
 
     @Value("${contract.internal-base-url:http://127.0.0.1:9015}")
@@ -291,6 +295,58 @@ public class PaymentPlanServiceImpl implements PaymentPlanService {
                 .eq(ContractPaymentPlan::getId, id)
                 .eq(ContractPaymentPlan::getStatus, "PENDING")
                 .set(ContractPaymentPlan::getStatus, pass ? "APPROVED" : "REJECTED")) > 0;
+    }
+
+    @Override
+    public ContractVOs.ApprovalInfoVO approvalInfo(Long id) {
+        require(id); // 复用数据权限校验，未发起的付款计划也允许查（返回 null）
+        String bizId = String.valueOf(id);
+        // 同一付款计划可能因金额是否超升级线走 contract.payment / contract.payment.senior 两套模板，
+        // 两处都查，取雪花 ID 最大的那张（latest 已按 id 倒序，跨模板需手动比）
+        ApprovalInstanceDTO found = null;
+        for (String bizType : new String[]{BIZ_PAYMENT, BIZ_PAYMENT_SENIOR}) {
+            com.laimengchao.sso.settings.client.dto.R<ApprovalInstanceDTO> resp = approvalApi.latest(bizType, bizId);
+            ApprovalInstanceDTO inst = resp != null && resp.ok() ? resp.getData() : null;
+            if (inst != null && inst.getId() != null
+                    && (found == null || inst.getId() > found.getId())) {
+                found = inst;
+            }
+        }
+        if (found == null) {
+            return null;
+        }
+        ContractVOs.ApprovalInfoVO vo = new ContractVOs.ApprovalInfoVO();
+        vo.setId(String.valueOf(found.getId()));
+        vo.setBizType(found.getBizType());
+        vo.setBizNo(found.getBizNo());
+        vo.setTitle(found.getTitle());
+        vo.setStatus(found.getStatus());
+        vo.setStatusName(found.getStatusName());
+        vo.setApplicantName(found.getApplicantName());
+        vo.setCreatedAt(fmt(found.getCreatedAt()));
+        vo.setFinishedAt(fmt(found.getFinishedAt()));
+        java.util.List<ContractVOs.ApprovalInfoVO.ApprovalTaskVO> tasks = new java.util.ArrayList<>();
+        if (found.getTasks() != null) {
+            for (ApprovalTaskDTO t : found.getTasks()) {
+                ContractVOs.ApprovalInfoVO.ApprovalTaskVO tv = new ContractVOs.ApprovalInfoVO.ApprovalTaskVO();
+                tv.setId(String.valueOf(t.getId()));
+                tv.setStepSeq(t.getStepSeq());
+                tv.setStepName(t.getStepName());
+                tv.setNodeName(t.getNodeName());
+                tv.setApproverName(t.getApproverName());
+                tv.setStatus(t.getStatus());
+                tv.setStatusName(t.getStatusName());
+                tv.setOpinion(t.getOpinion());
+                tv.setActedAt(fmt(t.getActedAt()));
+                tasks.add(tv);
+            }
+        }
+        vo.setTasks(tasks);
+        return vo;
+    }
+
+    private static String fmt(java.time.LocalDateTime t) {
+        return t == null ? null : t.toString();
     }
 
     /**

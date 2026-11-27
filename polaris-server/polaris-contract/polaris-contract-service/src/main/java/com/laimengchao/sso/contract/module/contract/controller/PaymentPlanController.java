@@ -57,4 +57,11 @@ public class PaymentPlanController {
         planService.delete(id);
         return R.ok();
     }
+
+    /** 已发起审批的付款计划查看审批信息（复用 settings 审批中心；未发起时 data=null） */
+    @GetMapping("/{id}/approval")
+    @Permit(PermissionCodes.CONTRACT_PAYMENT_LIST)
+    public R<?> approvalInfo(@PathVariable("id") Long id) {
+        return R.ok(planService.approvalInfo(id));
+    }
 }

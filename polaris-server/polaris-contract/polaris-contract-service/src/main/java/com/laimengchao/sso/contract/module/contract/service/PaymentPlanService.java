@@ -28,6 +28,9 @@ public interface PaymentPlanService {
     /** 审批中心终审回调：通过 PENDING→APPROVED，驳回/撤回/终止 PENDING→REJECTED（幂等） */
     boolean handleApprovalResult(String bizId, Boolean approved, Integer result);
 
+    /** 付款计划发起审批后的只读审批信息（复用 settings 审批中心；未发起返回 null） */
+    ContractVOs.ApprovalInfoVO approvalInfo(Long id);
+
     /** 财务域回写来源单据号、凭证号与状态（internal token 准入） */
     ContractVOs.PaymentPlanVO writeBack(Long id, String sourceDocNo, String voucherNo, String status);
 

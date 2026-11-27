@@ -215,6 +215,35 @@ public final class ContractVOs {
         private int remindDays;
     }
 
+    /** 付款计划发起审批后的只读审批信息（复用 settings 审批中心，雪花 ID 按 String 下发） */
+    @Data
+    public static class ApprovalInfoVO {
+        private String id;
+        private String bizType;
+        private String bizNo;
+        private String title;
+        /** 0 进行中 1 已通过 2 已驳回 3 已撤回 4 已终止 */
+        private Integer status;
+        private String statusName;
+        private String applicantName;
+        private String createdAt;
+        private String finishedAt;
+        private java.util.List<ApprovalTaskVO> tasks;
+
+        @Data
+        public static class ApprovalTaskVO {
+            private String id;
+            private Integer stepSeq;
+            private String stepName;
+            private String nodeName;
+            private String approverName;
+            private Integer status;
+            private String statusName;
+            private String opinion;
+            private String actedAt;
+        }
+    }
+
     @Data
     public static class PurchasePlanVO {
         @JsonSerialize(using = ToStringSerializer.class)
