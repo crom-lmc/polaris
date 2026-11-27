@@ -417,6 +417,8 @@ public final class PermissionConstants {
     public static final String CONTRACT_MATERIAL_LIST = "contract:material:list";
     public static final String CONTRACT_MATERIAL_MAINTAIN_LIST = "contract:material-maintain:list";
     public static final String CONTRACT_MATERIAL_EDIT = "contract:material:edit";
+    public static final String CONTRACT_MATERIAL_CATEGORY_ADD = "contract:material:category:add";
+    public static final String CONTRACT_MATERIAL_ADD = "contract:material:add";
     public static final String CONTRACT_PROJECT_LIST = "contract:project:list";
     public static final String CONTRACT_PROJECT_EDIT = "contract:project:edit";
     public static final String CONTRACT_LEDGER_LIST = "contract:ledger:list";
@@ -437,6 +439,8 @@ public final class PermissionConstants {
             new PermDef("新增/审批采购计划", CONTRACT_PLAN_EDIT, PermissionType.BUTTON, CONTRACT_PLAN_LIST, 1),
             new PermDef("维护往来单位", CONTRACT_PARTNER_EDIT, PermissionType.BUTTON, CONTRACT_PARTNER_LIST, 1),
             new PermDef("维护物料", CONTRACT_MATERIAL_EDIT, PermissionType.BUTTON, CONTRACT_MATERIAL_MAINTAIN_LIST, 1),
+            new PermDef("新增分类", CONTRACT_MATERIAL_CATEGORY_ADD, PermissionType.BUTTON, CONTRACT_MATERIAL_LIST, 1),
+            new PermDef("新增物料", CONTRACT_MATERIAL_ADD, PermissionType.BUTTON, CONTRACT_MATERIAL_MAINTAIN_LIST, 2),
             new PermDef("维护项目", CONTRACT_PROJECT_EDIT, PermissionType.BUTTON, CONTRACT_PROJECT_LIST, 1),
             new PermDef("新增/编辑合同", CONTRACT_LEDGER_EDIT, PermissionType.BUTTON, CONTRACT_LEDGER_LIST, 1),
             new PermDef("维护合同清单", CONTRACT_ITEM_EDIT, PermissionType.BUTTON, CONTRACT_LEDGER_LIST, 2),

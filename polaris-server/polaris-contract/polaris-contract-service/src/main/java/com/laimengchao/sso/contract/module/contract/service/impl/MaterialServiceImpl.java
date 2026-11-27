@@ -34,8 +34,8 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class MaterialServiceImpl implements MaterialService {
 
-    private static final String CATEGORY = "CATEGORY";
-    private static final String MATERIAL = "MATERIAL";
+    public static final String CATEGORY = "CATEGORY";
+    public static final String MATERIAL = "MATERIAL";
 
     private final ContractMaterialMapper mapper;
     private final ContractItemMapper itemMapper;

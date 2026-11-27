@@ -4,6 +4,7 @@ import com.laimengchao.sso.common.R;
 import com.laimengchao.sso.common.security.PermissionCodes;
 import com.laimengchao.sso.contract.module.contract.dto.ContractRequests;
 import com.laimengchao.sso.contract.module.contract.service.MaterialService;
+import com.laimengchao.sso.contract.module.contract.service.impl.MaterialServiceImpl;
 import com.laimengchao.sso.contract.security.Permit;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -35,9 +36,23 @@ public class MaterialController {
         return R.ok(materialService.detail(id));
     }
 
+    /** 新增分类：物料库菜单按钮，节点类型由服务端固定，避免与新增物料共用权限码 */
+    @PostMapping("/category")
+    @Permit(PermissionCodes.CONTRACT_MATERIAL_CATEGORY_ADD)
+    public R<?> saveCategory(@RequestBody ContractRequests.MaterialSave req) {
+        if (req != null) {
+            req.setKind(MaterialServiceImpl.CATEGORY);
+        }
+        return R.ok(materialService.save(req));
+    }
+
+    /** 新增物料：物料维护菜单按钮，节点类型由服务端固定 */
     @PostMapping
-    @Permit(PermissionCodes.CONTRACT_MATERIAL_EDIT)
+    @Permit(PermissionCodes.CONTRACT_MATERIAL_ADD)
     public R<?> save(@RequestBody ContractRequests.MaterialSave req) {
+        if (req != null) {
+            req.setKind(MaterialServiceImpl.MATERIAL);
+        }
         return R.ok(materialService.save(req));
     }
 
