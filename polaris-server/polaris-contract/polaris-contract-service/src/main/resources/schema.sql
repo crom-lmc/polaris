@@ -91,6 +91,7 @@ CREATE TABLE IF NOT EXISTS `contract_header` (
   `status` varchar(16) NOT NULL DEFAULT 'DRAFT' COMMENT 'DRAFT/PENDING/EFFECTIVE/EXECUTING/COMPLETED/TERMINATED',
   `payment_terms` varchar(500) NOT NULL DEFAULT '' COMMENT '付款条款',
   `subject` varchar(200) NOT NULL DEFAULT '' COMMENT '合同标的',
+  `note` varchar(200) NOT NULL DEFAULT '' COMMENT '备注（非必填，200字）',
   `budget_subject` varchar(200) NOT NULL DEFAULT '' COMMENT '预算科目（财务主数据名称，采购计划转入时固定取计划值）',
   `contract_source` varchar(16) NOT NULL DEFAULT 'DIRECT' COMMENT '来源：DIRECT 直接新建 / FROM_PLAN 采购计划转入',
   `plan_no` varchar(32) DEFAULT NULL COMMENT '来源采购计划号（FROM_PLAN 时带入）',

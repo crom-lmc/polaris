@@ -38,6 +38,18 @@ agent_created: true
 6. **验证**：`mvn -o -q -pl <模块> -am -DskipTests compile` 通过；失败先修复再进入下一步。
 7. **收尾**：在仓库外 `F:\code\迭代文档\polaris-server\update.md` 顶部追加记录；最终回复列明需重启应用与未提交/未部署状态；未经明确指令不提交不部署。提交时备注用中文（格式 `类型(范围): 中文概述`），前后端改动必须分开提交——后端代码及平台侧配套（SQL/Nacos/网关/部署）一个 commit，前端代码另一个 commit，不混提。生产后端发布 MUST 用 `deploy/rolling-restart.sh` 滚动重启：一次一个服务、等 healthy/running、间隔 30 秒，失败即停；MUST NOT 用 `docker compose up -d` 一次拉起全部。
 
+## 合同主信息必填与往来单位角色口径（2026-11-27 落地）
+
+- 新建合同（`POST /api/contract/contracts`）除备注外全部必填：合同名称、往来单位、所属项目、归属部门、负责人、签订/生效/到期日期；服务端 MUST 校验，前端校验不是唯一防线。
+- 往来单位按合同类型校验角色：PURCHASE 只允许 SUPPLIER/BOTH，SALES 只允许 CUSTOMER/BOTH，不匹配拒绝保存（与前端弹窗过滤同口径）。
+- 合同备注用独立字段 `note`（`contract_header.note varchar(200)`，迁移 50），MUST NOT 复用 `ContractSave.remark`——后者是「变更原因」只写入 `contract_change_log` 不落主表。局部更新未传 note 时保留原值，新建落空串；长度 >200 拒绝。
+
+## 当前登录人/部门默认带出口径（2026-11-27 落地）
+
+- 所有「申请人/需求部门/归属部门」默认当前登录人及其部门时，MUST 由服务端按 `AccountContext.getAccountId()` 从 EHR 员工（`activeEmployees`）→ 组织树（`tree`）反查，提供 `GET /<域>/<资源>/my-profile` 端点（如 finance `/api/finance/expenses/my-profile`、contract `/api/contract/purchase-plans/my-profile`）。
+- **MUST NOT 依赖前端用 `/api/auth/me` 的 `accountId` 本地匹配 EHR 员工**——雪花 ID 19 位在浏览器以 number 解析会丢精度，`String(accountId)` 匹配失败导致部门静默为空（2026-11-27 采购计划「需求部门」带不出来即此根因）。前端本地目录推导只作 EHR 不可用时的兜底。
+- 服务端反查失败（账号上下文空 / EHR 无员工 / 员工无 orgId / 组织不存在）时返回空串字段并 `log.warn`，不抛异常拖垮表单；新建单据落库时以服务端反查值为准，前端传值仅兜底（审批按部门名称解析负责人，部门必须准确）。
+
 ## 财务报销特有口径（2026-11-27 落地）
 
 - 报销类型 MUST 取 settings 字典 `finance.expense_type`；「类型 → 会计科目」映射只维护在字典项 `remark`（JSON `subjectCode`/`subjectName`），后端解析并校验 `fin_subject`，不得在财务服务本地建配置表或写死枚举。

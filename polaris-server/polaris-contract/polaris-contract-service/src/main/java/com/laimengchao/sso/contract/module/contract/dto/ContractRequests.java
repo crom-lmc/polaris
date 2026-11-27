@@ -95,6 +95,8 @@ public final class ContractRequests {
         private String paymentTerms;
         /** 合同标的 */
         private String subject;
+        /** 备注（非必填，200 字） */
+        private String note;
         private String orgCode;
         /** 变更原因（仅用于变更留痕，不写入合同主表） */
         private String remark;

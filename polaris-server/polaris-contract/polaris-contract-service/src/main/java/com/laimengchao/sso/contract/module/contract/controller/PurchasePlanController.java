@@ -34,6 +34,13 @@ public class PurchasePlanController {
         return R.ok(planService.page(no, status, keyword, page, size));
     }
 
+    /** 发起采购计划的默认申请人/需求部门：服务端从 EHR 反查，避免前端雪花 ID 精度丢失 */
+    @GetMapping("/my-profile")
+    @Permit(PermissionCodes.CONTRACT_PLAN_LIST)
+    public R<?> myProfile() {
+        return R.ok(planService.myProfile());
+    }
+
     @GetMapping("/{id}")
     @Permit(PermissionCodes.CONTRACT_PLAN_LIST)
     public R<?> detail(@PathVariable("id") Long id) {

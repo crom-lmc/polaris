@@ -22,17 +22,21 @@ import com.laimengchao.sso.contract.module.contract.mapper.ContractPurchasePlanI
 import com.laimengchao.sso.contract.module.contract.mapper.ContractPurchasePlanMapper;
 import com.laimengchao.sso.contract.module.contract.support.ContractAttachments;
 import com.laimengchao.sso.contract.module.contract.vo.ContractVOs;
+import com.laimengchao.sso.ehr.client.api.EhrOrgApi;
 import com.laimengchao.sso.file.client.api.FileApi;
 import com.laimengchao.sso.contract.security.DataScopeService;
+import com.laimengchao.sso.utils.AccountContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 /** 采购计划：审批通过后转采购合同，明细带入合同清单。 */
 @Slf4j
@@ -51,6 +55,68 @@ public class PurchasePlanServiceImpl implements PurchasePlanService {
     private final ContractItemService itemService;
     private final DataScopeService dataScopeService;
     private final FileApi fileApi;
+    private final EhrOrgApi ehrOrgApi;
+
+    /**
+     * 发起采购计划的默认申请人/需求部门。服务端按账号 ID 在 EHR 员工与组织树中反查，
+     * 避免前端用 /api/auth/me 的雪花 ID 做本地匹配时丢精度导致部门静默为空。
+     */
+    @Override
+    public ContractVOs.PurchasePlanProfileVO myProfile() {
+        ContractVOs.PurchasePlanProfileVO vo = new ContractVOs.PurchasePlanProfileVO();
+        Long accountId = AccountContext.getAccountId();
+        if (accountId == null) {
+            log.warn("采购计划默认部门解析失败：当前账号上下文为空");
+            return vo;
+        }
+        String account = String.valueOf(accountId);
+        Map<String, Object> emp = activeEmployees().stream()
+                .filter(e -> account.equals(text(e.get("id"))))
+                .findFirst().orElse(null);
+        if (emp == null) {
+            log.warn("采购计划默认部门解析失败：EHR 未找到账号 {} 对应的在职员工", account);
+            return vo;
+        }
+        vo.setApplicant(text(emp.get("name")));
+        String orgId = text(emp.get("orgId"));
+        if (!StringUtils.hasText(orgId)) {
+            log.warn("采购计划默认部门解析失败：账号 {} 对应员工未维护所属组织", account);
+            return vo;
+        }
+        Map<String, Object> org = orgTree().stream()
+                .filter(n -> orgId.equals(text(n.get("id"))))
+                .findFirst().orElse(null);
+        if (org == null) {
+            log.warn("采购计划默认部门解析失败：EHR 组织 {} 不存在", orgId);
+            return vo;
+        }
+        vo.setDept(text(org.get("name")));
+        return vo;
+    }
+
+    private List<Map<String, Object>> activeEmployees() {
+        try {
+            var resp = ehrOrgApi.activeEmployees();
+            return resp != null && resp.ok() && resp.getData() != null ? resp.getData() : List.of();
+        } catch (Exception e) {
+            log.warn("采购计划默认申请人读取 EHR 在职员工失败：{}", e.getMessage());
+            return List.of();
+        }
+    }
+
+    private List<Map<String, Object>> orgTree() {
+        try {
+            var resp = ehrOrgApi.tree();
+            return resp != null && resp.ok() && resp.getData() != null ? resp.getData() : List.of();
+        } catch (Exception e) {
+            log.warn("采购计划默认部门读取 EHR 组织树失败：{}", e.getMessage());
+            return List.of();
+        }
+    }
+
+    private static String text(Object value) {
+        return value == null ? "" : String.valueOf(value).trim();
+    }
 
     public PageResult<ContractVOs.PurchasePlanVO> page(String no, String status, String keyword,
                                                         int page, int size) {
@@ -86,11 +152,13 @@ public class PurchasePlanServiceImpl implements PurchasePlanService {
         if (req == null || req.getTitle() == null || req.getTitle().isBlank()) {
             throw new BizException(ErrorCode.PARAM_ERROR, "采购计划标题不能为空");
         }
+        // 申请人/需求部门以服务端 EHR 反查为准（审批按部门名称取负责人），前端传值仅在 EHR 不可用时兜底
+        ContractVOs.PurchasePlanProfileVO profile = myProfile();
         ContractPurchasePlan entity = new ContractPurchasePlan();
         entity.setNo(bizNoService.next(BizNoServiceImpl.TABLE_PURCHASE_PLAN));
         entity.setTitle(req.getTitle().trim());
-        entity.setDept(nvl(req.getDept(), ""));
-        entity.setApplicant(nvl(req.getApplicant(), ""));
+        entity.setDept(StringUtils.hasText(profile.getDept()) ? profile.getDept() : nvl(req.getDept(), ""));
+        entity.setApplicant(StringUtils.hasText(profile.getApplicant()) ? profile.getApplicant() : nvl(req.getApplicant(), ""));
         entity.setDate(req.getDate() == null ? java.time.LocalDate.now() : req.getDate());
         entity.setNeedDate(req.getNeedDate());
         entity.setStatus("DRAFT");

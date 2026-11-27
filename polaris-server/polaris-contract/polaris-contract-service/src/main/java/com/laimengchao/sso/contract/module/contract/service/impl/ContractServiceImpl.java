@@ -169,13 +169,20 @@ public class ContractServiceImpl implements ContractService {
 
     @Transactional(rollbackFor = Exception.class)
     public ContractVOs.ContractVO save(ContractRequests.ContractSave req) {
-        if (req == null || req.getName() == null || req.getName().isBlank()
-                || req.getPartnerCode() == null || req.getPartnerCode().isBlank()) {
-            throw new BizException(ErrorCode.PARAM_ERROR, "合同名称与往来单位不能为空");
+        // 合同主信息除备注外全部必填（与设计稿一致）；前端选择负责人后自动带出归属部门
+        if (req == null || !hasText(req.getName()) || !hasText(req.getPartnerCode())
+                || !hasText(req.getProjectNo()) || !hasText(req.getOwner())
+                || !hasText(req.getDept()) || req.getSignedDate() == null
+                || req.getEffectiveDate() == null || req.getEndDate() == null) {
+            throw new BizException(ErrorCode.PARAM_ERROR,
+                    "合同名称、往来单位、所属项目、归属部门、负责人、签订/生效/到期日期均为必填");
         }
         String type = nvl(req.getType(), PURCHASE);
         if (!PURCHASE.equals(type) && !SALES.equals(type)) {
             throw new BizException(ErrorCode.PARAM_ERROR, "合同类型只能为 PURCHASE 或 SALES");
+        }
+        if (req.getNote() != null && req.getNote().length() > 200) {
+            throw new BizException(ErrorCode.PARAM_ERROR, "备注最多 200 字");
         }
         LambdaQueryWrapper<ContractPartner> partnerQw = new LambdaQueryWrapper<ContractPartner>()
                 .eq(ContractPartner::getCode, req.getPartnerCode().trim()).last(" LIMIT 1");
@@ -184,13 +191,17 @@ public class ContractServiceImpl implements ContractService {
         if (partner == null) {
             throw new BizException(ContractErrorCode.PARTNER_NOT_FOUND);
         }
-        String orgCode = nvl(req.getOrgCode(), partner.getOrgCode());
-        String projectNo = req.getProjectNo() == null || req.getProjectNo().isBlank()
-                ? null : req.getProjectNo().trim();
-        if (projectNo != null) {
-            ContractProject project = projectService.requireUsable(projectNo);
-            orgCode = project.getOrgCode();
+        // 采购合同只能选供应商/两者，销售合同只能选客户/两者
+        String expectRole = PURCHASE.equals(type) ? "SUPPLIER" : "CUSTOMER";
+        String partnerRole = nvl(partner.getRole(), "");
+        if (!expectRole.equals(partnerRole) && !"BOTH".equals(partnerRole)) {
+            throw new BizException(ErrorCode.PARAM_ERROR,
+                    (PURCHASE.equals(type) ? "采购合同" : "销售合同") + "的往来单位角色不匹配");
         }
+        String orgCode = nvl(req.getOrgCode(), partner.getOrgCode());
+        String projectNo = req.getProjectNo().trim();
+        ContractProject project = projectService.requireUsable(projectNo);
+        orgCode = project.getOrgCode();
         dataScopeService.assertCanAccessOrg(orgCode);
         ContractHeader entity = new ContractHeader();
         entity.setNo(bizNoService.next(PURCHASE.equals(type)
@@ -565,6 +576,7 @@ public class ContractServiceImpl implements ContractService {
         vo.setStatus(e.getStatus());
         vo.setPaymentTerms(e.getPaymentTerms());
         vo.setSubject(e.getSubject());
+        vo.setNote(e.getNote());
         vo.setContractSource(e.getContractSource());
         vo.setPlanNo(e.getPlanNo());
         vo.setOrgCode(e.getOrgCode());
@@ -588,6 +600,12 @@ public class ContractServiceImpl implements ContractService {
         e.setStatus(nvl(req.getStatus(), "DRAFT"));
         e.setPaymentTerms(nvl(req.getPaymentTerms(), ""));
         e.setSubject(nvl(req.getSubject(), ""));
+        // 备注：局部更新（如只改所属项目）未传时保留原值；新建时落空串
+        if (req.getNote() != null) {
+            e.setNote(req.getNote());
+        } else if (e.getNote() == null) {
+            e.setNote("");
+        }
         e.setOrgCode(orgCode);
         // 局部更新（如只改所属项目）不传 fileIds 时必须保留原附件
         if (req.getFileIds() != null) {
@@ -597,5 +615,9 @@ public class ContractServiceImpl implements ContractService {
 
     private String nvl(String value, String fallback) {
         return value == null || value.isBlank() ? fallback : value.trim();
+    }
+
+    private boolean hasText(String value) {
+        return value != null && !value.isBlank();
     }
 }

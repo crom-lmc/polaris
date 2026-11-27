@@ -129,6 +129,8 @@ public final class ContractVOs {
         private String paymentTerms;
         /** 合同标的 */
         private String subject;
+        /** 备注（非必填，200 字） */
+        private String note;
         /** 来源 DIRECT / FROM_PLAN */
         private String contractSource;
         /** 来源采购计划号（FROM_PLAN 时带入） */
@@ -230,6 +232,13 @@ public final class ContractVOs {
         private List<String> fileIds;
         /** 附件只读预览 URL（统一文件服务临时签名） */
         private List<String> attachmentUrls;
+    }
+
+    /** 发起采购计划的默认申请人/需求部门：服务端按当前账号从 EHR 反查，避免前端雪花 ID 丢精度 */
+    @Data
+    public static class PurchasePlanProfileVO {
+        private String applicant;
+        private String dept;
     }
 
     @Data

@@ -11,6 +11,9 @@ public interface PurchasePlanService {
 
     ContractVOs.PurchasePlanVO detail(Long id);
 
+    /** 发起采购计划的默认申请人/需求部门：服务端按账号 ID 从 EHR 反查 */
+    ContractVOs.PurchasePlanProfileVO myProfile();
+
     ContractPurchasePlan require(Long id);
 
     ContractVOs.PurchasePlanVO save(ContractRequests.PurchasePlanSave req);
