@@ -13,11 +13,12 @@ import {
   saveContract, updateContract, changeContractStatus, convertPurchasePlan,
   getProjectOptions, listPartners, uploadContractAttachment, fetchActiveEmployees, listItems,
   type ContractVO, type ContractSave, type ProjectOptionVO, type PartnerVO, type OrgEmployeeVO,
-  type PurchasePlanVO
+  type PurchasePlanVO, type PurchasePlanItemVO
 } from '@/api/contract'
 import ContractItemsEditor from '@/components/ContractItemsEditor.vue'
 import PaymentPlanEditor from '@/components/PaymentPlanEditor.vue'
 import AttachmentUpload from '@shared/components/AttachmentUpload.vue'
+import { yuan } from '@/utils/format'
 import EntityPickerModal, { type PickerColumn, type PickerRow, type PickerLoadParams, type PickerResult } from '@shared/components/EntityPickerModal.vue'
 
 const props = defineProps<{
@@ -64,6 +65,19 @@ const isEdit = computed(() => !!props.contract)
 const isConvert = computed(() => !props.contract && !!props.convertPlan)
 const drawerTitle = computed(() => isEdit.value ? '编辑合同' : isConvert.value ? '采购计划转合同' : '新增合同')
 const partnerLabel = computed(() => createForm.type === 'SALES' ? '客户' : '供应商')
+
+/** 转合同模式：预览即将带入的计划明细（合同号未生成，不渲染依赖合同号的编辑器） */
+const planItems = computed<PurchasePlanItemVO[]>(() => props.convertPlan?.items || [])
+const planItemsTotal = computed(() => Number(planItems.value.reduce((s, i) => s + Number(i.amount || 0), 0).toFixed(2)))
+const planItemColumns = [
+  { title: '行号', key: 'lineNo', width: 60, align: 'center' as const },
+  { title: '物料', dataIndex: 'materialName', key: 'materialName', ellipsis: true },
+  { title: '规格型号', dataIndex: 'spec', key: 'spec', width: 140 },
+  { title: '单位', dataIndex: 'unit', key: 'unit', width: 70, align: 'center' as const },
+  { title: '数量', dataIndex: 'qty', key: 'qty', width: 90, align: 'right' as const },
+  { title: '单价', key: 'price', width: 100, align: 'right' as const },
+  { title: '金额', key: 'amount', width: 110, align: 'right' as const }
+]
 
 const createForm = reactive<ContractSave & { partnerName?: string; projectName?: string }>({
   type: 'PURCHASE', name: '', partnerCode: '', partnerName: '', projectNo: undefined, projectName: '', dept: '', owner: '',
@@ -288,10 +302,28 @@ onMounted(() => { loadOrgDirectory() })
 
       <template v-if="isEdit && contract">
         <div class="drawer-section-title">合同清单</div>
-        <ContractItemsEditor :contract-no="contract.no" />
+        <ContractItemsEditor :contract-no="contract.no" :contract-status="contract.status" />
 
         <div class="drawer-section-title">付款计划</div>
-        <PaymentPlanEditor :contract-no="contract.no" :remaining-amount="Number(contract.pendingAmount || 0)" />
+        <PaymentPlanEditor :contract-no="contract.no" :remaining-amount="Number(contract.pendingAmount || 0)" :contract-status="contract.status" />
+      </template>
+
+      <template v-else-if="isConvert">
+        <div class="drawer-section-title">合同清单</div>
+        <div class="plan-items-preview">
+          <a-table class="ft-table" row-key="id" size="small" :columns="planItemColumns" :data-source="planItems"
+                   :pagination="false" :scroll="planItems.length ? { x: 720 } : undefined">
+            <template #bodyCell="{ column, record, index }">
+              <template v-if="column.key === 'lineNo'">{{ index + 1 }}</template>
+              <template v-else-if="column.key === 'materialName'">
+                <a-tooltip :title="`${record.materialName} ${record.spec || ''}`"><span class="cell-ellipsis">{{ record.materialName }}</span></a-tooltip>
+              </template>
+              <template v-else-if="column.key === 'price' || column.key === 'amount'">{{ yuan(record[column.key]) }}</template>
+            </template>
+            <template #emptyText><a-empty description="该采购计划暂无明细" /></template>
+          </a-table>
+          <div class="plan-items-total">清单合计：<b>{{ yuan(planItemsTotal) }}</b></div>
+        </div>
       </template>
     </a-form>
     <template #footer>
@@ -313,3 +345,8 @@ onMounted(() => { loadOrgDirectory() })
                      row-key="name" :initial-value="createForm.owner" placeholder="姓名 / 工号（自动带出部门）"
                      :load="loadOwnerPicker" @confirm="onOwnerPicked" />
 </template>
+
+<style scoped>
+.plan-items-preview { margin-top: 4px; }
+.plan-items-total { text-align: right; padding: 8px 0; font-size: 13px; color: var(--text-color, var(--color-text-primary)); }
+</style>

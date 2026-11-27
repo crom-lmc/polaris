@@ -391,6 +391,7 @@ export const listContracts = (params: {
 export const getContractStats = (type?: string) =>
   request.get<never, ContractStats>('/api/contract/contracts/stats', { params: { type } })
 export const getContract = (id: string) => request.get<never, ContractVO>(`/api/contract/contracts/${id}`)
+export const getContractByNo = (no: string) => request.get<never, ContractVO>(`/api/contract/contracts/by-no/${encodeURIComponent(no)}`)
 export const saveContract = (data: ContractSave) => request.post<never, ContractVO>('/api/contract/contracts', data)
 export const updateContract = (id: string, data: ContractSave) =>
   request.put<never, void>(`/api/contract/contracts/${id}`, data)

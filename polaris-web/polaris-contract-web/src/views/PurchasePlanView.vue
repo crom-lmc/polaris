@@ -12,6 +12,7 @@ import { loadMaterialChildren, loadMaterialPage } from '@/composables/useMateria
 import MaterialPickerModal, { type MaterialPick } from '@shared/components/MaterialPickerModal.vue'
 import AttachmentUpload from '@shared/components/AttachmentUpload.vue'
 import ContractFormDrawer from '@/components/ContractFormDrawer.vue'
+import ContractDetailDrawer from '@/components/ContractDetailDrawer.vue'
 import { yuan } from '@/utils/format'
 
 const store = useUserStore()
@@ -100,6 +101,11 @@ async function openDetail(id: string) {
   try { detail.value = await getPurchasePlan(id) } catch (e: any) { message.error(e?.message || '加载详情失败') }
   finally { detailLoading.value = false }
 }
+
+/* 关联合同：打开只读合同详情抽屉（复用合同台账详情） */
+const contractDetailOpen = ref(false)
+const contractDetailNo = ref<string | null>(null)
+function openContractDetail(no: string) { contractDetailNo.value = no; contractDetailOpen.value = true }
 
 /* 新建 */
 const createOpen = ref(false)
@@ -246,7 +252,7 @@ onMounted(() => { load(); loadOrgDirectory() })
             <span v-else class="muted">-</span>
           </template>
           <template v-else-if="column.key === 'contract'">
-            <a v-if="record.contractNo" @click="openDetail(record.id)">{{ record.contractNo }}</a>
+            <a v-if="record.contractNo" @click="openContractDetail(record.contractNo)">{{ record.contractNo }}</a>
             <span v-else class="muted">未转合同</span>
           </template>
           <template v-else-if="column.key === 'action'">
@@ -276,7 +282,10 @@ onMounted(() => { load(); loadOrgDirectory() })
               <a-descriptions-item label="需求日期">{{ detail.needDate || '-' }}</a-descriptions-item>
               <a-descriptions-item label="计划金额">{{ yuan(detail.amount) }}（{{ detail.itemCount }} 条明细）</a-descriptions-item>
               <a-descriptions-item label="状态">{{ statusLabel[detail.status] || detail.status }}</a-descriptions-item>
-              <a-descriptions-item label="关联采购合同">{{ detail.contractNo || '未转合同' }}</a-descriptions-item>
+              <a-descriptions-item label="关联采购合同">
+                <a v-if="detail.contractNo" @click="openContractDetail(detail.contractNo)">{{ detail.contractNo }}</a>
+                <span v-else class="muted">未转合同</span>
+              </a-descriptions-item>
               <a-descriptions-item label="计划附件">
                 <template v-if="detail.fileIds?.length">
                   <a v-for="(url, idx) in detail.attachmentUrls || []" :key="url" :href="url" target="_blank" style="margin-right: 12px">附件 {{ idx + 1 }}</a>
@@ -309,6 +318,8 @@ onMounted(() => { load(); loadOrgDirectory() })
         </div>
       </template>
     </a-drawer>
+
+    <ContractDetailDrawer v-model:open="contractDetailOpen" :contract-no="contractDetailNo" />
 
     <ContractFormDrawer v-model:open="contractFormOpen" :convert-plan="convertPlan" :contract="editingContract" @saved="onFormSaved" />
 

@@ -10,10 +10,12 @@ import {
 import { yuan } from '@/utils/format'
 import AttachmentUpload from '@shared/components/AttachmentUpload.vue'
 
-const props = defineProps<{ contractNo: string; remainingAmount?: number; readonly?: boolean }>()
+const props = defineProps<{ contractNo: string; remainingAmount?: number; readonly?: boolean; contractStatus?: string }>()
 const store = useUserStore()
 const isMobile = useIsMobile()
 const drawerWidth = computed(() => (isMobile.value ? '100%' : 520))
+/** 付款申请仅已生效/执行中可发起，与后端一致；草稿/审批中/完成/终止隐藏入口 */
+const canApply = computed(() => ['EFFECTIVE', 'EXECUTING'].includes(props.contractStatus || ''))
 
 const loading = ref(false)
 const rows = ref<PaymentPlanVO[]>([])
@@ -159,7 +161,7 @@ onMounted(() => {
         <template v-else-if="column.key === 'action'">
           <a-space :size="4">
             <template v-if="store.can('contract:payment:edit')">
-              <a v-if="record.status === 'WAITING' || record.status === 'REJECTED'" @click="apply(record)">发起申请</a>
+              <a v-if="canApply && (record.status === 'WAITING' || record.status === 'REJECTED')" @click="apply(record)">发起申请</a>
               <a v-if="record.status === 'WAITING'" @click="remove(record)">删除</a>
             </template>
             <span v-else class="muted">只读</span>

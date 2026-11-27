@@ -2,21 +2,18 @@
 import { computed, onMounted, reactive, ref } from 'vue'
 import { message, Modal } from 'ant-design-vue'
 import { useUserStore } from '@/stores/user'
-import { useIsMobile } from '@/composables/useIsMobile'
 import {
-  listContracts, getContractStats, getContract, deleteContract, changeContractStatus,
-  listContractChanges, getProjectOptions, listPartners,
-  type ContractVO, type ContractStats, type ProjectOptionVO, type ChangeLogVO
+  listContracts, getContractStats, deleteContract, changeContractStatus,
+  getProjectOptions, listPartners,
+  type ContractVO, type ContractStats, type ProjectOptionVO
 } from '@/api/contract'
 import { yuan } from '@/utils/format'
-import ContractItemsEditor from '@/components/ContractItemsEditor.vue'
-import PaymentPlanEditor from '@/components/PaymentPlanEditor.vue'
+import ContractDetailDrawer from '@/components/ContractDetailDrawer.vue'
 import ContractFormDrawer from '@/components/ContractFormDrawer.vue'
+import ContractItemsEditor from '@/components/ContractItemsEditor.vue'
+import { useIsMobile } from '@/composables/useIsMobile'
 
 const store = useUserStore()
-const isMobile = useIsMobile()
-const drawerWidth = computed(() => (isMobile.value ? '100%' : 900))
-const descColumn = computed(() => (isMobile.value ? 1 : 2))
 
 const loading = ref(false)
 const rows = ref<ContractVO[]>([])
@@ -44,27 +41,12 @@ const statusActionTips: Record<string, string> = {
   PENDING: '提交后将按合同金额与类型进入审批流程（未达审批线的采购合同直接生效），确认吗？',
   EFFECTIVE: '确认审批通过并将合同置为已生效？',
   DRAFT: '退回后合同变为草稿，可继续编辑，确认吗？',
-  EXECUTING: '确认合同开始执行？',
-  COMPLETED: '确认合同已完成？完成后不可再变更状态。',
   TERMINATED: '确认终止合同？终止后不可再恢复。'
 }
 
 const projectOptions = ref<{ label: string; value: string }[]>([])
 const partnerOptions = ref<{ label: string; value: string }[]>([])
 const sourceLabel: Record<string, string> = { DIRECT: '直接新建', FROM_PLAN: '计划转入' }
-
-/** 合同执行闭环步骤条（与设计稿 contractFlowSteps / salesFlowSteps 对齐） */
-const flowSteps = computed(() => detail.value?.type === 'SALES'
-  ? ['销售合同', '合同清单', '验收', '应收单', '凭证', '账表']
-  : ['采购计划', '合同与清单', '付款计划', '应付单', '凭证', '账表'])
-const flowCurrent = computed(() => {
-  const s = detail.value?.status
-  if (!s) return 0
-  if (s === 'DRAFT') return 1
-  if (s === 'PENDING' || s === 'EFFECTIVE') return 2
-  if (s === 'EXECUTING') return 3
-  return 4
-})
 
 /** 状态是流程结果，详情只读；流转按钮收敛到列表操作行，按当前状态给出明确动作 */
 function statusActionsOf(row: ContractVO): StatusAction[] {
@@ -74,11 +56,9 @@ function statusActionsOf(row: ContractVO): StatusAction[] {
       ? [{ label: '审批通过', target: 'EFFECTIVE', kind: 'primary' }, { label: '退回草稿', target: 'DRAFT' }]
       : []
   }
-  if (row.status === 'EFFECTIVE') {
-    return [{ label: '开始执行', target: 'EXECUTING', kind: 'primary' }, { label: '终止合同', target: 'TERMINATED', kind: 'danger' }]
-  }
-  if (row.status === 'EXECUTING') {
-    return [{ label: '完成合同', target: 'COMPLETED', kind: 'primary' }, { label: '终止合同', target: 'TERMINATED', kind: 'danger' }]
+  // 执行中 / 已完成由业务动作自动推进：首次验收 → 执行中，付款结清 → 完成；此处只保留终止
+  if (row.status === 'EFFECTIVE' || row.status === 'EXECUTING') {
+    return [{ label: '终止合同', target: 'TERMINATED', kind: 'danger' }]
   }
   return []
 }
@@ -149,35 +129,22 @@ function onFormSaved(saved: ContractVO) {
   if (!editingContract.value) openEdit(saved)
 }
 
-/* 详情：纯查看，无任何写操作按钮 */
+/* 详情：纯查看，复用公共合同详情抽屉 */
 const detailOpen = ref(false)
-const detailLoading = ref(false)
-const detail = ref<ContractVO | null>(null)
-async function openDetail(id: string) {
-  detailOpen.value = true
-  detailLoading.value = true
-  try { detail.value = await getContract(id) }
-  catch (e: any) { message.error(e?.message || '加载详情失败') }
-  finally { detailLoading.value = false }
-}
-/* 变更记录 */
-const changeOpen = ref(false)
-const changeLoading = ref(false)
-const changes = ref<ChangeLogVO[]>([])
-async function openChanges() {
-  if (!detail.value) return
-  changeOpen.value = true
-  changeLoading.value = true
-  try { changes.value = await listContractChanges(detail.value.id) }
-  catch (e: any) { message.error(e?.message || '加载变更记录失败') }
-  finally { changeLoading.value = false }
-}
+const detailId = ref<string | null>(null)
+function openDetail(id: string) { detailId.value = id; detailOpen.value = true }
+
+/* 验收：已生效/执行中的合同通过独立抽屉办验收（复用清单编辑器，仅开放验收按钮） */
+const isMobile = useIsMobile()
+const acceptDrawerWidth = computed(() => (isMobile.value ? '100%' : 900))
+const acceptOpen = ref(false)
+const acceptContract = ref<ContractVO | null>(null)
+function openAccept(row: ContractVO) { acceptContract.value = row; acceptOpen.value = true }
 async function doStatus(id: string, status: string) {
   try {
     await changeContractStatus(id, status)
     message.success('合同状态已更新')
     load()
-    if (detailOpen.value && detail.value?.id === id) detail.value = await getContract(id)
   } catch (e: any) { message.error(e?.message || '状态更新失败') }
 }
 function requestStatusAction(action: StatusAction, row: ContractVO) {
@@ -268,6 +235,7 @@ onMounted(() => { load(); loadOptions() })
             <a-space :size="4">
               <a @click="openDetail(record.id)">查看</a>
               <a v-if="store.can('contract:ledger:edit') && record.status === 'DRAFT'" @click="openEdit(record)">编辑</a>
+              <a v-if="store.can('contract:item:edit') && ['EFFECTIVE', 'EXECUTING'].includes(record.status)" @click="openAccept(record)">验收</a>
               <template v-if="store.can('contract:ledger:edit')">
                 <a v-for="action in statusActionsOf(record)" :key="action.target" @click="requestStatusAction(action, record)">{{ action.label }}</a>
               </template>
@@ -279,75 +247,17 @@ onMounted(() => { load(); loadOptions() })
       </a-table>
     </section>
 
-    <a-drawer v-model:open="detailOpen" title="合同详情 · 清单 · 付款计划" :width="drawerWidth" placement="right">
-      <a-spin :spinning="detailLoading">
-        <template v-if="detail">
-          <a-steps :current="flowCurrent" size="small" style="margin-bottom: 16px"
-                   :items="flowSteps.map((title) => ({ title }))" />
-          <a-card class="panel-card" size="small" title="合同信息">
-            <a-descriptions :column="descColumn" bordered size="small">
-              <a-descriptions-item label="合同编号">{{ detail.no }}</a-descriptions-item>
-              <a-descriptions-item label="合同名称">{{ detail.name }}</a-descriptions-item>
-              <a-descriptions-item label="类型">{{ typeLabel[detail.type] || detail.type }}</a-descriptions-item>
-              <a-descriptions-item label="供应商/客户">{{ detail.partnerName || detail.partnerCode }}</a-descriptions-item>
-              <a-descriptions-item label="归属部门">{{ detail.dept || '-' }} · {{ detail.owner || '-' }}</a-descriptions-item>
-              <a-descriptions-item label="所属项目">{{ detail.projectName || '未关联' }}</a-descriptions-item>
-              <a-descriptions-item label="签订 / 生效 / 到期">{{ detail.signedDate || '-' }} / {{ detail.effectiveDate || '-' }} / {{ detail.endDate || '-' }}</a-descriptions-item>
-              <a-descriptions-item label="备注">{{ detail.note || '-' }}</a-descriptions-item>
-              <a-descriptions-item label="来源">
-                <a-tag :color="detail.contractSource === 'FROM_PLAN' ? 'blue' : 'default'">
-                  {{ sourceLabel[detail.contractSource] || detail.contractSource || '直接新建' }}
-                </a-tag>
-                <span v-if="detail.planNo" class="muted" style="margin-left: 8px">计划号 {{ detail.planNo }}</span>
-              </a-descriptions-item>
-              <a-descriptions-item label="合同金额">{{ yuan(detail.amount) }}</a-descriptions-item>
-              <a-descriptions-item label="已入账 / 在途 / 待支付">{{ yuan(detail.paidAmount) }} / {{ yuan(detail.inFlightAmount) }} / {{ yuan(detail.pendingAmount) }}</a-descriptions-item>
-              <a-descriptions-item label="执行进度">{{ detail.progress }}%</a-descriptions-item>
-              <a-descriptions-item label="变更次数">
-                {{ detail.changeCount || 0 }} 次
-                <a v-if="detail.changeCount" @click="openChanges">查看记录</a>
-              </a-descriptions-item>
-              <a-descriptions-item label="状态">
-                <a-tag :color="statusColor[detail.status] || 'default'">{{ statusLabel[detail.status] || detail.status }}</a-tag>
-              </a-descriptions-item>
-              <a-descriptions-item label="合同附件">
-                <template v-if="detail.fileIds?.length">
-                  <a v-for="(url, idx) in detail.attachmentUrls || []" :key="url" :href="url" target="_blank" style="margin-right: 12px">附件 {{ idx + 1 }}</a>
-                  <span v-if="!detail.attachmentUrls?.length" class="muted">{{ detail.fileIds.length }} 个（签名链接不可用）</span>
-                </template>
-                <span v-else class="muted">无附件</span>
-              </a-descriptions-item>
-            </a-descriptions>
-          </a-card>
+    <ContractDetailDrawer v-model:open="detailOpen" :contract-id="detailId" />
 
-          <div class="drawer-section-title">合同清单</div>
-          <ContractItemsEditor v-if="detail" :contract-no="detail.no" readonly />
-
-          <div class="drawer-section-title">付款计划</div>
-          <PaymentPlanEditor v-if="detail" :contract-no="detail.no" :remaining-amount="detail.pendingAmount" readonly />
-        </template>
-      </a-spin>
-      <template #footer>
-        <div class="drawer-footer"><a-button @click="detailOpen = false">关闭</a-button></div>
+    <a-drawer v-model:open="acceptOpen" title="合同验收 · 清单交付" :width="acceptDrawerWidth" placement="right">
+      <template v-if="acceptContract">
+        <a-alert type="info" show-icon style="margin-bottom: 12px"
+                 :message="`${acceptContract.no} · ${acceptContract.name}`"
+                 description="已生效/执行中的合同可登记到货验收；清单已锁定，如需变更请走合同变更流程。" />
+        <ContractItemsEditor :contract-no="acceptContract.no" :contract-status="acceptContract.status" />
       </template>
+      <template #footer><div class="drawer-footer"><a-button @click="acceptOpen = false">关闭</a-button></div></template>
     </a-drawer>
-
-    <a-modal v-model:open="changeOpen" title="合同变更记录" :footer="null" :width="720">
-      <a-spin :spinning="changeLoading">
-        <a-table :data-source="changes" row-key="id" size="small" :pagination="false" :scroll="{ x: 760, y: 420 }">
-          <a-table-column title="变更单号" data-index="no" key="no" width="170" />
-          <a-table-column title="变更类型" data-index="changeType" key="changeType" width="100" />
-          <a-table-column title="变更原因" data-index="reason" key="reason">
-            <template #default="{ record }">
-              <a-tooltip :title="record.reason"><span class="cell-ellipsis">{{ record.reason || '-' }}</span></a-tooltip>
-            </template>
-          </a-table-column>
-          <a-table-column title="操作人" data-index="operator" key="operator" width="120" />
-          <a-table-column title="时间" data-index="createdAt" key="createdAt" width="160" />
-        </a-table>
-        <div v-if="!changes.length && !changeLoading" class="panel-hint" style="padding: 16px 0; text-align: center">暂无变更记录</div>
-      </a-spin>
-    </a-modal>
 
     <ContractFormDrawer v-model:open="createOpen" :contract="editingContract" @saved="onFormSaved" />
   </section>

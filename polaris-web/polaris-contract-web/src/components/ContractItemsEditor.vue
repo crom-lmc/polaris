@@ -12,8 +12,14 @@ import MaterialPickerModal, { type MaterialPick } from '@shared/components/Mater
 import AttachmentUpload from '@shared/components/AttachmentUpload.vue'
 import { yuan } from '@/utils/format'
 
-const props = defineProps<{ contractNo: string; readonly?: boolean }>()
+const props = defineProps<{ contractNo: string; readonly?: boolean; contractStatus?: string }>()
 const store = useUserStore()
+/** 采购计划转入行由后端写入该备注前缀，作为来源标记：禁止删除，可编辑/验收 */
+const PLAN_ITEM_REMARK_PREFIX = '由采购计划 '
+const isFromPlan = (row: ItemVO) => !!row.remark?.startsWith(PLAN_ITEM_REMARK_PREFIX)
+/** 清单增删改仅草稿；验收仅已生效/执行中，与后端状态机一致（前端按钮只是可见入口） */
+const canEditItems = computed(() => !props.readonly && props.contractStatus === 'DRAFT')
+const canAccept = computed(() => !props.readonly && ['EFFECTIVE', 'EXECUTING'].includes(props.contractStatus || ''))
 const isMobile = useIsMobile()
 const drawerWidth = computed(() => (isMobile.value ? '100%' : 620))
 const smallDrawerWidth = computed(() => (isMobile.value ? '100%' : 620))
@@ -45,6 +51,7 @@ async function load() {
 const editOpen = ref(false)
 const saving = ref(false)
 const editingId = ref<string | null>(null)
+const editingFromPlan = ref(false)
 const form = reactive({
   materialCode: '', materialName: '', spec: '', unit: '', qty: 1, price: 0, remark: ''
 })
@@ -106,6 +113,7 @@ async function addFromMaterials(picks: MaterialPick[]) {
 const amount = computed(() => Number(((Number(form.qty) || 0) * (Number(form.price) || 0)).toFixed(2)))
 function openEdit(row?: ItemVO) {
   editingId.value = row?.id || null
+  editingFromPlan.value = !!row && isFromPlan(row)
   form.materialCode = row?.materialCode || ''
   form.materialName = row?.materialName || ''
   form.spec = row?.spec || ''
@@ -147,7 +155,7 @@ const acceptOpen = ref(false)
 const acceptSaving = ref(false)
 const acceptId = ref('')
 const acceptForm = reactive({
-  qty: 1, date: undefined as string | undefined, result: 'PASS', remark: '', fileIds: [] as string[]
+  qty: 1, date: undefined as string | undefined, result: '合格', remark: '', fileIds: [] as string[]
 })
 const acceptRow = computed(() => rows.value.find((r) => r.id === acceptId.value) || null)
 const acceptRemain = computed(() => acceptRow.value ? Math.max(0, Number(acceptRow.value.qty || 0) - Number(acceptRow.value.deliveredQty || 0)) : 0)
@@ -155,7 +163,7 @@ function openAccept(row: ItemVO) {
   acceptId.value = row.id
   acceptForm.qty = Math.max(1, acceptRemain.value || 1)
   acceptForm.date = undefined
-  acceptForm.result = 'PASS'
+  acceptForm.result = '合格'
   acceptForm.remark = ''
   acceptForm.fileIds = []
   acceptOpen.value = true
@@ -211,7 +219,7 @@ onMounted(() => { load() })
       <span class="grow" />
       <a-tag color="blue">清单 {{ rows.length }} 行</a-tag>
       <a-button v-if="store.can('contract:ledger:list')" size="small" @click="openAcceptRecords">验收记录</a-button>
-      <a-button v-if="store.can('contract:item:edit')" type="primary" size="small" :loading="saving" @click="openAddPicker">＋ 新增清单行</a-button>
+      <a-button v-if="canEditItems && store.can('contract:item:edit')" type="primary" size="small" :loading="saving" @click="openAddPicker">＋ 新增清单行</a-button>
     </div>
     <a-table class="ft-table" row-key="id" :columns="columns" :data-source="rows" :loading="loading" :pagination="false"
              :class="{ 'tbl-empty-mode': !loading && !rows.length }" :scroll="rows.length ? { x: 980 } : undefined">
@@ -229,9 +237,12 @@ onMounted(() => { load() })
         <template v-else-if="column.key === 'action'">
           <a-space :size="4">
             <template v-if="store.can('contract:item:edit')">
-              <a v-if="Number(record.deliveredQty || 0) < Number(record.qty || 0)" @click="openAccept(record)">验收</a>
-              <a @click="openEdit(record)">编辑</a>
-              <a @click="remove(record)">删除</a>
+              <a v-if="canAccept && Number(record.deliveredQty || 0) < Number(record.qty || 0)" @click="openAccept(record)">验收</a>
+              <a v-if="canEditItems" @click="openEdit(record)">编辑</a>
+              <a-tooltip v-if="canEditItems && isFromPlan(record)" title="由采购计划转入的清单行不允许删除，可编辑数量与单价">
+                <span class="link-disabled">删除</span>
+              </a-tooltip>
+              <a v-else-if="canEditItems" @click="remove(record)">删除</a>
             </template>
             <span v-else class="muted">只读</span>
           </a-space>
@@ -258,7 +269,9 @@ onMounted(() => { load() })
           <a-col :span="8"><a-form-item label="单价" required><a-input-number v-model:value="form.price" :min="0" :precision="2" style="width: 100%" /></a-form-item></a-col>
         </a-row>
         <a-form-item label="行金额"><a-input :value="yuan(amount)" readonly /></a-form-item>
-        <a-form-item label="备注"><a-textarea v-model:value="form.remark" :rows="2" /></a-form-item>
+        <a-form-item label="备注">
+          <a-textarea v-model:value="form.remark" :rows="2" :disabled="editingFromPlan" />
+        </a-form-item>
       </a-form>
       <template #footer>
         <div class="drawer-footer">
@@ -278,7 +291,7 @@ onMounted(() => { load() })
         </a-form-item>
         <a-form-item label="验收日期"><a-date-picker v-model:value="acceptForm.date" value-format="YYYY-MM-DD" format="YYYY-MM-DD" style="width: 100%" /></a-form-item>
         <a-form-item label="验收结果">
-          <a-select v-model:value="acceptForm.result" :options="[{ label: '合格', value: 'PASS' }, { label: '不合格', value: 'FAIL' }]" />
+          <a-select v-model:value="acceptForm.result" :options="[{ label: '合格', value: '合格' }, { label: '不合格', value: '不合格' }]" />
         </a-form-item>
         <a-form-item label="备注"><a-textarea v-model:value="acceptForm.remark" :rows="2" /></a-form-item>
         <AttachmentUpload v-if="store.can('contract:item:attachment:upload')" v-model="acceptForm.fileIds" label="验收凭证" button-text="上传验收凭证"
