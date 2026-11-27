@@ -48,10 +48,12 @@ public class PublicReferenceController {
             "finance.expense_type",
             "finance.expense_reason",
             "finance.invoice_type",
+            "finance.credit_period",
             "finance.tax_rate",
             "finance.voucher_type",
             "finance.settle_method",
-            "contract.payment_stage"
+            "contract.payment_stage",
+            "contract.enterprise_type"
     );
 
     /** 允许跨应用读取的业务主数据（银行/学历/职位/请假类型/离职原因/家庭成员关系） */

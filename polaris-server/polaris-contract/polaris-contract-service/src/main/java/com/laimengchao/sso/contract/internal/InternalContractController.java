@@ -75,6 +75,15 @@ public class InternalContractController {
         return R.ok(partnerService.list(role, status));
     }
 
+    /** 跨服务下拉：用显式账号解析数据范围，internal Feign 无 X-Account-Id */
+    @GetMapping("/partner-options")
+    public R<List<ContractVOs.PartnerVO>> partnerOptions(
+            @RequestParam(value = "role", required = false) String role,
+            @RequestParam(value = "status", required = false) String status,
+            @RequestParam(value = "accountId", required = false) Long accountId) {
+        return R.ok(partnerService.optionsForAccount(role, status, accountId));
+    }
+
     @GetMapping("/partners/{code}")
     public R<ContractVOs.PartnerVO> partner(@PathVariable("code") String code) {
         ContractPartner partner = partnerService.requireByCode(code);

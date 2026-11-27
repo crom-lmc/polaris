@@ -95,8 +95,6 @@ public final class ContractRequests {
         private String paymentTerms;
         /** 合同标的 */
         private String subject;
-        /** 预算科目（财务主数据名称） */
-        private String budgetSubject;
         private String orgCode;
         /** 变更原因（仅用于变更留痕，不写入合同主表） */
         private String remark;
@@ -159,7 +157,6 @@ public final class ContractRequests {
         /** 计划日期（设计稿 date） */
         private LocalDate date;
         private LocalDate needDate;
-        private String budgetSubject;
         private String orgCode;
         private List<PurchasePlanItemSave> items;
         /** 附件 file_id 列表；null 表示本次未提交附件字段，保留原值 */
@@ -186,7 +183,7 @@ public final class ContractRequests {
         private LocalDate effectiveDate;
         private LocalDate endDate;
         private String paymentTerms;
-        /** 合同标的（前端手输；预算科目不从这里取，固定取采购计划值） */
+        /** 合同标的（前端手输） */
         private String subject;
         private String orgCode;
     }

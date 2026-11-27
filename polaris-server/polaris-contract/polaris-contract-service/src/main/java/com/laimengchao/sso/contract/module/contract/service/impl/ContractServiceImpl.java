@@ -207,7 +207,7 @@ public class ContractServiceImpl implements ContractService {
     @Transactional(rollbackFor = Exception.class)
     public ContractHeader createForPlan(String type, String name, String partnerCode, String projectNo,
                                         String dept, String owner, String paymentTerms, String subject,
-                                        String budgetSubject, String orgCode, String fileIds, String planNo) {
+                                        String orgCode, String fileIds, String planNo) {
         ContractHeader entity = new ContractHeader();
         entity.setNo(bizNoService.next(PURCHASE.equals(type)
                 ? BizNoServiceImpl.TABLE_CONTRACT_PURCHASE : BizNoServiceImpl.TABLE_CONTRACT_SALES));
@@ -220,7 +220,6 @@ public class ContractServiceImpl implements ContractService {
         entity.setSignedDate(LocalDateTime.now().toLocalDate());
         entity.setPaymentTerms(paymentTerms);
         entity.setSubject(subject);
-        entity.setBudgetSubject(budgetSubject);
         entity.setContractSource("FROM_PLAN");
         entity.setPlanNo(planNo);
         entity.setOrgCode(orgCode);
@@ -566,7 +565,6 @@ public class ContractServiceImpl implements ContractService {
         vo.setStatus(e.getStatus());
         vo.setPaymentTerms(e.getPaymentTerms());
         vo.setSubject(e.getSubject());
-        vo.setBudgetSubject(e.getBudgetSubject());
         vo.setContractSource(e.getContractSource());
         vo.setPlanNo(e.getPlanNo());
         vo.setOrgCode(e.getOrgCode());
@@ -590,7 +588,6 @@ public class ContractServiceImpl implements ContractService {
         e.setStatus(nvl(req.getStatus(), "DRAFT"));
         e.setPaymentTerms(nvl(req.getPaymentTerms(), ""));
         e.setSubject(nvl(req.getSubject(), ""));
-        e.setBudgetSubject(nvl(req.getBudgetSubject(), e.getBudgetSubject()));
         e.setOrgCode(orgCode);
         // 局部更新（如只改所属项目）不传 fileIds 时必须保留原附件
         if (req.getFileIds() != null) {

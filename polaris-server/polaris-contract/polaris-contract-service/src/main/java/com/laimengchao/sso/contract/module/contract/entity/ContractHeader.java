@@ -33,7 +33,7 @@ public class ContractHeader extends BaseEntity {
     private String paymentTerms;
     /** 合同标的 */
     private String subject;
-    /** 预算科目（财务主数据名称；采购计划转入时固定取计划值，不被前端手输覆盖） */
+    /** 历史列：预算科目属财务域字段，合同侧不再录入或展示；保留列兼容存量数据 */
     private String budgetSubject;
     /** 来源：DIRECT 直接新建 / FROM_PLAN 采购计划转入 */
     private String contractSource;

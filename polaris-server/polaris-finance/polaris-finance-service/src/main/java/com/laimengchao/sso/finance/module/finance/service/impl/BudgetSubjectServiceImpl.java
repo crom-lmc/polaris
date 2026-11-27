@@ -20,7 +20,6 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 
 /** 预算科目主数据：新增 / 编辑 / 启停 / 删除（已被凭证引用时禁止删除）。 */
 @Service
@@ -53,23 +52,6 @@ public class BudgetSubjectServiceImpl implements BudgetSubjectService {
         List<FinanceVOs.BudgetSubjectVO> out = new ArrayList<>();
         for (FinBudgetSubject s : budgetSubjectMapper.selectList(w)) {
             out.add(toVO(s));
-        }
-        return out;
-    }
-
-    /** 服务间只读：不套数据范围，主数据挂集团根全员可见；internal 调用无 X-Account-Id 故不能套 scope */
-    public List<Map<String, Object>> enabledOptionsForInternal(Integer year) {
-        LambdaQueryWrapper<FinBudgetSubject> w = new LambdaQueryWrapper<FinBudgetSubject>()
-                .eq(FinBudgetSubject::getStatus, ENABLED)
-                .eq(year != null, FinBudgetSubject::getYear, year)
-                .orderByAsc(FinBudgetSubject::getCode);
-        List<Map<String, Object>> out = new ArrayList<>();
-        for (FinBudgetSubject s : budgetSubjectMapper.selectList(w)) {
-            Map<String, Object> m = new java.util.LinkedHashMap<>();
-            m.put("code", s.getCode());
-            m.put("name", s.getName());
-            m.put("year", s.getYear());
-            out.add(m);
         }
         return out;
     }

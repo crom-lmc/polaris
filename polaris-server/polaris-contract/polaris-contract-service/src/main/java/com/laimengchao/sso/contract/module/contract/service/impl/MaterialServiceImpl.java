@@ -79,10 +79,14 @@ public class MaterialServiceImpl implements MaterialService {
             throw new BizException(ContractErrorCode.MATERIAL_NOT_FOUND);
         }
         dataScopeService.assertCanAccessOrg(category.getOrgCode());
-        // 选中一级/二级分类时汇总其全部子孙分类下的物料；三级分类时仅自身
-        Set<Long> categoryIds = withDescendantCategoryIds(categoryId);
+        // 分类码为层级前缀（01/0101/010101），物料码=三级分类码+6位流水。
+        // 选中任意级分类，按其编码前缀 like 即可命中该分类及其全部子孙分类下的物料。
+        String prefix = category.getCode();
+        if (prefix == null || prefix.isBlank()) {
+            return List.of();
+        }
         LambdaQueryWrapper<ContractMaterial> qw = new LambdaQueryWrapper<ContractMaterial>()
-                .in(ContractMaterial::getCategoryId, categoryIds)
+                .likeRight(ContractMaterial::getCode, prefix)
                 .orderByAsc(ContractMaterial::getCode);
         dataScopeService.applyOrgScope(qw, ContractMaterial::getOrgCode);
         return mapper.selectList(qw).stream().map(this::toVO).toList();

@@ -93,7 +93,6 @@ public class PurchasePlanServiceImpl implements PurchasePlanService {
         entity.setApplicant(nvl(req.getApplicant(), ""));
         entity.setDate(req.getDate() == null ? java.time.LocalDate.now() : req.getDate());
         entity.setNeedDate(req.getNeedDate());
-        entity.setBudgetSubject(nvl(req.getBudgetSubject(), ""));
         entity.setStatus("DRAFT");
         entity.setOrgCode(nvl(req.getOrgCode(), ""));
         entity.setFileIds(ContractAttachments.join(req.getFileIds()));
@@ -121,7 +120,6 @@ public class PurchasePlanServiceImpl implements PurchasePlanService {
         entity.setApplicant(nvl(req.getApplicant(), ""));
         entity.setDate(req.getDate() == null ? entity.getDate() : req.getDate());
         entity.setNeedDate(req.getNeedDate());
-        entity.setBudgetSubject(nvl(req.getBudgetSubject(), ""));
         entity.setOrgCode(nvl(req.getOrgCode(), entity.getOrgCode()));
         if (req.getFileIds() != null) {
             entity.setFileIds(ContractAttachments.join(req.getFileIds()));
@@ -189,7 +187,7 @@ public class PurchasePlanServiceImpl implements PurchasePlanService {
                 ContractServiceImpl.PURCHASE, plan.getTitle(), req.getPartnerCode().trim(),
                 req.getProjectNo() == null ? null : req.getProjectNo().trim(),
                 nvl(req.getDept(), plan.getDept()), nvl(req.getOwner(), plan.getApplicant()),
-                nvl(req.getPaymentTerms(), ""), nvl(req.getSubject(), ""), nvl(plan.getBudgetSubject(), ""),
+                nvl(req.getPaymentTerms(), ""), nvl(req.getSubject(), ""),
                 orgCode, plan.getFileIds(), plan.getNo());
         for (ContractPurchasePlanItem source : planItems) {
             ContractRequests.ItemSave itemReq = new ContractRequests.ItemSave();
@@ -266,7 +264,6 @@ public class PurchasePlanServiceImpl implements PurchasePlanService {
         vo.setApplicant(e.getApplicant());
         vo.setDate(e.getDate() == null ? null : e.getDate().toString());
         vo.setNeedDate(e.getNeedDate() == null ? null : e.getNeedDate().toString());
-        vo.setBudgetSubject(e.getBudgetSubject());
         vo.setStatus(e.getStatus());
         vo.setContractNo(e.getContractNo());
         vo.setOrgCode(e.getOrgCode());

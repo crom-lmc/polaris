@@ -68,6 +68,23 @@ public class PartnerServiceImpl implements PartnerService {
         return mapper.selectList(qw).stream().map(e -> toVO(e, false)).toList();
     }
 
+    /** internal Feign 下拉：调用方传账号，不能用当前请求上下文（无 X-Account-Id 会 fail-closed 空集） */
+    public List<ContractVOs.PartnerVO> optionsForAccount(String role, String status, Long accountId) {
+        String scopeCode = accountId == null ? null : dataScopeService.scopeCodeOf(accountId);
+        LambdaQueryWrapper<ContractPartner> qw = new LambdaQueryWrapper<ContractPartner>()
+                .eq(status != null && !status.isBlank(), ContractPartner::getStatus, trim(status))
+                .orderByAsc(ContractPartner::getCode);
+        dataScopeService.applyOrgScope(qw, ContractPartner::getOrgCode, scopeCode);
+        List<ContractVOs.PartnerVO> all = mapper.selectList(qw).stream().map(e -> toVO(e, false)).toList();
+        if (role == null || role.isBlank()) {
+            return all;
+        }
+        String wanted = trim(role);
+        return all.stream()
+                .filter(p -> wanted.equals(p.getRole()) || "BOTH".equalsIgnoreCase(p.getRole()))
+                .toList();
+    }
+
     public ContractVOs.PartnerVO detail(Long id) {
         return toVO(require(id), dataScopeService.hasPermission(PermissionCodes.CONTRACT_PARTNER_BANK_VIEW));
     }

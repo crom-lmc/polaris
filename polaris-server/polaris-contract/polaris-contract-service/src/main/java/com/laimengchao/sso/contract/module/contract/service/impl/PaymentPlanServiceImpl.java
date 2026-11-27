@@ -23,14 +23,19 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Set;
 
 /** 合同付款计划：发起付款申请置为待审批；来源单据号由财务域生成后回写。 */
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class PaymentPlanServiceImpl implements PaymentPlanService {
+
+    private static final Set<String> PAID_STATUS = Set.of("PAID", "POSTED");
+    private static final Set<String> IN_FLIGHT_STATUS = Set.of("PENDING", "APPROVED");
 
     private final ContractPaymentPlanMapper mapper;
     private final ContractAcceptanceMapper acceptanceMapper;
@@ -65,12 +70,25 @@ public class PaymentPlanServiceImpl implements PaymentPlanService {
     public ContractVOs.PaymentPlanVO save(String contractNo, ContractRequests.PaymentPlanSave req) {
         ContractHeader header = contractService.requireByNo(contractNo);
         dataScopeService.assertCanAccessOrg(header.getOrgCode());
-        if (req == null || req.getAmount() == null || req.getAmount().signum() <= 0) {
-            throw new BizException(ErrorCode.PARAM_ERROR, "付款金额必须大于 0");
+        if (req == null || req.getStage() == null || req.getStage().isBlank()) {
+            throw new BizException(ErrorCode.PARAM_ERROR, "请选择付款阶段");
+        }
+        if (req.getDueDate() == null) {
+            throw new BizException(ErrorCode.PARAM_ERROR, "请选择应付日期");
+        }
+        if (req.getAmount() == null || req.getAmount().signum() <= 0) {
+            throw new BizException(ErrorCode.PARAM_ERROR, "本期付款金额必须大于 0");
+        }
+        BigDecimal remaining = remainingAmount(header, null);
+        if (remaining.signum() <= 0) {
+            throw new BizException(ErrorCode.PARAM_ERROR, "合同剩余金额为 0，不能新增付款计划");
+        }
+        if (req.getAmount().compareTo(remaining) > 0) {
+            throw new BizException(ErrorCode.PARAM_ERROR, "本期付款金额不能超过合同剩余金额 " + remaining);
         }
         ContractPaymentPlan entity = new ContractPaymentPlan();
         entity.setContractNo(header.getNo());
-        entity.setStage(nvl(req.getStage(), "其他付款"));
+        entity.setStage(req.getStage().trim());
         entity.setDueDate(req.getDueDate());
         entity.setAmount(req.getAmount());
         entity.setSummary(nvl(req.getSummary(), ""));
@@ -91,11 +109,20 @@ public class PaymentPlanServiceImpl implements PaymentPlanService {
         if (req == null) {
             throw new BizException(ErrorCode.PARAM_ERROR, "请求体不能为空");
         }
+        if (req.getStage() != null && req.getStage().isBlank()) {
+            throw new BizException(ErrorCode.PARAM_ERROR, "请选择付款阶段");
+        }
+        BigDecimal amount = req.getAmount() == null ? entity.getAmount() : req.getAmount();
+        if (amount == null || amount.signum() <= 0) {
+            throw new BizException(ErrorCode.PARAM_ERROR, "本期付款金额必须大于 0");
+        }
+        BigDecimal remaining = remainingAmount(contractService.requireByNo(entity.getContractNo()), id);
+        if (amount.compareTo(remaining) > 0) {
+            throw new BizException(ErrorCode.PARAM_ERROR, "本期付款金额不能超过合同剩余金额 " + remaining);
+        }
         entity.setStage(nvl(req.getStage(), entity.getStage()));
         entity.setDueDate(req.getDueDate() == null ? entity.getDueDate() : req.getDueDate());
-        if (req.getAmount() != null) {
-            entity.setAmount(req.getAmount());
-        }
+        entity.setAmount(amount);
         if (req.getSummary() != null) {
             entity.setSummary(req.getSummary().trim());
         }
@@ -211,6 +238,24 @@ public class PaymentPlanServiceImpl implements PaymentPlanService {
             // 合同不在当前数据范围时不泄露名称，仅保留编号
         }
         return vo;
+    }
+
+    /**
+     * 合同剩余金额：合同金额 - 已付 - 在途，与合同台账「待付款金额」同口径。
+     * 更新时把当前计划（未付款、未在途）金额加回，避免把自己算进占用。
+     */
+    private BigDecimal remainingAmount(ContractHeader header, Long excludePlanId) {
+        List<ContractVOs.ContractVO> decorated = contractService.decorate(List.of(header));
+        BigDecimal remaining = decorated.isEmpty() || decorated.get(0).getPendingAmount() == null
+                ? BigDecimal.ZERO : decorated.get(0).getPendingAmount();
+        if (excludePlanId != null) {
+            ContractPaymentPlan own = mapper.selectById(excludePlanId);
+            if (own != null && header.getNo().equals(own.getContractNo()) && own.getAmount() != null
+                    && !PAID_STATUS.contains(own.getStatus()) && !IN_FLIGHT_STATUS.contains(own.getStatus())) {
+                remaining = remaining.add(own.getAmount());
+            }
+        }
+        return remaining.max(BigDecimal.ZERO);
     }
 
     private String nvl(String value, String fallback) {

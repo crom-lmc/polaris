@@ -58,8 +58,6 @@ public final class FinanceVOs {
         private String dept;
         private String subject;
         private String subjectCode;
-        /** 报销事由字典 value */
-        private String expenseReason;
         /** 发票类型字典 value */
         private String invoiceType;
         /** 税率 */

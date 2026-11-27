@@ -13,6 +13,9 @@ public interface PartnerService {
     /** 下拉 / 跨服务只读：返回全局可见的合作中单位，但同样按数据范围收口 */
     List<ContractVOs.PartnerVO> list(String role, String status);
 
+    /** internal Feign 下拉：按显式账号解析数据范围，role 匹配时同时包含 BOTH */
+    List<ContractVOs.PartnerVO> optionsForAccount(String role, String status, Long accountId);
+
     ContractVOs.PartnerVO detail(Long id);
 
     ContractPartner require(Long id);

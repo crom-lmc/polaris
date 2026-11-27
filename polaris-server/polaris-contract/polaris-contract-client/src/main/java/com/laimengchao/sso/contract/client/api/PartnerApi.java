@@ -28,4 +28,13 @@ public interface PartnerApi {
     @GetMapping("/internal/contract/partners")
     R<List<PartnerDTO>> list(@RequestParam(value = "role", required = false) String role,
                              @RequestParam(value = "status", required = false) String status);
+
+    /**
+     * 下拉候选：显式传账号，被调方按该账号的数据范围过滤（internal Feign 无 X-Account-Id）。
+     * role 传 CUSTOMER / SUPPLIER 时同时包含 BOTH 角色。
+     */
+    @GetMapping("/internal/contract/partner-options")
+    R<List<PartnerDTO>> options(@RequestParam(value = "role", required = false) String role,
+                                @RequestParam(value = "status", required = false) String status,
+                                @RequestParam(value = "accountId", required = false) Long accountId);
 }

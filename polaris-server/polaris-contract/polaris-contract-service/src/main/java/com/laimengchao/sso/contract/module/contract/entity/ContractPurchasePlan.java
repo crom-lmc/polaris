@@ -24,6 +24,7 @@ public class ContractPurchasePlan extends BaseEntity {
     /** 计划日期（设计稿 date；与需求日期 needDate 区分） */
     private LocalDate date;
     private LocalDate needDate;
+    /** 历史列：预算科目属财务域字段，采购计划侧不再录入或展示；保留列兼容存量数据 */
     private String budgetSubject;
     /** DRAFT / PENDING / APPROVED / CONVERTED / REJECTED */
     private String status;

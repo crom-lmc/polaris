@@ -10,9 +10,6 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestParam;
 
-import java.util.List;
-import java.util.Map;
-
 /**
  * 预算内部接口，直连 finance-service，不经网关。
  */
@@ -22,10 +19,6 @@ import java.util.Map;
         url = "${finance.client.base-url:${FINANCE_URL:http://127.0.0.1:9014}}",
         configuration = FinanceFeignConfig.class)
 public interface BudgetApi {
-
-    /** 预算科目主数据（启用中），供合同域选择用；每项含 code/name/year */
-    @GetMapping("/internal/finance/budgets/budget-subjects/options")
-    R<List<Map<String, Object>>> budgetSubjectOptions(@RequestParam(value = "year", required = false) Integer year);
 
     /** 部门年度预算可用额；令牌缺失或调用失败时关键链路必须 fail-closed */
     @GetMapping("/internal/finance/budgets/available")

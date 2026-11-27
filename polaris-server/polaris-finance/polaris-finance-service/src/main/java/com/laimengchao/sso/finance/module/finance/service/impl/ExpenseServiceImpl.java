@@ -38,6 +38,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -503,12 +504,20 @@ public class ExpenseServiceImpl implements ExpenseService {
         e.setDept(req.getDept().trim());
         e.setSubject(subject.name());
         e.setSubjectCode(subject.code());
-        e.setExpenseReason(req.getExpenseReason() == null ? "" : req.getExpenseReason().trim());
         e.setInvoiceType(req.getInvoiceType() == null ? "" : req.getInvoiceType().trim());
         e.setTaxRate(req.getTaxRate());
-        e.setTaxAmount(req.getTaxAmount());
+        // 税额由服务端按「金额 × 税率」计算，不信任客户端传值；税率字典 value 为百分数（如 3 表示 3%）
+        e.setTaxAmount(taxAmountOf(req.getAmount(), req.getTaxRate()));
         e.setFileIds(normalizeFileIds(req.getFileIds()));
         e.setDate(req.getDate() == null ? LocalDate.now() : req.getDate());
+    }
+
+    /** 税额 = 金额 × 税率 / 100，保留 2 位小数；无税率时为 0.00 */
+    private static BigDecimal taxAmountOf(BigDecimal amount, BigDecimal rate) {
+        if (amount == null || rate == null || rate.signum() == 0) {
+            return BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP);
+        }
+        return amount.multiply(rate).divide(new BigDecimal("100"), 2, RoundingMode.HALF_UP);
     }
 
     private FinExpense require(Long id) {
@@ -531,7 +540,6 @@ public class ExpenseServiceImpl implements ExpenseService {
         vo.setDept(e.getDept());
         vo.setSubject(e.getSubject());
         vo.setSubjectCode(e.getSubjectCode());
-        vo.setExpenseReason(e.getExpenseReason());
         vo.setInvoiceType(e.getInvoiceType());
         vo.setTaxRate(e.getTaxRate());
         vo.setTaxAmount(e.getTaxAmount());

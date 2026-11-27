@@ -25,7 +25,7 @@ public class FinExpense extends BaseEntity {
     private String subject;
     /** 报销类型映射的会计科目编码，便于对账与追溯 */
     private String subjectCode;
-    /** 报销事由（settings 字典 finance.expense_reason 的 value） */
+    /** 历史列：原报销事由字典 value，与报销类型重复，新单不再写入 */
     private String expenseReason;
     /** 发票类型（settings 字典 finance.invoice_type 的 value） */
     private String invoiceType;

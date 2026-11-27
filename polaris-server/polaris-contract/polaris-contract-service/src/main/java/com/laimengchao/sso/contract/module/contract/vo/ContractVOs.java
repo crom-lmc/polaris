@@ -129,8 +129,6 @@ public final class ContractVOs {
         private String paymentTerms;
         /** 合同标的 */
         private String subject;
-        /** 预算科目 */
-        private String budgetSubject;
         /** 来源 DIRECT / FROM_PLAN */
         private String contractSource;
         /** 来源采购计划号（FROM_PLAN 时带入） */
@@ -222,7 +220,6 @@ public final class ContractVOs {
         /** 计划日期（设计稿 date） */
         private String date;
         private String needDate;
-        private String budgetSubject;
         private String status;
         private String contractNo;
         private String orgCode;

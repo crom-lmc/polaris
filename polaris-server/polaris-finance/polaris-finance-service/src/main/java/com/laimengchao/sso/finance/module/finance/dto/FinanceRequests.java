@@ -44,8 +44,6 @@ public final class FinanceRequests {
         private String dept;
         /** 兼容历史数据；新单由 expenseType 映射生成，忽略客户端传值 */
         private String subject;
-        /** 报销事由（settings 字典 finance.expense_reason 的 value） */
-        private String expenseReason;
         /** 发票类型（settings 字典 finance.invoice_type 的 value） */
         private String invoiceType;
         /** 税率（settings 字典 finance.tax_rate） */
