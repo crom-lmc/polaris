@@ -9,6 +9,8 @@
 -- 环境：生产 CONTRACT_SQL_INIT_MODE / FILE_SQL_INIT_MODE = never，必须手工执行。
 -- ============================================================================
 
+USE `polaris_contract`;
+
 DROP PROCEDURE IF EXISTS `polaris_add_contract_file_column`;
 DELIMITER $$
 CREATE PROCEDURE `polaris_add_contract_file_column`(IN tbl_name VARCHAR(64))

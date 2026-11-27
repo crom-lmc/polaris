@@ -11,6 +11,8 @@
 -- 环境：生产 FINANCE_SQL_INIT_MODE / SETTINGS_SQL_INIT_MODE / FILE_SQL_INIT_MODE = never，必须手工执行。
 -- ============================================================================
 
+USE `polaris_finance`;
+
 DROP PROCEDURE IF EXISTS `polaris_add_fin_expense_column`;
 DELIMITER $$
 CREATE PROCEDURE `polaris_add_fin_expense_column`(
