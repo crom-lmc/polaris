@@ -106,22 +106,38 @@ interface AppMenuItem {
   children?: AppMenuItem[]
 }
 
-const menus: AppMenuItem[] = [
-  { path: '/overview', title: '财务概览', short: '概览', icon: DashboardOutlined, perm: 'finance:overview:view' },
-  { path: '/voucher', title: '凭证管理', short: '凭证', icon: FileTextOutlined, perm: 'finance:voucher:list' },
-  { path: '/expense', title: '费用报销', short: '报销', tabLabel: '费用报销', icon: WalletOutlined, perm: 'finance:expense:list' },
-  { path: '/budget', title: '预算管理', short: '预算', icon: PieChartOutlined, perm: 'finance:budget:view' },
-  { path: '/ar-ap', title: '应收应付', short: '往来', tabLabel: '应收应付', icon: SwapOutlined, perm: 'finance:ar-ap:list' },
-  { path: '/report', title: '财务报表', short: '报表', icon: BarChartOutlined, perm: 'finance:report:view' },
-  {
-    path: '/master-data', title: '主数据维护', short: '主数据', icon: BookOutlined, perm: 'finance:master:list',
-    children: [
-      { path: '/account-subject', title: '会计科目', short: '会计科目', icon: BookOutlined, perm: 'finance:account-subject:list' },
-      { path: '/budget-subject', title: '预算科目', short: '预算科目', icon: AimOutlined, perm: 'finance:budget-subject:list' }
-    ]
-  },
-  { path: '/lineage', title: '数据口径', short: '口径', icon: ApartmentOutlined, perm: 'finance:lineage:view' }
-]
+// 前端只保存「权限码 -> 路由/图标/短名」映射；菜单名称、排序、层级一律来自 SSO 权限树
+const menuRoutes: Record<string, { path: string; icon: any; short?: string; tabLabel?: string }> = {
+  'finance:overview:view': { path: '/overview', icon: DashboardOutlined, short: '概览' },
+  'finance:voucher:list': { path: '/voucher', icon: FileTextOutlined, short: '凭证' },
+  'finance:expense:list': { path: '/expense', icon: WalletOutlined, short: '报销', tabLabel: '费用报销' },
+  'finance:budget:view': { path: '/budget', icon: PieChartOutlined, short: '预算' },
+  'finance:ar-ap:list': { path: '/ar-ap', icon: SwapOutlined, short: '往来', tabLabel: '应收应付' },
+  'finance:report:view': { path: '/report', icon: BarChartOutlined, short: '报表' },
+  'finance:master:list': { path: '/master-data', icon: BookOutlined, short: '主数据' },
+  'finance:account-subject:list': { path: '/account-subject', icon: BookOutlined, short: '会计科目' },
+  'finance:budget-subject:list': { path: '/budget-subject', icon: AimOutlined, short: '预算科目' },
+  'finance:lineage:view': { path: '/lineage', icon: ApartmentOutlined, short: '口径' }
+}
+
+const menus = computed<AppMenuItem[]>(() => {
+  const granted = new Set(store.menus.map((m) => m.code))
+  // 父权限未授权时，子菜单提升为一级，避免整块菜单消失
+  const build = (parentCode: string | null): AppMenuItem[] =>
+    store.menus
+      .filter((m) => parentCode
+        ? m.parentCode === parentCode
+        : !m.parentCode || !granted.has(m.parentCode))
+      // 同 sort 时保持 SSO 权限树返回顺序
+      .sort((a, b) => a.sort - b.sort)
+      .flatMap((m) => {
+        const meta = menuRoutes[m.code]
+        if (!meta) return []
+        const children = build(m.code)
+        return [{ ...meta, perm: m.code, title: m.name, ...(children.length ? { children } : {}) }]
+      })
+  return build(null)
+})
 
 const mobile = ref(false)
 const mq = window.matchMedia('(max-width: 767px)')
@@ -129,14 +145,15 @@ const syncMobile = () => { mobile.value = mq.matches }
 onMounted(() => { syncMobile(); mq.addEventListener('change', syncMobile) })
 onBeforeUnmount(() => mq.removeEventListener('change', syncMobile))
 
-const flatMenus = computed(() => menus.flatMap((m) => m.children ?? [m]))
+const flatMenus = computed(() => menus.value.flatMap((m) => m.children ?? [m]))
 const mobileMenus = computed(() => flatMenus.value.filter((m) => ['/overview', '/voucher', '/expense', '/ar-ap'].includes(m.path)))
 const moreMenus = computed(() => flatMenus.value.filter((m) => !mobileMenus.value.includes(m) && (!m.perm || store.can(m.perm))))
-const pageTitle = computed(() => (route.meta.title as string) || appName.value)
+const pageTitle = computed(() =>
+  flatMenus.value.find((m) => m.path === route.path)?.title || (route.meta.title as string) || appName.value)
 const selectedKeys = computed(() => [route.path])
 const openKeys = ref<string[]>([])
 watch(() => route.path, (p) => {
-  const parent = menus.find((m) => m.children?.some((c) => c.path === p))
+  const parent = menus.value.find((m) => m.children?.some((c) => c.path === p))
   if (parent && !openKeys.value.includes(parent.path)) openKeys.value = [...openKeys.value, parent.path]
 }, { immediate: true })
 

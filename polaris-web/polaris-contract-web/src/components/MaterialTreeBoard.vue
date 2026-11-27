@@ -4,7 +4,7 @@ import { message, Modal } from 'ant-design-vue'
 import { useUserStore } from '@/stores/user'
 import { useIsMobile } from '@/composables/useIsMobile'
 import {
-  getCategoryTree, getCategoryList, getMaterials,
+  getCategoryTree, getCategoryList, getMaterials, toggleCategoryStatus,
   saveCategory, updateCategory, deleteCategory,
   saveMaterial, updateMaterial, deleteMaterial,
   type MaterialCategoryVO, type MaterialVO,
@@ -21,6 +21,7 @@ const drawerWidth = computed(() => (isMobile.value ? '100%' : 560))
 /** 物料库维护分类，物料维护维护物料，权限各自独立不复用 */
 const canAddCategoryPerm = computed(() => !manage.value && store.can('contract:material:category:add'))
 const canEditCategoryPerm = computed(() => !manage.value && store.can('contract:material:category:edit'))
+const canStatusCategoryPerm = computed(() => !manage.value && store.can('contract:material:category:status'))
 const canAddMaterialPerm = computed(() => manage.value && store.can('contract:material:add'))
 const canEditMaterialPerm = computed(() => manage.value && store.can('contract:material:edit'))
 
@@ -48,10 +49,10 @@ async function loadTree() {
 }
 
 /** 自绘树节点：缩进由 level 内联 padding-left 决定 */
-type FlatNode = { key: string; title: string; level: number; hasChildren: boolean; parentKey: string | null }
+type FlatNode = { key: string; title: string; level: number; hasChildren: boolean; parentKey: string | null; status: string }
 function buildFlatNodes(nodes: MaterialCategoryVO[], out: FlatNode[] = [], level = 0, parentKey: string | null = null): FlatNode[] {
   for (const n of nodes) {
-    out.push({ key: n.id, title: n.name, level, hasChildren: !!n.children?.length, parentKey })
+    out.push({ key: n.id, title: n.name, level, hasChildren: !!n.children?.length, parentKey, status: n.status || 'ENABLED' })
     if (n.children?.length) buildFlatNodes(n.children, out, level + 1, n.id)
   }
   return out
@@ -122,7 +123,8 @@ const rows = computed(() => (manage.value ? keywordFiltered(materialRows.value) 
 const categoryColumns = [
   { title: '编码', dataIndex: 'code', key: 'code', width: 170 },
   { title: '分类名称', key: 'name', width: 220 },
-  { title: '操作', key: 'action', width: 140 }
+  { title: '状态', key: 'status', align: 'center' as const, width: 90 },
+  { title: '操作', key: 'action', width: 210 }
 ]
 const materialColumns = [
   { title: '编码', dataIndex: 'code', key: 'code', width: 170 },
@@ -164,11 +166,19 @@ function openCreate() {
       message.warning('请选中一级或二级分类后新增分类；三级分类下不允许继续新增分类')
       return
     }
+    if (currentNode.value?.status === 'DISABLED') {
+      message.warning('当前分类已停用，请先启用后再新增子分类')
+      return
+    }
     resetForms()
     catForm.parentId = currentNode.value?.id || null
   } else {
     if (!canAddMaterialPerm.value || !materialLevelOk.value) {
       message.warning('新增物料请先选中三级分类')
+      return
+    }
+    if (currentNode.value?.status === 'DISABLED') {
+      message.warning('当前分类已停用，请先启用后再新增物料')
       return
     }
     resetForms()
@@ -245,6 +255,40 @@ function remove(row: MaterialCategoryVO | MaterialVO) {
     }
   })
 }
+/** 分类删除：有子分类或已挂物料时服务端拒绝，列表提前禁用并给出原因 */
+function canDeleteRow(row: MaterialCategoryVO | MaterialVO) {
+  if (manage.value) return true
+  return (row as MaterialCategoryVO).canDelete !== false
+}
+function deleteHint(row: MaterialCategoryVO | MaterialVO) {
+  if (manage.value || canDeleteRow(row)) return ''
+  const c = row as MaterialCategoryVO
+  const reasons: string[] = []
+  if ((c.childCount || 0) > 0) reasons.push('存在子分类')
+  if ((c.materialCount || 0) > 0) reasons.push('存在物料')
+  return reasons.length ? `${reasons.join('、')}，禁止删除` : '禁止删除'
+}
+async function toggleStatus(row: MaterialCategoryVO) {
+  if (!canStatusCategoryPerm.value) return
+  const target = row.status === 'DISABLED' ? 'ENABLED' : 'DISABLED'
+  const apply = async () => {
+    try {
+      await toggleCategoryStatus(row.id, target)
+      message.success(target === 'DISABLED' ? '已停用，该分类及其下级不再用于选料' : '已启用')
+      await loadTree()
+      await loadRows()
+    } catch (e: any) { message.error(e?.message || '状态更新失败') }
+  }
+  if (target === 'DISABLED') {
+    Modal.confirm({
+      centered: true, title: '停用分类',
+      content: `停用「${row.name}」后，该分类及其下级分类、物料将不再出现在合同清单/采购计划选料下拉中，历史单据不受影响。`,
+      onOk: apply
+    })
+  } else {
+    await apply()
+  }
+}
 const drawerTitle = computed(() => {
   if (editOpen.value && (manage.value ? matForm.id : catForm.id)) return manage.value ? '编辑物料' : '编辑分类'
   if (!manage.value) return `新增${selectedLevel.value + 1}级分类`
@@ -283,52 +327,66 @@ onMounted(async () => { await loadTree(); await loadRows() })
           <a-spin :spinning="loading">
             <div class="mt-tree">
               <div v-for="node in visibleNodes" :key="node.key" class="mt-node"
-                   :class="{ 'is-selected': selectedKeys[0] === node.key }"
+                   :class="{ 'is-selected': selectedKeys[0] === node.key, 'is-disabled': node.status === 'DISABLED' }"
                    :style="{ paddingLeft: (node.level * 22 + 6) + 'px' }"
                    @click="selectNode(node.key); loadRows()">
                 <span class="mt-switcher" @click.stop="node.hasChildren && toggleExpand(node.key)">
                   <span v-if="node.hasChildren" class="mt-arrow">{{ isExpanded(node.key) ? '▾' : '▸' }}</span>
                 </span>
                 <span class="mt-title">{{ node.title }}</span>
+                <span v-if="node.status === 'DISABLED'" class="mt-disabled">停用</span>
               </div>
               <div v-if="!visibleNodes.length && !loading" class="mt-empty">暂无分类</div>
             </div>
           </a-spin>
         </div>
         <div class="panel-tree-main">
-          <a-card size="small" class="panel-card"
-                  :title="manage
-                    ? `物料清单：${currentNode?.name || '未选择分类'}`
-                    : `子分类：${currentNode?.name || '根节点'}`">
+          <a-card size="small" class="panel-card">
             <a-table class="ft-table" row-key="id" :columns="columns" :data-source="rows" :loading="rowsLoading"
                      :pagination="false" :class="{ 'panel-empty-mode': !rows.length }"
-                     :scroll="rows.length ? { x: manage ? 900 : 500 } : undefined">
+                     :scroll="rows.length ? { x: manage ? 900 : 700 } : undefined">
               <template #bodyCell="{ column, record }">
                 <template v-if="column.key === 'name'">
                   <a-tooltip :title="`${record.name}`"><span class="cell-ellipsis">{{ record.name }}</span></a-tooltip>
                 </template>
+                <template v-else-if="column.key === 'spec'">
+                  <a-tooltip :title="record.spec"><span class="cell-ellipsis">{{ record.spec || '-' }}</span></a-tooltip>
+                </template>
                 <template v-else-if="column.key === 'referencePrice'">
                   {{ record.referencePrice != null ? yuan(record.referencePrice) : '-' }}
+                </template>
+                <template v-else-if="column.key === 'status'">
+                  <a-tag :color="record.status === 'DISABLED' ? 'default' : 'green'">
+                    {{ record.status === 'DISABLED' ? '已停用' : '启用' }}
+                  </a-tag>
                 </template>
                 <template v-else-if="column.key === 'action'">
                   <a-space v-if="manage ? canEditMaterialPerm : canEditCategoryPerm" :size="4">
                     <a @click="openEdit(record)">编辑</a>
-                    <a @click="remove(record)">删除</a>
+                    <template v-if="!manage && canStatusCategoryPerm">
+                      <a @click="toggleStatus(record as MaterialCategoryVO)">{{ record.status === 'DISABLED' ? '启用' : '停用' }}</a>
+                    </template>
+                    <template v-if="!manage && !canDeleteRow(record)">
+                      <a-tooltip :title="deleteHint(record)">
+                        <a class="muted" style="cursor: not-allowed">删除</a>
+                      </a-tooltip>
+                    </template>
+                    <a v-else @click="remove(record)">删除</a>
                   </a-space>
                   <span v-else class="muted">只读</span>
                 </template>
               </template>
               <template #emptyText>
                 <div class="panel-empty"><a-empty :description="manage
-                  ? (selectedLevel === 3 ? '该分类下暂无物料' : '请先在左侧选中三级分类')
+                  ? '该分类及其下级分类下暂无物料'
                   : (selectedLevel === 3 ? '三级分类下不能再新增分类' : '该分类下暂无子分类')" /></div>
               </template>
             </a-table>
           </a-card>
           <a-alert v-if="manage" type="info" show-icon message="维护口径"
-                   description="左侧只展示三级分类树。选中三级分类后在右侧维护物料；物料编码由服务端按分类码续位，已被合同清单或采购计划引用的物料不可删除。分类的新增与编辑请到「物料库」页。" />
+                   description="左侧展示完整分类树。选中任意层级分类，右侧展示该分类及其下级分类下的所有物料；新增物料仍需先选中三级分类，且分类须为启用状态。物料编码由服务端按分类码续位，已被合同清单或采购计划引用的物料不可删除。分类的启停、新增与编辑请到「物料库」页。" />
           <a-alert v-else type="info" show-icon message="维护口径"
-                   description="这里只维护物料分类（最多三级）：选中一级/二级分类可新增下级分类，右侧列表显示当前节点的子分类并支持编辑删除。三级分类下不再新增分类，物料请到「物料维护」页。" />
+                   description="这里只维护物料分类（最多三级）：选中一级/二级分类可新增下级分类，右侧列表显示该分类下所有子孙分类（含二级、三级）并支持编辑、启停、删除。有子分类或已挂物料的分类不可删除；停用后该分类及其下级不再用于选料。三级分类下不再新增分类，物料请到「物料维护」页。" />
         </div>
       </div>
     </section>

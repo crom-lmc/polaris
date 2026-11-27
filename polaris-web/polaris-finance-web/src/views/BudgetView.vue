@@ -144,7 +144,10 @@ function onDelete(row: BudgetVO) {
                :class="{ 'tbl-empty-mode': !loading && !rows.length }"
                :scroll="rows.length ? { x: 1500 } : undefined">
         <template #bodyCell="{ column, record }">
-          <template v-if="column.key === 'rate'">
+          <template v-if="column.key === 'dept'">
+            <a-tooltip :title="record.dept"><span class="cell-ellipsis">{{ record.dept || '-' }}</span></a-tooltip>
+          </template>
+          <template v-else-if="column.key === 'rate'">
             <div class="rate-cell">
               <a-progress :percent="record.rate" size="small" :status="progressStatus(record)" :stroke-color="stroke(record)" />
               <span class="rate-text">{{ record.rate }}%</span>

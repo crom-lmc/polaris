@@ -20,6 +20,8 @@ level: L2
 ## 组件、权限与路由
 
 - MUST 使用 `<script setup lang="ts">`；权限用 `store.can()` / job `hasPerm()` / 路由 `meta.perm`，三者与后端 `@Permit` 同一字符串。
+- **侧栏菜单口径**：业务应用侧栏的**名称、顺序、层级 MUST 来自 SSO 权限树**（`sso_permission` 中 `type=1` 菜单节点，经 `GET /api/auth/me?app=<code>` 的 `menus` 下发：`code/name/sort/parentCode`）。前端 MUST 只保留「权限码 → 路由/图标/短名」映射，MUST NOT 在 Layout 里硬编码菜单标题或排序数组；`store.can()` 只负责显隐。改名/调序/新增菜单先在 SSO 侧（`PermissionConstants.*_BUILTIN` + `deploy/sql` 或管理端）维护，前端仅同步路由映射。同一 `sort` 保持后端返回顺序，MUST NOT 按权限码字母重排。
+- **物料选择口径**：选物料 MUST 用 `_shared/components/MaterialPickerModal.vue`（左分类树按需展开、右分页搜索、单选/多选），MUST NOT 用一次性拉全量物料树的 `a-select` 下拉；调用方只提供 `loadChildren/loadMaterials` 适配器并接收完整物料对象（code/name/spec/unit/price）。
 - MUST NOT 新增 `v-perm` 指令；sso 审批/消息中心 MUST NOT 挂 `meta.perm`（会挡住普通员工）。
 - MUST 带 base 应用保持三件套一致：vite `base` / `createWebHistory(base)` / callback 路径（forum-admin `/admin/`、portal `/portal/`）。
 - **应用图标一致**：MUST 每个应用的 `public/favicon.svg` 与 `_shared/AppCenterNav.vue` 中该 `code` 对应的 `public/icons/<code>.svg`（发布在 SSO 静态目录）保持同一图形与配色；MUST NOT 遗留从别的应用复制来的 favicon（meeting 曾误用 file 服务的蓝色文件夹图标）。部署时给 `favicon.svg` 加 `Cache-Control: no-cache`，避免浏览器长期缓存旧图标。
@@ -54,6 +56,10 @@ level: L2
 - MUST NOT 用 JS `slice()` 硬截断长文本（会丢失完整信息），MUST NOT 用原生 `title` 属性代替 `a-tooltip`（样式、延迟、移动端表现不一致）。在 flex 行内使用时，MUST 补 `flex:1 1 auto; min-width:0` 让省略号生效。
 - 堆栈、入参/响应等超长内容用「行内省略 + 展开行 `<pre>` 看全文」双层策略，不把全文塞进单元格。
 
+**列表标题（合同 / 财务所有模块统一）**：
+- MUST NOT 在表格上方添加由当前选中节点、筛选条件等拼出来的**额外动态标题**（如 `` `子分类：${currentNode.name}` ``、`` `物料清单：${currentNode.name}` ``）。`a-card` / 表格容器直接用静态标题或不加标题；页面名和选中项已在侧栏、树节点或筛选控件中体现时，MUST NOT 再拼一段重复标题。静态区块标题（如「合同信息」「基本信息」）保留。
+- MUST 表头单行不折叠：两个应用 `src/styles/global.css` 对 `.ant-table-thead > tr > th` 及 `.ant-table-column-title` 设 `white-space: nowrap !important`；同时把「列宽合计 > `scroll.x`」的表格加宽 `scroll.x` 与 `--ft-min-width`，MUST NOT 只加 nowrap 不加宽导致列被挤压。
+
 **操作列固定**：MUST 用 `.ft-table` + CSS `position:sticky; right:0; z-index:3` 固定最后一列；MUST NOT 用 antd 的 `fixed:'right'`（会在表格内部再开一层横向滚动，与整页滚动容器冲突；审计 `EventsView.vue` 是历史例外）。按钮左对齐不换行，靠 `.ft-table .ant-btn-link` 的 padding 规则实现。
 
 **列表字段类型归一化**：后端实体用逗号分隔 String 存储、而提交 DTO 是 `List` 的字段（如会议室 `fileIds`），前端 TS 类型 MUST 写成 `string[] | string`，回填与提交 MUST 经统一函数归一为数组（按逗号 split + trim + 过滤空值），MUST NOT 用 `record.xxx || []` 直接回填——字符串会被原样提交，Jackson 反序列化 `ArrayList` 失败报「系统异常」（meeting 编辑会议室曾因此报错）。
@@ -87,9 +93,19 @@ level: L2
 - **应用中心授权过滤**：MUST 只展示 `/api/accounts/me/apps` 返回的已授权应用，外加全员应用 `portal`/`forum`/`meeting` 与当前应用；接口失败时收敛为「全员应用 + 当前应用」，MUST NOT 把 `ALL_APPS` 全量写死展示（谢强强仅 5 个应用却在应用中心看到 12 个曾造成误解）；`file` 北极星云非全员应用，MUST NOT 加入 `PUBLIC_APP_CODES`。
 - MUST 全局登出调用 `/api/auth/logout` 作废旧 token，MUST NOT 只清 localStorage。
 
+## 附件上传
+
+- MUST 用 `_shared/components/AttachmentUpload.vue` 统一上传入口，业务侧只提供 `upload(file)` 与 `fileIds` v-model；共享组件不 import ant-design-vue 等应用依赖，错误经 `error` 事件冒泡。
+- MUST 按独立按钮权限码显示上传入口，MUST NOT 直接复用新增/编辑权限；列表新增附件列时同步加宽 `scroll.x` 与 `--ft-min-width`。
+
+## 闭环字段完整性
+
+- MUST 设计稿画出的字段全部有录入与展示，不因流程闭环而省字段；长文本 `.cell-ellipsis` + `a-tooltip`。
+- MUST 字典类下拉走公共字典 `fetchPublicDict(typeCode)`，新增字典先在 settings `PublicReferenceController.DICT_ALLOWED` 放开；凭证状态机按 DRAFT/REVIEW/POSTED 给 提交审核/审核/过账 操作。
+
 ## 工程与交付
 
-- MUST 新文件换行符与周边一致（polaris-web 源文件为 CRLF），MUST NOT 破坏带 BOM 的文件。
+- MUST 新文件换行符与周边一致（polaris-web 源文件为 CRLF，`_shared/components` 为 LF/无 BOM），MUST NOT 破坏带 BOM 的文件。
 - MUST 新增监听器在 `onBeforeUnmount` 成对清理。
 - MUST 通过 `vue-tsc --noEmit` + `vite build`；改 `_shared/` 时 MUST 全部 11 个应用验证。
 - MUST 最终回复列明需发布的静态资源；改 `_shared/` 发 11 个应用，单应用改动只发该应用。

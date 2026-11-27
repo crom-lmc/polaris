@@ -4,20 +4,22 @@ import { message, Modal } from 'ant-design-vue'
 import { useUserStore } from '@/stores/user'
 import { useIsMobile } from '@/composables/useIsMobile'
 import {
-  listItems, saveItem, deleteItem, acceptItem, getMaterialTree,
-  type ItemVO, type MaterialVO, type ItemSave
+  listItems, saveItem, deleteItem, acceptItem, listAcceptances, uploadContractAttachment,
+  type ItemVO, type ItemSave, type AcceptanceVO
 } from '@/api/contract'
+import { loadMaterialChildren, loadMaterialPage } from '@/composables/useMaterialPicker'
+import MaterialPickerModal, { type MaterialPick } from '@shared/components/MaterialPickerModal.vue'
+import AttachmentUpload from '@shared/components/AttachmentUpload.vue'
 import { yuan } from '@/utils/format'
 
 const props = defineProps<{ contractNo: string }>()
 const store = useUserStore()
 const isMobile = useIsMobile()
 const drawerWidth = computed(() => (isMobile.value ? '100%' : 620))
-const smallDrawerWidth = computed(() => (isMobile.value ? '100%' : 480))
+const smallDrawerWidth = computed(() => (isMobile.value ? '100%' : 620))
 
 const loading = ref(false)
 const rows = ref<ItemVO[]>([])
-const materials = ref<{ label: string; value: string; spec: string; unit: string; price: number }[]>([])
 
 const columns = [
   { title: '行号', dataIndex: 'lineNo', key: 'lineNo', align: 'center' as const, width: 60 },
@@ -37,36 +39,32 @@ async function load() {
   catch (e: any) { message.error(e?.message || '加载清单失败') }
   finally { loading.value = false }
 }
-async function loadMaterials() {
-  try {
-    const tree = await getMaterialTree()
-    const flat: MaterialVO[] = []
-    const walk = (ns: MaterialVO[]) => ns.forEach((n) => { flat.push(n); if (n.children?.length) walk(n.children) })
-    walk(tree || [])
-    materials.value = flat.filter((n) => n.kind === 'MATERIAL').map((n) => ({
-      label: `${n.code} · ${n.name}`, value: n.code, spec: n.spec || '', unit: n.unit || '', price: Number(n.referencePrice || 0)
-    }))
-  } catch { /* 物料库不可用保持空 */ }
-}
-function filterOption(input: string, option: any) {
-  return String(option?.label || '').toLowerCase().includes(input.toLowerCase())
-}
-function onMaterialChange(code: string) {
-  const m = materials.value.find((x) => x.value === code)
-  if (m) {
-    form.materialName = m.label.split(' · ')[1] || ''
-    form.spec = m.spec
-    form.unit = m.unit
-    if (!form.price) form.price = m.price
-  }
-}
-
 const editOpen = ref(false)
 const saving = ref(false)
 const editingId = ref<string | null>(null)
 const form = reactive({
   materialCode: '', materialName: '', spec: '', unit: '', qty: 1, price: 0, remark: ''
 })
+/** 清单行选料统一走公共弹窗，编辑时按物料编码回填 */
+const pickerOpen = ref(false)
+const pickerInitial = computed<MaterialPick[]>(() =>
+  form.materialCode ? [{
+    code: form.materialCode,
+    name: form.materialName || form.materialCode,
+    spec: form.spec,
+    unit: form.unit,
+    price: form.price
+  }] : [])
+
+function onMaterialConfirm(picks: MaterialPick[]) {
+  const m = picks[0]
+  if (!m) return
+  form.materialCode = m.code
+  form.materialName = m.name
+  form.spec = m.spec || ''
+  form.unit = m.unit || ''
+  if (!form.price && m.price) form.price = m.price
+}
 const amount = computed(() => Number(((Number(form.qty) || 0) * (Number(form.price) || 0)).toFixed(2)))
 function openEdit(row?: ItemVO) {
   editingId.value = row?.id || null
@@ -110,7 +108,9 @@ function remove(row: ItemVO) {
 const acceptOpen = ref(false)
 const acceptSaving = ref(false)
 const acceptId = ref('')
-const acceptForm = reactive({ qty: 1, date: undefined as string | undefined, result: 'PASS', remark: '' })
+const acceptForm = reactive({
+  qty: 1, date: undefined as string | undefined, result: 'PASS', remark: '', fileIds: [] as string[]
+})
 const acceptRow = computed(() => rows.value.find((r) => r.id === acceptId.value) || null)
 const acceptRemain = computed(() => acceptRow.value ? Math.max(0, Number(acceptRow.value.qty || 0) - Number(acceptRow.value.deliveredQty || 0)) : 0)
 function openAccept(row: ItemVO) {
@@ -119,6 +119,7 @@ function openAccept(row: ItemVO) {
   acceptForm.date = undefined
   acceptForm.result = 'PASS'
   acceptForm.remark = ''
+  acceptForm.fileIds = []
   acceptOpen.value = true
 }
 async function submitAccept() {
@@ -128,16 +129,42 @@ async function submitAccept() {
   acceptSaving.value = true
   try {
     await acceptItem(props.contractNo, acceptId.value, {
-      qty: Number(acceptForm.qty), date: acceptForm.date, result: acceptForm.result, remark: acceptForm.remark || undefined
+      qty: Number(acceptForm.qty), date: acceptForm.date, result: acceptForm.result,
+      remark: acceptForm.remark || undefined, fileIds: acceptForm.fileIds
     })
     acceptOpen.value = false
     message.success('验收已登记')
     await load()
+    if (acceptRecordsOpen.value) await loadAcceptances()
   } catch (e: any) { message.error(e?.message || '验收失败') }
   finally { acceptSaving.value = false }
 }
 
-onMounted(() => { load(); loadMaterials() })
+/* 验收记录：集中查看验收单与验收凭证 */
+const acceptRecordsOpen = ref(false)
+const acceptRecordsLoading = ref(false)
+const acceptRecords = ref<AcceptanceVO[]>([])
+const acceptanceColumns = [
+  { title: '验收单号', dataIndex: 'no', key: 'no', width: 170 },
+  { title: '物料', dataIndex: 'materialCode', key: 'materialCode', width: 140 },
+  { title: '数量', dataIndex: 'qty', key: 'qty', align: 'right' as const, width: 90 },
+  { title: '日期', dataIndex: 'date', key: 'date', width: 110 },
+  { title: '结果', dataIndex: 'result', key: 'result', width: 90 },
+  { title: '过账凭证', dataIndex: 'voucherNo', key: 'voucherNo', width: 150 },
+  { title: '验收凭证', key: 'attachments', width: 150 }
+]
+async function loadAcceptances() {
+  acceptRecordsLoading.value = true
+  try { acceptRecords.value = await listAcceptances(props.contractNo) }
+  catch (e: any) { message.error(e?.message || '加载验收记录失败') }
+  finally { acceptRecordsLoading.value = false }
+}
+function openAcceptRecords() {
+  acceptRecordsOpen.value = true
+  loadAcceptances()
+}
+
+onMounted(() => { load() })
 </script>
 
 <template>
@@ -145,13 +172,17 @@ onMounted(() => { load(); loadMaterials() })
     <div class="items-toolbar">
       <span class="hint">合同金额由清单合计派生；超项目预算由服务端校验</span>
       <a-tag color="blue">清单 {{ rows.length }} 行</a-tag>
+      <a-button v-if="store.can('contract:ledger:list')" size="small" @click="openAcceptRecords">验收记录</a-button>
       <a-button v-if="store.can('contract:item:edit')" type="primary" size="small" @click="openEdit()">＋ 新增清单行</a-button>
     </div>
     <a-table class="ft-table" row-key="id" :columns="columns" :data-source="rows" :loading="loading" :pagination="false"
-             :class="{ 'tbl-empty-mode': !loading && !rows.length }" :scroll="rows.length ? { x: 930 } : undefined">
+             :class="{ 'tbl-empty-mode': !loading && !rows.length }" :scroll="rows.length ? { x: 980 } : undefined">
       <template #bodyCell="{ column, record }">
         <template v-if="column.key === 'materialName'">
           <a-tooltip :title="`${record.materialName} ${record.spec || ''}`"><span class="cell-ellipsis">{{ record.materialName }}</span></a-tooltip>
+        </template>
+        <template v-else-if="column.key === 'spec'">
+          <a-tooltip :title="record.spec"><span class="cell-ellipsis">{{ record.spec || '-' }}</span></a-tooltip>
         </template>
         <template v-else-if="['price', 'amount'].includes(String(column.key))">{{ yuan(record[column.key as 'price' | 'amount']) }}</template>
         <template v-else-if="column.key === 'delivered'">
@@ -175,8 +206,9 @@ onMounted(() => { load(); loadMaterials() })
       <a-form layout="vertical">
         <a-form-item label="所属合同"><a-input :value="contractNo" readonly /></a-form-item>
         <a-form-item label="物料" required>
-          <a-select v-model:value="form.materialCode" :options="materials" placeholder="从物料库选择物料" show-search
-                    :filter-option="filterOption" @change="onMaterialChange" />
+          <a-button style="text-align: left" @click="pickerOpen = true">
+            {{ form.materialCode ? `${form.materialCode} · ${form.materialName}` : '从物料库选择物料' }}
+          </a-button>
         </a-form-item>
         <a-row :gutter="12">
           <a-col :span="12"><a-form-item label="物料名称"><a-input v-model:value="form.materialName" /></a-form-item></a-col>
@@ -211,6 +243,8 @@ onMounted(() => { load(); loadMaterials() })
           <a-select v-model:value="acceptForm.result" :options="[{ label: '合格', value: 'PASS' }, { label: '不合格', value: 'FAIL' }]" />
         </a-form-item>
         <a-form-item label="备注"><a-textarea v-model:value="acceptForm.remark" :rows="2" /></a-form-item>
+        <AttachmentUpload v-if="store.can('contract:item:attachment:upload')" v-model="acceptForm.fileIds" label="验收凭证" button-text="上传验收凭证"
+                          :upload="(file) => uploadContractAttachment(file, 'acceptance')" @error="message.error" />
       </a-form>
       <template #footer>
         <div class="drawer-footer">
@@ -219,6 +253,30 @@ onMounted(() => { load(); loadMaterials() })
         </div>
       </template>
     </a-drawer>
+
+    <a-modal v-model:open="acceptRecordsOpen" title="验收记录 · 验收凭证" :footer="null" :width="820">
+      <a-spin :spinning="acceptRecordsLoading">
+        <a-table class="ft-table" row-key="id" size="small" :columns="acceptanceColumns" :data-source="acceptRecords"
+                 :pagination="false" :scroll="{ x: 900 }" style="--ft-min-width: 900px">
+          <template #bodyCell="{ column, record }">
+            <template v-if="column.key === 'voucherNo'">
+              <a-tooltip v-if="record.voucherNo" :title="record.voucherNo"><span class="cell-ellipsis">{{ record.voucherNo }}</span></a-tooltip>
+              <span v-else class="muted">未过账</span>
+            </template>
+            <template v-else-if="column.key === 'attachments'">
+              <a v-if="record.fileIds?.length && record.attachmentUrls?.[0]" :href="record.attachmentUrls[0]" target="_blank">凭证（{{ record.fileIds.length }}）</a>
+              <span v-else-if="record.fileIds?.length" class="muted">{{ record.fileIds.length }} 个</span>
+              <span v-else class="muted">-</span>
+            </template>
+          </template>
+          <template #emptyText><div class="tbl-empty"><a-empty v-if="!acceptRecordsLoading" description="该合同暂无验收记录" /></div></template>
+        </a-table>
+      </a-spin>
+    </a-modal>
+
+    <MaterialPickerModal v-model:open="pickerOpen" title="选择物料" :initial-materials="pickerInitial"
+                         :load-children="loadMaterialChildren" :load-materials="loadMaterialPage"
+                         @confirm="onMaterialConfirm" />
   </div>
 </template>
 

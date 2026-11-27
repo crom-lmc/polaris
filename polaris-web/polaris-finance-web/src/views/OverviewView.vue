@@ -164,10 +164,10 @@ function goTraceSource() {
           </div>
         </a-card>
         <a-card class="panel-card" title="最近凭证（点击来源可追溯到源单据 / 合同）" size="small">
-          <a-table class="ft-table" style="--ft-min-width: 1160px" row-key="id" :columns="columns"
+          <a-table class="ft-table" style="--ft-min-width: 1290px" row-key="id" :columns="columns"
                    :data-source="recentVouchers" :pagination="false" :loading="loading"
                    :class="{ 'tbl-empty-mode': !loading && !recentVouchers.length }"
-                   :scroll="recentVouchers.length ? { x: 1160 } : undefined">
+                   :scroll="recentVouchers.length ? { x: 1290 } : undefined">
             <template #bodyCell="{ column, record }">
               <template v-if="column.key === 'summary'">
                 <a-tooltip :title="record.summary"><span class="cell-ellipsis">{{ record.summary }}</span></a-tooltip>
@@ -177,8 +177,13 @@ function goTraceSource() {
                 <a-tag :color="statusColor(record.status)">{{ statusLabel(record.status) }}</a-tag>
               </template>
               <template v-else-if="column.key === 'source'">
-                <a v-if="record.sourceNo" @click="openTrace(record.id)">{{ sourceLabel(record.sourceType) }} · {{ record.sourceNo }}</a>
+                <a-tooltip v-if="record.sourceNo" :title="`${sourceLabel(record.sourceType)} · ${record.sourceNo}`">
+                  <a class="cell-ellipsis" @click="openTrace(record.id)">{{ sourceLabel(record.sourceType) }} · {{ record.sourceNo }}</a>
+                </a-tooltip>
                 <span v-else class="muted">{{ sourceLabel(record.sourceType) }}</span>
+              </template>
+              <template v-else-if="column.key === 'subject'">
+                <a-tooltip :title="record.subject"><span class="cell-ellipsis">{{ record.subject || '-' }}</span></a-tooltip>
               </template>
               <template v-else-if="column.key === 'date'">{{ fmtDate(record.date) }}</template>
               <template v-else-if="column.key === 'action'"><a @click="openTrace(record.id)">查看</a></template>

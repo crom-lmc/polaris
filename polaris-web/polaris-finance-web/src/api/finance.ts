@@ -5,6 +5,14 @@ import request from './request'
 export interface MyAppInfo { code: string; name: string }
 export const fetchMyApps = () => request.get<never, MyAppInfo[]>('/api/accounts/me/apps')
 
+/** SSO 权限树下发的菜单元信息：前端侧栏的名称、顺序、层级只认这里 */
+export interface MenuMeta {
+  code: string
+  name: string
+  sort: number
+  parentCode?: string | null
+}
+
 /** 业务后台通用身份接口（finance 令牌由 /api/finance/sso/oauth/exchange 签发） */
 export interface MeInfo {
   accountId: string
@@ -15,8 +23,9 @@ export interface MeInfo {
   superAdmin: boolean
   appCode: string
   permissions: string[]
+  menus: MenuMeta[]
 }
-/** 带 app=finance 实时查库取本应用权限码，避免 JWT 快照过期导致菜单/按钮失配 */
+/** 带 app=finance 实时查库取本应用权限码与菜单，避免 JWT 快照过期导致菜单/按钮失配 */
 export const fetchMe = () => request.get<never, MeInfo>('/api/auth/me', { params: { app: 'finance' } })
 
 export const SSO_AUTHORIZE_URL = import.meta.env.VITE_SSO_ORIGIN ||
@@ -98,20 +107,50 @@ export interface ExpenseVO {
   id: string
   no: string
   applicant: string
+  expenseType: string
+  expenseTypeName?: string
   reason: string
   amount: number
   dept: string
   subject: string
+  subjectCode?: string
+  /** 报销事由字典 value */
+  expenseReason?: string
+  /** 发票类型字典 value */
+  invoiceType?: string
+  /** 税率 */
+  taxRate?: number
+  /** 税额 */
+  taxAmount?: number
   status: string
   voucherNo?: string
   date: string
   orgCode?: string
+  /** 报销凭证 file_id 列表 */
+  fileIds?: string[]
+  /** 后端签发的临时预览 URL，与 fileIds 顺序一致 */
+  attachmentUrls?: string[]
   createdAt?: string
+}
+
+/** 报销类型字典项：remark 承载 JSON {subjectCode, subjectName} 映射 */
+export interface ExpenseTypeOption {
+  value: string
+  label: string
+  remark?: string | null
+}
+
+/** 发起报销时的服务端默认申请人/归属部门（EHR 真相源） */
+export interface ExpenseProfileVO {
+  applicant: string
+  dept: string
 }
 
 export interface VoucherVO {
   id: string
   no: string
+  /** 凭证类型字典 value */
+  voucherType?: string
   sourceType: string
   sourceNo?: string
   summary: string
@@ -120,9 +159,17 @@ export interface VoucherVO {
   status: string
   date: string
   creator?: string
+  /** 审核人 */
+  reviewer?: string
+  /** 过账人 */
+  poster?: string
   dept?: string
   contractNo?: string
   orgCode?: string
+  /** 凭证附件 file_id 列表 */
+  fileIds?: string[]
+  /** 凭证附件只读预览 URL */
+  attachmentUrls?: string[]
   createdAt?: string
 }
 
@@ -142,6 +189,14 @@ export interface ArApVO {
   subject?: string
   summary?: string
   paymentStage?: string
+  /** 发票号 */
+  invoiceNo?: string
+  /** 发票类型字典 value */
+  invoiceType?: string
+  /** 账期天数 */
+  creditDays?: number
+  /** 到期日 */
+  dueDate?: string
   dept?: string
   orgCode?: string
   createdAt?: string
@@ -179,10 +234,26 @@ export interface PaymentVO {
   no: string
   contractNo?: string
   party: string
+  /** 付款阶段字典 value */
+  stage?: string
   amount: number
+  /** 付款事由 */
+  summary?: string
+  /** 计划付款日期 */
+  dueDate?: string
+  /** 合同域来源单据号 */
+  sourceDocNo?: string
+  /** 过账凭证号 */
+  voucherNo?: string
+  /** 结算方式字典 value */
+  settleMethod?: string
   status: string
   date: string
   orgCode?: string
+  /** 合同与验收凭证 file_id 列表 */
+  fileIds?: string[]
+  /** 合同与验收凭证只读预览 URL */
+  attachmentUrls?: string[]
   createdAt?: string
 }
 
@@ -208,14 +279,27 @@ export interface BudgetSubjectSave {
 }
 export interface ExpenseSave {
   applicant: string
+  expenseType: string
   reason: string
   amount: number
   dept: string
-  subject: string
+  /** 兼容旧字段；新单科目由后端按报销类型映射带出 */
+  subject?: string
+  /** 报销事由字典 value */
+  expenseReason?: string
+  /** 发票类型字典 value */
+  invoiceType?: string
+  /** 税率 */
+  taxRate?: number
+  /** 税额 */
+  taxAmount?: number
   date: string
   orgCode?: string
+  fileIds: string[]
 }
 export interface VoucherSave {
+  /** 凭证类型字典 value */
+  voucherType?: string
   sourceType: string
   sourceNo?: string
   summary: string
@@ -225,6 +309,7 @@ export interface VoucherSave {
   creator?: string
   dept?: string
   contractNo?: string
+  fileIds?: string[]
   orgCode?: string
 }
 export interface ArApSave {
@@ -236,6 +321,14 @@ export interface ArApSave {
   summary?: string
   date: string
   dept?: string
+  /** 发票号 */
+  invoiceNo?: string
+  /** 发票类型字典 value */
+  invoiceType?: string
+  /** 账期天数 */
+  creditDays?: number
+  /** 到期日 */
+  dueDate?: string
   orgCode?: string
 }
 export interface BudgetSave {
@@ -270,8 +363,25 @@ export const listVouchers = (params: VoucherQuery) =>
   request.get<never, Page<VoucherVO>>('/api/finance/vouchers', { params })
 export const getVoucher = (id: string) => request.get<never, VoucherVO>(`/api/finance/vouchers/${id}`)
 export const createVoucher = (data: VoucherSave) => request.post<never, VoucherVO>('/api/finance/vouchers', data)
+export const submitVoucherReview = (id: string) => request.post<never, void>(`/api/finance/vouchers/${id}/submit-review`)
+export const reviewVoucher = (id: string) => request.post<never, void>(`/api/finance/vouchers/${id}/review`)
 export const postVoucher = (id: string) => request.post<never, void>(`/api/finance/vouchers/${id}/post`)
 export const deleteVoucher = (id: string) => request.delete<never, void>(`/api/finance/vouchers/${id}`)
+
+/** 凭证附件 base64 上传代理，业务表只存 file_id */
+export interface AttachmentUploadResult { fileId: string; url: string }
+export const uploadVoucherAttachment = (file: File) =>
+  new Promise<AttachmentUploadResult>((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => {
+      const content = String(reader.result || '').split(',')[1] || ''
+      request.post<never, AttachmentUploadResult>('/api/finance/files/voucher/upload', {
+        originalName: file.name, contentType: file.type, content
+      }).then(resolve).catch(reject)
+    }
+    reader.onerror = () => reject(new Error('读取附件文件失败'))
+    reader.readAsDataURL(file)
+  })
 
 /* ============================ 费用报销 ============================ */
 
@@ -286,6 +396,29 @@ export interface ExpenseQuery {
 }
 export const listExpenses = (params: ExpenseQuery) =>
   request.get<never, Page<ExpenseVO>>('/api/finance/expenses', { params })
+/** 申请人/归属部门由服务端从 EHR 反查，避免前端雪花 ID 精度丢失 */
+export const fetchExpenseProfile = () =>
+  request.get<never, ExpenseProfileVO>('/api/finance/expenses/my-profile')
+/** 报销类型来自 settings 字典，remark 中维护「类型 → 会计科目」映射 */
+export const fetchExpenseTypeOptions = () =>
+  request.get<never, ExpenseTypeOption[]>('/api/settings/public/dicts/finance.expense_type')
+
+/** 通用公共字典项（凭证类型/报销事由/发票类型/税率/结算方式/付款阶段等已在 settings 白名单放开） */
+export interface DictOption { value: string; label: string; remark?: string | null }
+export const fetchPublicDict = (typeCode: string) =>
+  request.get<never, DictOption[]>(`/api/settings/public/dicts/${typeCode}`)
+/** 报销凭证：base64 发到财务服务代理接口，由后端转交统一文件服务 */
+export const uploadExpenseAttachment = (file: File) => new Promise<{ fileId: string; url: string }>((resolve, reject) => {
+  const reader = new FileReader()
+  reader.onload = () => {
+    const content = String(reader.result || '').split(',')[1] || ''
+    request.post<never, { fileId: string; url: string }>('/api/finance/expense/files/upload', {
+      originalName: file.name, contentType: file.type, content
+    }).then(resolve).catch(reject)
+  }
+  reader.onerror = () => reject(new Error('读取凭证文件失败'))
+  reader.readAsDataURL(file)
+})
 export const getExpense = (id: string) => request.get<never, ExpenseVO>(`/api/finance/expenses/${id}`)
 export const createExpense = (data: ExpenseSave) => request.post<never, ExpenseVO>('/api/finance/expenses', data)
 export const updateExpense = (id: string, data: ExpenseSave) => request.put<never, ExpenseVO>(`/api/finance/expenses/${id}`, data)

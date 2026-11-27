@@ -206,10 +206,10 @@ async function submit() {
                :description="kind === 'subject'
                  ? '会计科目按编码与级次维护，余额方向与科目类别使用后端统一枚举；启停后不可再被新单据选用。'
                  : '预算科目按年度维护额度与关联会计科目，供预算占用与合同域只读引用。'" />
-      <a-table class="ft-table" style="--ft-min-width: 1000px" row-key="id" :columns="columns" :data-source="rows"
+      <a-table class="ft-table" style="--ft-min-width: 1240px" row-key="id" :columns="columns" :data-source="rows"
                :loading="loading" :pagination="pagination()" @change="onTableChange"
                :class="{ 'tbl-empty-mode': !loading && !rows.length }"
-               :scroll="rows.length ? { x: 1000 } : undefined">
+               :scroll="rows.length ? { x: 1240 } : undefined">
         <template #bodyCell="{ column, record }">
           <template v-if="column.key === 'name'">
             <a-tooltip :title="record.name"><span class="cell-ellipsis">{{ record.name }}</span></a-tooltip>
@@ -219,6 +219,9 @@ async function submit() {
           <template v-else-if="column.key === 'annualAmount'">{{ yuan(record.annualAmount) }}</template>
           <template v-else-if="column.key === 'status'">
             <a-tag :color="statusColor(record.status)">{{ statusLabel(record.status) }}</a-tag>
+          </template>
+          <template v-else-if="column.key === 'accountSubjectCode'">
+            <a-tooltip :title="record.accountSubjectCode"><span class="cell-ellipsis">{{ record.accountSubjectCode || '-' }}</span></a-tooltip>
           </template>
           <template v-else-if="column.key === 'createdAt'">{{ fmtDateTime(record.createdAt) }}</template>
           <template v-else-if="column.key === 'action'">

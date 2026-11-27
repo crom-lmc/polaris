@@ -29,6 +29,7 @@ export function dateOf(v?: Dayjs | null): string | undefined {
 
 const STATUS: Record<string, string> = {
   DRAFT: '草稿',
+  REVIEW: '待审核',
   PENDING: '待审批',
   APPROVED: '已通过',
   REJECTED: '已驳回',
@@ -43,7 +44,7 @@ export function statusLabel(s?: string): string {
 }
 
 export function statusColor(s?: string): string {
-  if (s === 'PENDING') return 'blue'
+  if (s === 'PENDING' || s === 'REVIEW') return 'blue'
   if (s === 'APPROVED' || s === 'POSTED' || s === 'PAID' || s === 'ENABLED') return 'green'
   if (s === 'REJECTED' || s === 'DISABLED') return 'red'
   return 'default'

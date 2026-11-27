@@ -65,6 +65,14 @@ export function logoutSso(refreshToken?: string) {
   return request.post<never, void>('/api/auth/logout', { refreshToken })
 }
 
+/** SSO 权限树下发的菜单元信息：前端侧栏的名称、顺序、层级只认这里 */
+export interface MenuMeta {
+  code: string
+  name: string
+  sort: number
+  parentCode?: string | null
+}
+
 export interface MeInfo {
   accountId?: string | number
   username: string
@@ -73,8 +81,9 @@ export interface MeInfo {
   superAdmin: boolean
   appCode?: string
   permissions: string[]
+  menus: MenuMeta[]
 }
-/** 带 app=contract 实时查库取权限码，改完授权立即生效，不必等令牌过期。 */
+/** 带 app=contract 实时查库取权限码与菜单，改完授权立即生效，不必等令牌过期。 */
 export const fetchMe = () => request.get<never, MeInfo>('/api/auth/me', { params: { app: 'contract' } })
 
 /* ==================== 往来单位 ==================== */
@@ -156,7 +165,12 @@ export interface MaterialCategoryVO {
   parentId: string | null
   code: string
   name: string
+  status: string
   orgCode: string
+  /** 直接子分类数 / 直接物料数，后端给出以便禁用删除按钮 */
+  childCount?: number
+  materialCount?: number
+  canDelete?: boolean
   children?: MaterialCategoryVO[]
 }
 
@@ -178,6 +192,7 @@ export interface MaterialVO {
   spec: string
   unit: string
   referencePrice: number | null
+  categoryName?: string
   orgCode: string
   children?: MaterialVO[]
 }
@@ -203,9 +218,17 @@ export const saveCategory = (data: MaterialCategorySave) =>
   request.post<never, MaterialCategoryVO>('/api/contract/material-categories', data)
 export const updateCategory = (id: string, data: MaterialCategorySave) =>
   request.put<never, void>(`/api/contract/material-categories/${id}`, data)
+export const toggleCategoryStatus = (id: string, status: string) =>
+  request.post<never, void>(`/api/contract/material-categories/${id}/status`, { status })
 export const deleteCategory = (id: string) => request.delete<never, void>(`/api/contract/material-categories/${id}`)
 
 /* 物料：物料维护 */
+/** 选料弹窗左树：只取一层直接子分类，按需展开 */
+export const getMaterialCategoryChildren = (parentId?: string | null) =>
+  request.get<never, MaterialCategoryVO[]>('/api/contract/material-categories/children', { params: { parentId } })
+/** 选料弹窗右侧：分页 + 关键字搜索，避免一次性拉全量物料 */
+export const searchMaterials = (params: { categoryId?: string | null; keyword?: string; page: number; size: number }) =>
+  request.get<never, PageResult<MaterialVO>>('/api/contract/materials/search', { params })
 /** 选料下拉用：分类 + 物料拼合树（物料库/维护页不用） */
 export const getMaterialTree = () => request.get<never, MaterialVO[]>('/api/contract/materials/tree')
 export const getMaterials = (categoryId?: string | null) =>
@@ -296,6 +319,8 @@ export interface ContractVO {
   budgetSubject: string
   /** 来源 DIRECT 直接新建 / FROM_PLAN 采购计划转入 */
   contractSource: string
+  /** 来源采购计划号（FROM_PLAN 时带入） */
+  planNo?: string
   orgCode: string
   amount: number
   paidAmount: number
@@ -306,6 +331,10 @@ export interface ContractVO {
   planCount: number
   /** 变更次数（来自 contract_change_log） */
   changeCount: number
+  /** 附件 file_id 列表，顺序与 attachmentUrls 一致 */
+  fileIds?: string[]
+  /** 附件只读预览 URL（统一文件服务临时签名） */
+  attachmentUrls?: string[]
 }
 
 export interface ContractSave {
@@ -327,6 +356,8 @@ export interface ContractSave {
   orgCode?: string
   /** 变更原因（仅用于变更留痕） */
   remark?: string
+  /** 附件 file_id 列表；不传表示保留原附件 */
+  fileIds?: string[]
 }
 
 export interface ChangeLogVO {
@@ -400,6 +431,25 @@ export interface AcceptRequest {
   result?: string
   date?: string
   remark?: string
+  /** 验收凭证 file_id 列表 */
+  fileIds?: string[]
+}
+
+export interface AcceptanceVO {
+  id: string
+  no: string
+  contractNo: string
+  itemId: string
+  materialCode: string
+  qty: number
+  date: string
+  result: string
+  status: string
+  /** 过账凭证号（财务域回写） */
+  voucherNo?: string
+  orgCode: string
+  fileIds?: string[]
+  attachmentUrls?: string[]
 }
 
 export const listItems = (contractNo: string) =>
@@ -409,9 +459,36 @@ export const saveItem = (contractNo: string, data: ItemSave) =>
 export const deleteItem = (contractNo: string, id: string) =>
   request.delete<never, void>(`/api/contract/contracts/${contractNo}/items/${id}`)
 export const listAcceptances = (contractNo: string) =>
-  request.get<never, unknown[]>(`/api/contract/contracts/${contractNo}/items/acceptances`)
+  request.get<never, AcceptanceVO[]>(`/api/contract/contracts/${contractNo}/items/acceptances`)
 export const acceptItem = (contractNo: string, id: string, data: AcceptRequest) =>
-  request.post<never, unknown>(`/api/contract/contracts/${contractNo}/items/${id}/accept`, data)
+  request.post<never, AcceptanceVO>(`/api/contract/contracts/${contractNo}/items/${id}/accept`, data)
+
+/* ==================== 附件上传（统一文件服务代理） ==================== */
+
+export type ContractAttachmentOwner = 'purchase-plan' | 'contract' | 'acceptance' | 'payment-plan'
+
+export interface AttachmentUploadResult { fileId: string; url: string }
+
+const attachmentPaths: Record<ContractAttachmentOwner, string> = {
+  'purchase-plan': '/api/contract/files/purchase-plan/upload',
+  contract: '/api/contract/files/contract/upload',
+  acceptance: '/api/contract/files/acceptance/upload',
+  'payment-plan': '/api/contract/files/payment-plan/upload'
+}
+
+/** 附件 base64 发到合同服务代理接口，业务表只存 file_id；预览 URL 由后端签名后返回 */
+export const uploadContractAttachment = (file: File, owner: ContractAttachmentOwner) =>
+  new Promise<AttachmentUploadResult>((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => {
+      const content = String(reader.result || '').split(',')[1] || ''
+      request.post<never, AttachmentUploadResult>(attachmentPaths[owner], {
+        originalName: file.name, contentType: file.type, content
+      }).then(resolve).catch(reject)
+    }
+    reader.onerror = () => reject(new Error('读取附件文件失败'))
+    reader.readAsDataURL(file)
+  })
 
 /* ==================== 付款计划 ==================== */
 
@@ -422,9 +499,17 @@ export interface PaymentPlanVO {
   stage: string
   dueDate: string
   amount: number
+  /** 付款事由 */
+  summary?: string
   sourceDocNo: string
+  /** 关联凭证号（财务域过账回写） */
+  voucherNo?: string
   status: string
   orgCode: string
+  /** 合同与验收凭证 file_id 列表 */
+  fileIds?: string[]
+  /** 合同与验收凭证只读预览 URL */
+  attachmentUrls?: string[]
   /** 临近到期（埋点 contract.payment.remind-days 天数内） */
   dueSoon?: boolean
   /** 已逾期未付款 */
@@ -437,7 +522,11 @@ export interface PaymentPlanSave {
   stage?: string
   dueDate?: string
   amount: number
+  /** 付款事由 */
+  summary?: string
   status?: string
+  /** 合同与验收凭证 file_id 列表；不传表示保留原值 */
+  fileIds?: string[]
 }
 
 export const listPaymentPlans = (contractNo: string) =>
@@ -470,6 +559,8 @@ export interface PurchasePlanVO {
   title: string
   dept: string
   applicant: string
+  /** 计划日期（设计稿 date） */
+  date?: string
   needDate: string
   budgetSubject: string
   status: string
@@ -478,6 +569,10 @@ export interface PurchasePlanVO {
   amount: number
   itemCount: number
   items: PurchasePlanItemVO[]
+  /** 附件 file_id 列表，顺序与 attachmentUrls 一致 */
+  fileIds?: string[]
+  /** 附件只读预览 URL（统一文件服务临时签名） */
+  attachmentUrls?: string[]
 }
 
 export interface PurchasePlanItemSave {
@@ -492,10 +587,14 @@ export interface PurchasePlanSave {
   title: string
   dept?: string
   applicant?: string
+  /** 计划日期（设计稿 date） */
+  date?: string
   needDate?: string
   budgetSubject?: string
   orgCode?: string
   items?: PurchasePlanItemSave[]
+  /** 附件 file_id 列表；不传表示保留原附件 */
+  fileIds?: string[]
 }
 
 export interface PlanConvertRequest {

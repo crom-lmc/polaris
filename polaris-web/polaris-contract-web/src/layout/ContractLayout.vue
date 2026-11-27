@@ -76,15 +76,22 @@ const theme = useThemeStore()
 const collapsed = useResponsiveCollapsed()
 useSessionGuard()
 
-const menus = [
-  { path: '/purchase-plan', title: '采购计划', icon: ShoppingCartOutlined, perm: 'contract:plan:list' },
-  { path: '/partner', title: '往来单位维护', icon: TeamOutlined, perm: 'contract:partner:list' },
-  { path: '/material', title: '物料库', icon: AppstoreOutlined, perm: 'contract:material:list' },
-  { path: '/material-maintain', title: '物料维护', icon: EditOutlined, perm: 'contract:material-maintain:list' },
-  { path: '/project', title: '项目维护', icon: ProjectOutlined, perm: 'contract:project:list' },
-  { path: '/contract', title: '合同台账', icon: FileTextOutlined, perm: 'contract:ledger:list' },
-  { path: '/payment-plan', title: '合同付款计划', icon: WalletOutlined, perm: 'contract:payment:list' }
-]
+// 前端只保存「权限码 -> 路由/图标」映射；菜单名称、排序一律来自 SSO 权限树
+const menuRoutes: Record<string, { path: string; icon: any }> = {
+  'contract:plan:list': { path: '/purchase-plan', icon: ShoppingCartOutlined },
+  'contract:partner:list': { path: '/partner', icon: TeamOutlined },
+  'contract:material:list': { path: '/material', icon: AppstoreOutlined },
+  'contract:material-maintain:list': { path: '/material-maintain', icon: EditOutlined },
+  'contract:project:list': { path: '/project', icon: ProjectOutlined },
+  'contract:ledger:list': { path: '/contract', icon: FileTextOutlined },
+  'contract:payment:list': { path: '/payment-plan', icon: WalletOutlined }
+}
+
+const menus = computed(() => store.menus
+  .filter((m) => menuRoutes[m.code])
+  .map((m) => ({ ...menuRoutes[m.code], perm: m.code, title: m.name, sort: m.sort }))
+  // 只按 sort 排；同值保持 SSO 权限树返回的先后（后端已按 sort、id 排好）
+  .sort((a, b) => a.sort - b.sort))
 
 const mobile = ref(false)
 const mq = window.matchMedia('(max-width: 767px)')
@@ -93,8 +100,9 @@ onMounted(() => { syncMobile(); mq.addEventListener('change', syncMobile) })
 onBeforeUnmount(() => mq.removeEventListener('change', syncMobile))
 
 // 窄屏侧栏收起时，标题旁的更多菜单放主流程入口
-const moreMenus = computed(() => menus.filter((m) => store.can(m.perm)))
-const pageTitle = computed(() => (route.meta.title as string) || appName.value)
+const moreMenus = computed(() => menus.value.filter((m) => store.can(m.perm)))
+const pageTitle = computed(() =>
+  menus.value.find((m) => m.path === route.path)?.title || (route.meta.title as string) || appName.value)
 const selectedKeys = computed(() => [route.path])
 
 function toggleCollapse() { collapsed.value = !collapsed.value }

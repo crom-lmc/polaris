@@ -307,7 +307,10 @@ onMounted(() => { load(); loadOrg() })
         <a-table class="ft-table" row-key="no" :columns="contractColumns" :data-source="detailContracts" :pagination="false"
                  :scroll="detailContracts.length ? { x: 620 } : undefined">
           <template #bodyCell="{ column, record }">
-            <template v-if="column.key === 'type'">{{ record.type === 'SALES' ? '销售' : '采购' }}</template>
+            <template v-if="column.key === 'name'">
+              <a-tooltip :title="record.name"><span class="cell-ellipsis">{{ record.name }}</span></a-tooltip>
+            </template>
+            <template v-else-if="column.key === 'type'">{{ record.type === 'SALES' ? '销售' : '采购' }}</template>
             <template v-else-if="column.key === 'amount'">{{ yuan(record.amount) }}</template>
           </template>
           <template #emptyText><div class="tbl-empty"><a-empty description="暂无归集合同" /></div></template>

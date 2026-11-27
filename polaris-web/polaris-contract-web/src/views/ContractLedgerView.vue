@@ -6,12 +6,13 @@ import { useIsMobile } from '@/composables/useIsMobile'
 import { useOrgDirectory, filterOption as orgFilterOption } from '@/composables/useOrgDirectory'
 import {
   listContracts, getContractStats, getContract, saveContract, updateContract, deleteContract, changeContractStatus,
-  listContractChanges, getProjectOptions, listPartners, fetchBudgetSubjectOptions,
+  listContractChanges, getProjectOptions, listPartners, fetchBudgetSubjectOptions, uploadContractAttachment,
   type ContractVO, type ContractSave, type ContractStats, type ProjectOptionVO, type ChangeLogVO
 } from '@/api/contract'
 import { yuan } from '@/utils/format'
 import ContractItemsEditor from '@/components/ContractItemsEditor.vue'
 import PaymentPlanEditor from '@/components/PaymentPlanEditor.vue'
+import AttachmentUpload from '@shared/components/AttachmentUpload.vue'
 
 const store = useUserStore()
 const isMobile = useIsMobile()
@@ -44,6 +45,20 @@ const projectOptions = ref<{ label: string; value: string }[]>([])
 const partnerOptions = ref<{ label: string; value: string }[]>([])
 const budgetSubjectOptions = ref<{ label: string; value: string }[]>([])
 const sourceLabel: Record<string, string> = { DIRECT: '直接新建', FROM_PLAN: '计划转入' }
+const changeReason = ref('')
+
+/** 合同执行闭环步骤条（与设计稿 contractFlowSteps / salesFlowSteps 对齐） */
+const flowSteps = computed(() => detail.value?.type === 'SALES'
+  ? ['销售合同', '合同清单', '验收', '应收单', '凭证', '账表']
+  : ['采购计划', '合同与清单', '付款计划', '应付单', '凭证', '账表'])
+const flowCurrent = computed(() => {
+  const s = detail.value?.status
+  if (!s) return 0
+  if (s === 'DRAFT') return 1
+  if (s === 'PENDING' || s === 'EFFECTIVE') return 2
+  if (s === 'EXECUTING') return 3
+  return 4
+})
 
 const pagination = computed(() => ({
   current: query.page, pageSize: query.size, total: total.value, showSizeChanger: true,
@@ -91,7 +106,7 @@ const columns = [
   { title: '类型', key: 'type', align: 'center' as const, width: 100 },
   { title: '来源', key: 'contractSource', align: 'center' as const, width: 90 },
   { title: '合同名称', key: 'name', width: 230 },
-  { title: '对方单位', key: 'partnerName', width: 180 },
+  { title: '供应商/客户', key: 'partnerName', width: 180 },
   { title: '所属项目', key: 'projectName', width: 180 },
   { title: '归属部门', dataIndex: 'dept', key: 'dept', width: 100 },
   { title: '合同金额', key: 'amount', align: 'right' as const, width: 130 },
@@ -101,6 +116,7 @@ const columns = [
   { title: '执行进度', key: 'progress', width: 160 },
   { title: '状态', key: 'status', align: 'center' as const, width: 100 },
   { title: '到期日期', dataIndex: 'endDate', key: 'endDate', width: 110 },
+  { title: '附件', key: 'attachments', align: 'center' as const, width: 110 },
   { title: '操作', key: 'action', width: 130 }
 ]
 
@@ -109,12 +125,14 @@ const createOpen = ref(false)
 const saving = ref(false)
 const createForm = reactive<ContractSave>({
   type: 'PURCHASE', name: '', partnerCode: '', projectNo: undefined, dept: '', owner: '',
-  signedDate: undefined, effectiveDate: undefined, endDate: undefined, paymentTerms: '', subject: '', budgetSubject: undefined
+  signedDate: undefined, effectiveDate: undefined, endDate: undefined, paymentTerms: '', subject: '', budgetSubject: undefined,
+  fileIds: []
 })
 function resetCreate() {
   Object.assign(createForm, {
     type: 'PURCHASE', name: '', partnerCode: '', projectNo: undefined, dept: '', owner: '',
-    signedDate: undefined, effectiveDate: undefined, endDate: undefined, paymentTerms: '', subject: '', budgetSubject: undefined
+    signedDate: undefined, effectiveDate: undefined, endDate: undefined, paymentTerms: '', subject: '', budgetSubject: undefined,
+    fileIds: []
   })
 }
 function openCreate() { resetCreate(); createOpen.value = true }
@@ -156,8 +174,12 @@ async function openChanges() {
 async function changeProject(projectNo: string | undefined) {
   if (!detail.value) return
   try {
-    await updateContract(detail.value.id, { projectNo: projectNo || undefined, name: detail.value.name, partnerCode: detail.value.partnerCode })
+    await updateContract(detail.value.id, {
+      projectNo: projectNo || undefined, name: detail.value.name, partnerCode: detail.value.partnerCode,
+      remark: changeReason.value || undefined
+    })
     detail.value = await getContract(detail.value.id)
+    changeReason.value = ''
     message.success('所属项目已更新')
     load()
   } catch (e: any) { message.error(e?.message || '更新所属项目失败') }
@@ -187,7 +209,7 @@ onMounted(() => { load(); loadOptions(); loadOrgDirectory() })
       <h2>合同台账</h2>
       <span class="divider" />
       <a-select v-model:value="query.type" :options="typeOptions" placeholder="全部类型" style="width: 140px" allow-clear @change="resetAndLoad" />
-      <a-input-search v-model:value="query.keyword" placeholder="编号 / 名称 / 对方单位" style="width: 240px" allow-clear @search="resetAndLoad" />
+      <a-input-search v-model:value="query.keyword" placeholder="编号 / 名称 / 供应商 / 客户" style="width: 240px" allow-clear @search="resetAndLoad" />
       <a-select v-model:value="query.status" :options="statusOptions" placeholder="合同状态" style="width: 120px" allow-clear @change="resetAndLoad" />
       <a-select v-model:value="query.projectNo" :options="projectOptions" placeholder="所属项目" style="width: 180px" allow-clear show-search @change="resetAndLoad" />
       <a-select v-model:value="query.partnerCode" :options="partnerOptions" placeholder="往来单位" style="width: 170px" allow-clear show-search @change="resetAndLoad" />
@@ -203,7 +225,7 @@ onMounted(() => { load(); loadOptions(); loadOrgDirectory() })
       </div>
       <a-table class="ft-table" row-key="id" :columns="columns" :data-source="rows" :loading="loading"
                :pagination="pagination" :class="{ 'tbl-empty-mode': !loading && !rows.length }"
-               :scroll="rows.length ? { x: 2040 } : undefined">
+               :scroll="rows.length ? { x: 2150 } : undefined" style="--ft-min-width: 2150px">
         <template #bodyCell="{ column, record }">
           <template v-if="column.key === 'name'">
             <a-tooltip :title="record.name"><span class="cell-ellipsis">{{ record.name }}</span></a-tooltip>
@@ -238,6 +260,11 @@ onMounted(() => { load(); loadOptions(); loadOrgDirectory() })
           <template v-else-if="column.key === 'status'">
             <a-tag :color="statusColor[record.status] || 'default'">{{ statusLabel[record.status] || record.status }}</a-tag>
           </template>
+          <template v-else-if="column.key === 'attachments'">
+            <a v-if="record.fileIds?.length && record.attachmentUrls?.[0]" :href="record.attachmentUrls[0]" target="_blank">附件（{{ record.fileIds.length }}）</a>
+            <span v-else-if="record.fileIds?.length" class="muted">{{ record.fileIds.length }} 个</span>
+            <span v-else class="muted">-</span>
+          </template>
           <template v-else-if="column.key === 'action'">
             <a-space :size="4">
               <a @click="openDetail(record.id)">详情 / 清单</a>
@@ -252,12 +279,14 @@ onMounted(() => { load(); loadOptions(); loadOrgDirectory() })
     <a-drawer v-model:open="detailOpen" title="合同详情 · 清单 · 付款计划" :width="drawerWidth" placement="right">
       <a-spin :spinning="detailLoading">
         <template v-if="detail">
+          <a-steps :current="flowCurrent" size="small" style="margin-bottom: 16px"
+                   :items="flowSteps.map((title) => ({ title }))" />
           <a-card class="panel-card" size="small" title="合同信息">
             <a-descriptions :column="descColumn" bordered size="small">
               <a-descriptions-item label="合同编号">{{ detail.no }}</a-descriptions-item>
               <a-descriptions-item label="合同名称">{{ detail.name }}</a-descriptions-item>
               <a-descriptions-item label="类型">{{ typeLabel[detail.type] || detail.type }}</a-descriptions-item>
-              <a-descriptions-item label="对方单位">{{ detail.partnerName || detail.partnerCode }}</a-descriptions-item>
+              <a-descriptions-item label="供应商/客户">{{ detail.partnerName || detail.partnerCode }}</a-descriptions-item>
               <a-descriptions-item label="归属部门">{{ detail.dept || '-' }} · {{ detail.owner || '-' }}</a-descriptions-item>
               <a-descriptions-item label="签订 / 生效 / 到期">{{ detail.signedDate || '-' }} / {{ detail.effectiveDate || '-' }} / {{ detail.endDate || '-' }}</a-descriptions-item>
               <a-descriptions-item label="付款条款">{{ detail.paymentTerms || '-' }}</a-descriptions-item>
@@ -267,6 +296,7 @@ onMounted(() => { load(); loadOptions(); loadOrgDirectory() })
                 <a-tag :color="detail.contractSource === 'FROM_PLAN' ? 'blue' : 'default'">
                   {{ sourceLabel[detail.contractSource] || detail.contractSource || '直接新建' }}
                 </a-tag>
+                <span v-if="detail.planNo" class="muted" style="margin-left: 8px">计划号 {{ detail.planNo }}</span>
               </a-descriptions-item>
               <a-descriptions-item label="合同金额">{{ yuan(detail.amount) }}</a-descriptions-item>
               <a-descriptions-item label="已入账 / 在途 / 待支付">{{ yuan(detail.paidAmount) }} / {{ yuan(detail.inFlightAmount) }} / {{ yuan(detail.pendingAmount) }}</a-descriptions-item>
@@ -280,11 +310,21 @@ onMounted(() => { load(); loadOptions(); loadOrgDirectory() })
                           style="width: 120px" @change="doStatus" />
                 <a-tag v-else :color="statusColor[detail.status] || 'default'">{{ statusLabel[detail.status] || detail.status }}</a-tag>
               </a-descriptions-item>
+              <a-descriptions-item label="合同附件">
+                <template v-if="detail.fileIds?.length">
+                  <a v-for="(url, idx) in detail.attachmentUrls || []" :key="url" :href="url" target="_blank" style="margin-right: 12px">附件 {{ idx + 1 }}</a>
+                  <span v-if="!detail.attachmentUrls?.length" class="muted">{{ detail.fileIds.length }} 个（签名链接不可用）</span>
+                </template>
+                <span v-else class="muted">无附件</span>
+              </a-descriptions-item>
             </a-descriptions>
             <a-form-item label="所属项目" style="margin-top: 12px; margin-bottom: 0">
               <a-select v-if="store.can('contract:ledger:edit')" :value="detail.projectNo || undefined" :options="projectOptions"
                         placeholder="请选择所属项目" allow-clear show-search style="width: 100%" @change="changeProject" />
               <span v-else>{{ detail.projectName || '未关联' }}</span>
+            </a-form-item>
+            <a-form-item v-if="store.can('contract:ledger:edit')" label="变更原因" style="margin-bottom: 0">
+              <a-input v-model:value="changeReason" placeholder="变更所属项目时填写，用于留痕（选填）" allow-clear />
             </a-form-item>
           </a-card>
 
@@ -302,11 +342,13 @@ onMounted(() => { load(); loadOptions(); loadOrgDirectory() })
 
     <a-modal v-model:open="changeOpen" title="合同变更记录" :footer="null" :width="720">
       <a-spin :spinning="changeLoading">
-        <a-table :data-source="changes" row-key="id" size="small" :pagination="false" :scroll="{ y: 420 }">
+        <a-table :data-source="changes" row-key="id" size="small" :pagination="false" :scroll="{ x: 760, y: 420 }">
           <a-table-column title="变更单号" data-index="no" key="no" width="170" />
           <a-table-column title="变更类型" data-index="changeType" key="changeType" width="100" />
           <a-table-column title="变更原因" data-index="reason" key="reason">
-            <template #default="{ record }"><span class="cell-ellipsis">{{ record.reason || '-' }}</span></template>
+            <template #default="{ record }">
+              <a-tooltip :title="record.reason"><span class="cell-ellipsis">{{ record.reason || '-' }}</span></a-tooltip>
+            </template>
           </a-table-column>
           <a-table-column title="操作人" data-index="operator" key="operator" width="120" />
           <a-table-column title="时间" data-index="createdAt" key="createdAt" width="160" />
@@ -371,6 +413,8 @@ onMounted(() => { load(); loadOptions(); loadOrgDirectory() })
             <a-select v-model:value="createForm.budgetSubject" :options="budgetSubjectOptions" placeholder="从财务主数据选择（选填）"
                       allow-clear show-search :filter-option="filterOption" style="width: 100%" />
           </a-form-item>
+          <AttachmentUpload v-if="store.can('contract:ledger:attachment:upload')" v-model="createForm.fileIds" label="合同附件" button-text="上传合同附件"
+                            :upload="(file) => uploadContractAttachment(file, 'contract')" @error="message.error" />
         </a-card>
       </a-form>
       <template #footer>

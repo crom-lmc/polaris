@@ -132,7 +132,7 @@ onMounted(load)
       </div>
       <a-table class="ft-table" row-key="id" :columns="columns" :data-source="paged" :loading="loading"
                :pagination="pagination" :class="{ 'tbl-empty-mode': !loading && !paged.length }"
-               :scroll="paged.length ? { x: 1100 } : undefined">
+               :scroll="paged.length ? { x: 1200 } : undefined">
         <template #bodyCell="{ column, record }">
           <template v-if="column.key === 'contractName'">
             <a-tooltip :title="record.contractName"><span class="cell-ellipsis">{{ record.contractName || '-' }}</span></a-tooltip>
@@ -149,7 +149,10 @@ onMounted(load)
             <a-tag :color="statusColor[record.status] || 'default'">{{ statusLabel[record.status] || record.status }}</a-tag>
           </template>
           <template v-else-if="column.key === 'sourceDocNo'">
-            <span v-if="record.sourceDocNo">{{ record.sourceDocNo }}</span><span v-else class="muted">待申请</span>
+            <a-tooltip v-if="record.sourceDocNo" :title="record.sourceDocNo">
+              <span class="cell-ellipsis">{{ record.sourceDocNo }}</span>
+            </a-tooltip>
+            <span v-else class="muted">待申请</span>
           </template>
           <template v-else-if="column.key === 'action'">
             <a-space :size="4">

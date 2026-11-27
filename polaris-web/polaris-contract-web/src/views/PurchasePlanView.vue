@@ -6,9 +6,12 @@ import { useIsMobile } from '@/composables/useIsMobile'
 import { useOrgDirectory, filterOption as orgFilterOption } from '@/composables/useOrgDirectory'
 import {
   listPurchasePlans, getPurchasePlan, savePurchasePlan, approvePurchasePlan, rejectPurchasePlan,
-  convertPurchasePlan, listPartners, getMaterialTree, fetchBudgetSubjectOptions,
-  type PurchasePlanVO, type MaterialVO, type BudgetSubjectVO
+  convertPurchasePlan, listPartners, fetchBudgetSubjectOptions, uploadContractAttachment,
+  type PurchasePlanVO, type BudgetSubjectVO
 } from '@/api/contract'
+import { loadMaterialChildren, loadMaterialPage } from '@/composables/useMaterialPicker'
+import MaterialPickerModal, { type MaterialPick } from '@shared/components/MaterialPickerModal.vue'
+import AttachmentUpload from '@shared/components/AttachmentUpload.vue'
 import { yuan } from '@/utils/format'
 
 const store = useUserStore()
@@ -68,12 +71,14 @@ const columns = [
   { title: '计划名称', key: 'title', width: 220 },
   { title: '需求部门', dataIndex: 'dept', key: 'dept', width: 110 },
   { title: '申请人', dataIndex: 'applicant', key: 'applicant', width: 100 },
+  { title: '计划日期', dataIndex: 'date', key: 'date', width: 110 },
   { title: '需求日期', dataIndex: 'needDate', key: 'needDate', width: 110 },
   { title: '预算科目', dataIndex: 'budgetSubject', key: 'budgetSubject', width: 170 },
   { title: '明细数', dataIndex: 'itemCount', key: 'itemCount', align: 'center' as const, width: 90 },
   { title: '计划金额', key: 'amount', align: 'right' as const, width: 130 },
   { title: '状态', key: 'status', align: 'center' as const, width: 110 },
   { title: '关联合同', key: 'contract', width: 170 },
+  { title: '附件', key: 'attachments', align: 'center' as const, width: 110 },
   { title: '操作', key: 'action', width: 160 }
 ]
 const itemColumns = [
@@ -97,20 +102,9 @@ async function openDetail(id: string) {
   finally { detailLoading.value = false }
 }
 
-/* 物料与往来单位（真实数据派生，不写死常量） */
-interface MaterialPick { label: string; value: string; spec: string; unit: string; price: number }
-const materialPicks = ref<MaterialPick[]>([])
+/* 往来单位（真实数据派生，不写死常量）；物料改由公共弹窗按需加载 */
 const partnerPicks = ref<{ label: string; value: string }[]>([])
 async function loadOptions() {
-  try {
-    const tree = await getMaterialTree()
-    const flat: MaterialVO[] = []
-    const walk = (nodes: MaterialVO[]) => nodes.forEach((n) => { flat.push(n); if (n.children?.length) walk(n.children) })
-    walk(tree || [])
-    materialPicks.value = flat.filter((n) => n.kind === 'MATERIAL').map((n) => ({
-      label: `${n.code} · ${n.name}`, value: n.code, spec: n.spec || '', unit: n.unit || '', price: Number(n.referencePrice || 0)
-    }))
-  } catch { /* 物料库不可用时保持空 */ }
   try {
     const res = await listPartners({ role: 'SUPPLIER', page: 1, size: 200 })
     partnerPicks.value = (res.records || []).map((p) => ({ label: `${p.code} · ${p.name}`, value: p.code }))
@@ -123,10 +117,11 @@ function filterOption(input: string, option: any) {
 /* 新建 */
 const createOpen = ref(false)
 const createSaving = ref(false)
-type DraftItem = { materialCode: string; qty: number; price: number }
+type DraftItem = { materialCode: string; materialName: string; qty: number; price: number }
 const createForm = reactive({
-  title: '', dept: '', applicant: '', needDate: undefined as string | undefined,
-  budgetSubject: '', items: [] as DraftItem[]
+  title: '', dept: '', applicant: '', date: undefined as string | undefined,
+  needDate: undefined as string | undefined,
+  budgetSubject: '', items: [] as DraftItem[], fileIds: [] as string[]
 })
 const createTotal = computed(() => createForm.items.reduce((s, i) => s + (Number(i.qty) || 0) * (Number(i.price) || 0), 0))
 /** 预算科目只能从财务主数据选，不允许手输或从已有单据派生 */
@@ -159,16 +154,34 @@ function openCreate() {
   createForm.title = ''
   createForm.dept = currentDept.value
   createForm.applicant = currentApplicant.value
+  createForm.date = undefined
   createForm.needDate = undefined
   createForm.budgetSubject = ''
   createForm.items = []
+  createForm.fileIds = []
   createOpen.value = true
 }
-function addItem() { createForm.items.push({ materialCode: '', qty: 1, price: 0 }) }
+function addItem() { createForm.items.push({ materialCode: '', materialName: '', qty: 1, price: 0 }) }
 function removeItem(idx: number) { createForm.items.splice(idx, 1) }
-function onMaterialPick(idx: number, code: string) {
-  const m = materialPicks.value.find((x) => x.value === code)
-  if (m && !createForm.items[idx].price) createForm.items[idx].price = m.price
+
+/** 明细行选料统一走公共弹窗：左侧分类树按需展开，右侧分页搜索 */
+const pickerOpen = ref(false)
+const pickerIndex = ref(-1)
+const pickerInitial = computed<MaterialPick[]>(() => {
+  const item = createForm.items[pickerIndex.value]
+  return item?.materialCode ? [{ code: item.materialCode, name: item.materialName || item.materialCode }] : []
+})
+function openMaterialPicker(idx: number) {
+  pickerIndex.value = idx
+  pickerOpen.value = true
+}
+function onMaterialConfirm(picks: MaterialPick[]) {
+  const m = picks[0]
+  const item = createForm.items[pickerIndex.value]
+  if (!m || !item) return
+  item.materialCode = m.code
+  item.materialName = m.name
+  if (!item.price && m.price) item.price = m.price
 }
 async function submitCreate() {
   if (!createForm.title.trim()) { message.warning('请填写计划名称'); return }
@@ -180,7 +193,8 @@ async function submitCreate() {
   try {
     await savePurchasePlan({
       title: createForm.title.trim(), dept: createForm.dept || currentDept.value || undefined, applicant: createForm.applicant || currentApplicant.value || undefined,
-      needDate: createForm.needDate, budgetSubject: createForm.budgetSubject || undefined,
+      date: createForm.date, needDate: createForm.needDate, budgetSubject: createForm.budgetSubject || undefined,
+      fileIds: createForm.fileIds,
       items: createForm.items.map((i) => ({ materialCode: i.materialCode, qty: Number(i.qty), price: Number(i.price) }))
     })
     createOpen.value = false
@@ -257,14 +271,22 @@ onMounted(() => { load(); loadOptions(); loadOrgDirectory(); loadBudgetSubjects(
       </div>
       <a-table class="ft-table" row-key="id" :columns="columns" :data-source="rows" :loading="loading"
                :pagination="pagination" :class="{ 'tbl-empty-mode': !loading && !rows.length }"
-               :scroll="rows.length ? { x: 1500 } : undefined">
+               :scroll="rows.length ? { x: 1760 } : undefined" style="--ft-min-width: 1760px">
         <template #bodyCell="{ column, record }">
           <template v-if="column.key === 'title'">
             <a-tooltip :title="record.title"><span class="cell-ellipsis">{{ record.title }}</span></a-tooltip>
           </template>
+          <template v-else-if="column.key === 'budgetSubject'">
+            <a-tooltip :title="record.budgetSubject"><span class="cell-ellipsis">{{ record.budgetSubject || '-' }}</span></a-tooltip>
+          </template>
           <template v-else-if="column.key === 'amount'">{{ yuan(record.amount) }}</template>
           <template v-else-if="column.key === 'status'">
             <a-tag :color="statusColor[record.status] || 'default'">{{ statusLabel[record.status] || record.status }}</a-tag>
+          </template>
+          <template v-else-if="column.key === 'attachments'">
+            <a v-if="record.fileIds?.length && record.attachmentUrls?.[0]" :href="record.attachmentUrls[0]" target="_blank">附件（{{ record.fileIds.length }}）</a>
+            <span v-else-if="record.fileIds?.length" class="muted">{{ record.fileIds.length }} 个</span>
+            <span v-else class="muted">-</span>
           </template>
           <template v-else-if="column.key === 'contract'">
             <a v-if="record.contractNo" @click="openDetail(record.id)">{{ record.contractNo }}</a>
@@ -293,16 +315,24 @@ onMounted(() => { load(); loadOptions(); loadOrgDirectory(); loadBudgetSubjects(
               <a-descriptions-item label="计划编号">{{ detail.no }}</a-descriptions-item>
               <a-descriptions-item label="计划名称">{{ detail.title }}</a-descriptions-item>
               <a-descriptions-item label="需求部门 / 申请人">{{ detail.dept || '-' }} · {{ detail.applicant || '-' }}</a-descriptions-item>
+              <a-descriptions-item label="计划日期">{{ detail.date || '-' }}</a-descriptions-item>
               <a-descriptions-item label="需求日期">{{ detail.needDate || '-' }}</a-descriptions-item>
               <a-descriptions-item label="预算科目">{{ detail.budgetSubject || '-' }}</a-descriptions-item>
               <a-descriptions-item label="计划金额">{{ yuan(detail.amount) }}（{{ detail.itemCount }} 条明细）</a-descriptions-item>
               <a-descriptions-item label="状态">{{ statusLabel[detail.status] || detail.status }}</a-descriptions-item>
               <a-descriptions-item label="关联采购合同">{{ detail.contractNo || '未转合同' }}</a-descriptions-item>
+              <a-descriptions-item label="计划附件">
+                <template v-if="detail.fileIds?.length">
+                  <a v-for="(url, idx) in detail.attachmentUrls || []" :key="url" :href="url" target="_blank" style="margin-right: 12px">附件 {{ idx + 1 }}</a>
+                  <span v-if="!detail.attachmentUrls?.length" class="muted">{{ detail.fileIds.length }} 个（签名链接不可用）</span>
+                </template>
+                <span v-else class="muted">无附件</span>
+              </a-descriptions-item>
             </a-descriptions>
           </a-card>
           <div class="panel-section-title">计划明细（来自物料库）</div>
           <a-table class="ft-table" row-key="id" :columns="itemColumns" :data-source="detail.items || []"
-                   :pagination="false" :scroll="(detail.items || []).length ? { x: 700 } : undefined">
+                   :pagination="false" :scroll="(detail.items || []).length ? { x: 780 } : undefined">
             <template #bodyCell="{ column, record }">
               <template v-if="column.key === 'materialName'">
                 <a-tooltip :title="`${record.materialName} ${record.spec || ''}`"><span class="cell-ellipsis">{{ record.materialName }}</span></a-tooltip>
@@ -377,6 +407,11 @@ onMounted(() => { load(); loadOptions(); loadOrgDirectory(); loadBudgetSubjects(
         </a-row>
         <a-row :gutter="12">
           <a-col :span="12">
+            <a-form-item label="计划日期">
+              <a-date-picker v-model:value="createForm.date" value-format="YYYY-MM-DD" format="YYYY-MM-DD" style="width: 100%" />
+            </a-form-item>
+          </a-col>
+          <a-col :span="12">
             <a-form-item label="需求日期">
               <a-date-picker v-model:value="createForm.needDate" value-format="YYYY-MM-DD" format="YYYY-MM-DD" style="width: 100%" />
             </a-form-item>
@@ -390,8 +425,9 @@ onMounted(() => { load(); loadOptions(); loadOrgDirectory(); loadBudgetSubjects(
         </a-row>
         <div class="panel-section-title">计划明细（从物料库选料）</div>
         <div v-for="(item, idx) in createForm.items" :key="idx" class="plan-item-row">
-          <a-select v-model:value="item.materialCode" :options="materialPicks" placeholder="选择物料" show-search
-                    :filter-option="filterOption" style="flex: 2 1 220px" @change="(v: string) => onMaterialPick(idx, v)" />
+          <a-button style="flex: 2 1 220px; text-align: left" @click="openMaterialPicker(idx)">
+            {{ item.materialCode ? `${item.materialCode} · ${item.materialName}` : '从物料库选择物料' }}
+          </a-button>
           <a-input-number v-model:value="item.qty" :min="1" placeholder="数量" style="width: 90px" />
           <a-input-number v-model:value="item.price" :min="0" :precision="2" placeholder="单价" style="width: 110px" />
           <span class="plan-item-amt">{{ yuan(item.qty * item.price) }}</span>
@@ -399,6 +435,8 @@ onMounted(() => { load(); loadOptions(); loadOrgDirectory(); loadBudgetSubjects(
         </div>
         <a-button type="dashed" block @click="addItem">＋ 添加明细行</a-button>
         <div class="plan-total">计划金额：<b>{{ yuan(createTotal) }}</b></div>
+        <AttachmentUpload v-if="store.can('contract:plan:attachment:upload')" v-model="createForm.fileIds" label="计划附件" button-text="上传计划附件"
+                          :upload="(file) => uploadContractAttachment(file, 'purchase-plan')" @error="message.error" />
       </a-form>
       <template #footer>
         <div class="drawer-footer">
@@ -407,5 +445,9 @@ onMounted(() => { load(); loadOptions(); loadOrgDirectory(); loadBudgetSubjects(
         </div>
       </template>
     </a-drawer>
+
+    <MaterialPickerModal v-model:open="pickerOpen" title="选择物料" :initial-materials="pickerInitial"
+                         :load-children="loadMaterialChildren" :load-materials="loadMaterialPage"
+                         @confirm="onMaterialConfirm" />
   </section>
 </template>

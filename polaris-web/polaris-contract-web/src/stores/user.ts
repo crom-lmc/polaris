@@ -9,6 +9,8 @@ export const useUserStore = defineStore('user', () => {
   const ready = ref(false)
 
   const permissions = computed(() => me.value?.permissions || [])
+  /** SSO 权限树下发的菜单：侧栏名称与顺序以此为准 */
+  const menus = computed(() => me.value?.menus || [])
   const isSuperAdmin = computed(() => !!me.value?.superAdmin)
   const username = computed(() => me.value?.username || me.value?.name || '')
   /** 顶栏展示中文昵称（JWT nick claim），失败回退登录名。 */
@@ -53,5 +55,5 @@ export const useUserStore = defineStore('user', () => {
     ready.value = false
   }
 
-  return { me, ready, permissions, isSuperAdmin, username, displayName, can, applyMe, bootstrap, logout }
+  return { me, ready, permissions, menus, isSuperAdmin, username, displayName, can, applyMe, bootstrap, logout }
 })

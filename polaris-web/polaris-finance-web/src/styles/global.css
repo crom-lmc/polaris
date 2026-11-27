@@ -89,6 +89,10 @@ body {
 .tbl-empty-mode .ant-table-placeholder > td { height: 100%; padding: 0; border-bottom: none; }
 .tbl-empty { height: 100%; min-height: 240px; display: flex; align-items: center; justify-content: center; }
 
+/* 表头按列宽单行展示，不折叠；列宽总和由各表 scroll.x 保证 */
+.ant-table-thead > tr > th,
+.ant-table-thead > tr > th .ant-table-column-title { white-space: nowrap !important; }
+
 /* 操作列 sticky 固定右侧（不用 antd fixed:right） */
 .ft-table .ant-table table { min-width: var(--ft-min-width, 0px); }
 .ft-table .ant-table-thead > tr > th:last-child,

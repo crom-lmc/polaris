@@ -99,7 +99,7 @@ const objectRows = [
                  :class="{ 'tbl-empty-mode': !objectRows.length }"
                  :scroll="objectRows.length ? { x: 1180 } : undefined">
           <template #bodyCell="{ column, record }">
-            <template v-if="column.key === 'fields' || column.key === 'next'">
+            <template v-if="['fields', 'next', 'focus'].includes(String(column.key))">
               <a-tooltip :title="record[column.key as string]">
                 <span class="cell-ellipsis">{{ record[column.key as string] }}</span>
               </a-tooltip>

@@ -4,7 +4,7 @@ import dayjs, { type Dayjs } from 'dayjs'
 import { message, Modal } from 'ant-design-vue'
 import {
   listArAp, listAging, createArAp, approveArAp, postArAp, writeOffArAp, deleteArAp,
-  type ArApVO, type ArApSave, type AgingBucketVO, type WriteOffRequest
+  fetchPublicDict, type ArApVO, type ArApSave, type AgingBucketVO, type WriteOffRequest, type DictOption
 } from '@/api/finance'
 import { useUserStore } from '@/stores/user'
 import { useOrgDirectory, filterOption as orgFilterOption } from '@/composables/useOrgDirectory'
@@ -45,6 +45,8 @@ const columns = [
   { title: '账龄', key: 'ageDays', align: 'right' as const, width: 90 },
   { title: '关联合同', key: 'contract', width: 160 },
   { title: '关联凭证', key: 'voucher', width: 160 },
+  { title: '发票号', dataIndex: 'invoiceNo', key: 'invoiceNo', width: 150 },
+  { title: '到期日', dataIndex: 'dueDate', key: 'dueDate', width: 110 },
   { title: '状态', key: 'status', align: 'center' as const, width: 100 },
   { title: '日期', dataIndex: 'date', key: 'date', width: 110 },
   { title: '操作', key: 'action', width: 180 }
@@ -89,7 +91,14 @@ function reset() {
 }
 watch([type, status, keyword, contractNo, range], () => { page.value = 1; load(); loadStats() })
 
-onMounted(() => { load(); loadStats(); loadOrgDirectory() })
+const invoiceTypeOptions = ref<{ label: string; value: string }[]>([])
+onMounted(async () => {
+  try {
+    const dicts: DictOption[] = await fetchPublicDict('finance.invoice_type') || []
+    invoiceTypeOptions.value = dicts.map((d) => ({ label: d.label, value: d.value }))
+  } catch { /* 字典可空，不阻断列表 */ }
+  load(); loadStats(); loadOrgDirectory()
+})
 
 const unsettled = (a: ArApVO) => a.status === 'APPROVED' || a.status === 'POSTED'
 const arBalance = computed(() => statRows.value.filter((a) => a.type === 'AR' && unsettled(a)).reduce((s, a) => s + Number(a.balance || 0), 0))
@@ -143,10 +152,15 @@ const createOpen = ref(false)
 const saving = ref(false)
 const form = reactive<ArApSave>({
   party: '', type: 'AR', amount: 0, contractNo: '', subject: '', summary: '',
+  invoiceNo: '', invoiceType: '', creditDays: undefined, dueDate: undefined,
   date: dayjs().format('YYYY-MM-DD'), dept: ''
 })
 function openCreate() {
-  Object.assign(form, { party: '', type: type.value || 'AR', amount: 0, contractNo: '', subject: '', summary: '', date: dayjs().format('YYYY-MM-DD'), dept: '' })
+  Object.assign(form, {
+    party: '', type: type.value || 'AR', amount: 0, contractNo: '', subject: '', summary: '',
+    invoiceNo: '', invoiceType: '', creditDays: undefined, dueDate: undefined,
+    date: dayjs().format('YYYY-MM-DD'), dept: ''
+  })
   createOpen.value = true
 }
 async function submitCreate() {
@@ -205,10 +219,10 @@ async function submitCreate() {
         </div>
       </a-card>
       <a-card class="panel-card" title="往来明细（合同 → 应收应付单 → 会计凭证）" size="small">
-        <a-table class="ft-table" style="--ft-min-width: 1250px" row-key="id" :columns="columns" :data-source="displayRows"
+        <a-table class="ft-table" style="--ft-min-width: 1800px" row-key="id" :columns="columns" :data-source="displayRows"
                  :loading="loading" :pagination="pagination()" @change="onTableChange"
                  :class="{ 'tbl-empty-mode': !loading && !displayRows.length }"
-                 :scroll="displayRows.length ? { x: 1250 } : undefined">
+                 :scroll="displayRows.length ? { x: 1800 } : undefined">
           <template #bodyCell="{ column, record }">
             <template v-if="column.key === 'party'">
               <a-tooltip :title="record.party"><span class="cell-ellipsis">{{ record.party }}</span></a-tooltip>
@@ -228,11 +242,15 @@ async function submitCreate() {
             </template>
             <template v-else-if="column.key === 'ageDays'">{{ record.ageDays }} 天</template>
             <template v-else-if="column.key === 'contract'">
-              <a v-if="record.contractNo" @click="message.info(`合同号 ${record.contractNo}`)">{{ record.contractNo }}</a>
+              <a-tooltip v-if="record.contractNo" :title="record.contractNo">
+                <a class="cell-ellipsis" @click="message.info(`合同号 ${record.contractNo}`)">{{ record.contractNo }}</a>
+              </a-tooltip>
               <span v-else class="muted">-</span>
             </template>
             <template v-else-if="column.key === 'voucher'">
-              <a v-if="record.voucherNo" @click="message.info(`凭证号 ${record.voucherNo}`)">{{ record.voucherNo }}</a>
+              <a-tooltip v-if="record.voucherNo" :title="record.voucherNo">
+                <a class="cell-ellipsis" @click="message.info(`凭证号 ${record.voucherNo}`)">{{ record.voucherNo }}</a>
+              </a-tooltip>
               <span v-else class="muted">未生成</span>
             </template>
             <template v-else-if="column.key === 'status'">
@@ -280,6 +298,29 @@ async function submitCreate() {
         <a-form-item label="关联合同号"><a-input v-model:value="form.contractNo" /></a-form-item>
         <a-form-item label="会计科目"><a-input v-model:value="form.subject" /></a-form-item>
         <a-form-item label="摘要"><a-textarea v-model:value="form.summary" :rows="3" /></a-form-item>
+        <a-row :gutter="12">
+          <a-col :span="12">
+            <a-form-item label="发票号"><a-input v-model:value="form.invoiceNo" placeholder="选填" /></a-form-item>
+          </a-col>
+          <a-col :span="12">
+            <a-form-item label="发票类型">
+              <a-select v-model:value="form.invoiceType" :options="invoiceTypeOptions" placeholder="从字典选择（选填）"
+                        allow-clear show-search option-filter-prop="label" style="width: 100%" />
+            </a-form-item>
+          </a-col>
+        </a-row>
+        <a-row :gutter="12">
+          <a-col :span="12">
+            <a-form-item label="账期天数">
+              <a-input-number v-model:value="form.creditDays" :min="0" style="width: 100%" placeholder="填写后自动推算到期日" />
+            </a-form-item>
+          </a-col>
+          <a-col :span="12">
+            <a-form-item label="到期日">
+              <a-date-picker v-model:value="form.dueDate" value-format="YYYY-MM-DD" style="width: 100%" />
+            </a-form-item>
+          </a-col>
+        </a-row>
         <a-row :gutter="12">
           <a-col :span="12">
             <a-form-item label="发生日期" required>
