@@ -205,7 +205,7 @@ onMounted(() => { load() })
 <template>
   <div class="contract-items-editor">
     <div class="items-toolbar">
-      <span class="hint">合同金额由清单合计派生；超项目预算由服务端校验</span>
+      <span class="grow" />
       <a-tag color="blue">清单 {{ rows.length }} 行</a-tag>
       <a-button v-if="store.can('contract:ledger:list')" size="small" @click="openAcceptRecords">验收记录</a-button>
       <a-button v-if="store.can('contract:item:edit')" type="primary" size="small" :loading="saving" @click="openAddPicker">＋ 新增清单行</a-button>
@@ -319,5 +319,4 @@ onMounted(() => { load() })
 <style scoped>
 .contract-items-editor { margin-top: 4px; }
 .items-toolbar { display: flex; align-items: center; gap: 12px; margin: 4px 0 8px; }
-.items-toolbar .hint { flex: 1 1 auto; }
 </style>

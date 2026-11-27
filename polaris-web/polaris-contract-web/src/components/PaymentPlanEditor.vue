@@ -121,7 +121,7 @@ onMounted(() => {
 <template>
   <div class="payment-plan-editor">
     <div class="items-toolbar">
-      <span class="hint">付款计划从属于合同；发起申请仅推进状态，来源单据号由财务域建单后回写</span>
+      <span class="grow" />
       <a-button v-if="store.can('contract:payment:edit')" type="primary" size="small" @click="openCreate">＋ 新增付款计划</a-button>
     </div>
     <a-table class="ft-table" row-key="id" :columns="columns" :data-source="rows" :loading="loading" :pagination="false"
@@ -206,5 +206,4 @@ onMounted(() => {
 <style scoped>
 .payment-plan-editor { margin-top: 4px; }
 .items-toolbar { display: flex; align-items: center; gap: 12px; margin: 4px 0 8px; }
-.items-toolbar .hint { flex: 1 1 auto; }
 </style>

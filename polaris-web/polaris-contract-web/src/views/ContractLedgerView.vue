@@ -419,7 +419,7 @@ onMounted(() => { load(); loadOptions(); loadOrgDirectory() })
             </a-form-item>
           </a-card>
 
-          <div class="drawer-section-title">合同清单（在详情内维护，不做独立菜单）</div>
+          <div class="drawer-section-title">合同清单</div>
           <ContractItemsEditor v-if="detail" :contract-no="detail.no" />
 
           <div class="drawer-section-title">付款计划</div>
