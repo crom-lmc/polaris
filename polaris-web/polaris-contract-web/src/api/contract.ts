@@ -285,7 +285,6 @@ export interface ProjectSave {
   budgetAmount?: number
   startDate?: string
   endDate?: string
-  status?: string
   remark?: string
 }
 
@@ -300,6 +299,8 @@ export const updateProject = (id: string, data: ProjectSave) =>
 export const changeProjectStatus = (id: string, status: string) =>
   request.post<never, void>(`/api/contract/projects/${id}/status`, { status })
 export const deleteProject = (id: string) => request.delete<never, void>(`/api/contract/projects/${id}`)
+/** 提交项目审批：DRAFT→PENDING 并进审批中心 */
+export const submitProject = (id: string) => request.post<never, void>(`/api/contract/projects/${id}/submit`)
 
 /* ==================== 合同台账 ==================== */
 
@@ -375,6 +376,8 @@ export interface ContractVO {
   itemCount: number
   /** 清单是否全部验收完成（派生字段，前端据此隐藏「验收」入口） */
   acceptanceDone?: boolean
+  /** 清单是否全部签收完成（派生字段，前端据此隐藏「签收」入口） */
+  signDone?: boolean
   planCount: number
   /** 变更次数（来自 contract_change_log） */
   changeCount: number
@@ -457,6 +460,8 @@ export interface ItemVO {
   qty: number
   price: number
   amount: number
+  /** 已到货签收数量（到货款放行依据） */
+  signedQty: number
   deliveredQty: number
   remark: string
   orgCode: string
@@ -510,6 +515,29 @@ export interface AcceptanceVO {
   attachmentUrls?: string[]
 }
 
+export interface SignRequest {
+  qty: number
+  date?: string
+  remark?: string
+  fileIds?: string[]
+}
+
+export interface SignVO {
+  id: string
+  no: string
+  contractNo: string
+  itemId: string
+  materialCode: string
+  qty: number
+  date: string
+  signer: string
+  remark: string
+  status: string
+  orgCode: string
+  fileIds?: string[]
+  attachmentUrls?: string[]
+}
+
 export const listItems = (contractNo: string) =>
   request.get<never, ItemVO[]>(`/api/contract/contracts/${contractNo}/items`)
 export const saveItem = (contractNo: string, data: ItemSave) =>
@@ -523,6 +551,11 @@ export const acceptItem = (contractNo: string, id: string, data: AcceptRequest) 
 /** 销售验收推应收失败后重试（幂等） */
 export const pushAcceptanceAr = (contractNo: string, acceptanceId: string) =>
   request.post<never, void>(`/api/contract/contracts/${contractNo}/items/acceptances/${acceptanceId}/push-ar`)
+/** 到货签收：到货款放行依据，与验收独立 */
+export const listSigns = (contractNo: string) =>
+  request.get<never, SignVO[]>(`/api/contract/contracts/${contractNo}/items/signs`)
+export const signItem = (contractNo: string, id: string, data: SignRequest) =>
+  request.post<never, SignVO>(`/api/contract/contracts/${contractNo}/items/${id}/sign`, data)
 
 /* ==================== 附件上传（统一文件服务代理） ==================== */
 
@@ -647,6 +680,9 @@ export const fetchPlanApprovalInfo = (id: string) =>
 /** 合同审批信息（采购/销售，审批中心反查） */
 export const fetchContractApprovalInfo = (id: string) =>
   request.get<never, ApprovalInfo | null>(`/api/contract/contracts/${id}/approval`)
+/** 项目审批信息（审批中心反查） */
+export const fetchProjectApprovalInfo = (id: string) =>
+  request.get<never, ApprovalInfo | null>(`/api/contract/projects/${id}/approval`)
 
 /* ==================== 采购计划 ==================== */
 

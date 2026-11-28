@@ -325,7 +325,7 @@ onMounted(() => { loadOrgDirectory() })
         <ContractItemsEditor :contract-no="contract.no" :contract-status="contract.status" :contract-type="contract.type"
                              @changed="itemsVersion++" />
 
-        <PaymentTermsEditor ref="termsRef" :contract-no="contract.no" :contract-status="contract.status" :items-version="itemsVersion" />
+        <PaymentTermsEditor ref="termsRef" :contract-no="contract.no" :contract-status="contract.status" :contract-type="contract.type" :items-version="itemsVersion" />
       </template>
 
       <template v-else-if="isConvert">

@@ -119,7 +119,7 @@ const columns = computed(() => [
   { title: '状态', key: 'status', align: 'center' as const, width: 100 },
   { title: '到期日期', dataIndex: 'endDate', key: 'endDate', width: 110 },
   { title: '附件', key: 'attachments', align: 'center' as const, width: 110 },
-  { title: '操作', key: 'action', width: 350 }
+  { title: '操作', key: 'action', width: 395 }
 ])
 
 /* 新增 / 编辑合同：公共表单抽屉 */
@@ -157,6 +157,10 @@ const acceptDrawerWidth = computed(() => (isMobile.value ? '100%' : 900))
 const acceptOpen = ref(false)
 const acceptContract = ref<ContractVO | null>(null)
 function openAccept(row: ContractVO) { acceptContract.value = row; acceptOpen.value = true }
+/* 到货签收：与验收独立，签收后该清单行可付到货款 */
+const signOpen = ref(false)
+const signContract = ref<ContractVO | null>(null)
+function openSign(row: ContractVO) { signContract.value = row; signOpen.value = true }
 async function doStatus(id: string, status: string) {
   try {
     await changeContractStatus(id, status)
@@ -170,9 +174,10 @@ function requestStatusAction(action: StatusAction, row: ContractVO) {
     message.warning('请先维护合同清单，再提交审批')
     return
   }
-  // 付款节点是付款执行基础：未配置节点不允许提交审批（服务端同步硬校验）
+  // 付款/收款节点是收付款执行基础：未配置节点不允许提交审批（服务端同步硬校验）
   if (action.target === 'PENDING' && !(row.paymentTermList?.length)) {
-    message.warning('请先配置付款节点，再提交审批（比例合计 100%，须含验收款）')
+    const termWord = row.type === 'SALES' ? '收款节点' : '付款节点'
+    message.warning(`请先配置${termWord}，再提交审批（比例合计 100%，须含验收款）`)
     return
   }
   Modal.confirm({
@@ -221,7 +226,7 @@ onMounted(() => { load(); loadOptions() })
       </div>
       <a-table class="ft-table" row-key="id" :columns="columns" :data-source="rows" :loading="loading"
                :pagination="pagination" :class="{ 'tbl-empty-mode': !loading && !rows.length }"
-               :scroll="rows.length ? { x: 2440 } : undefined" style="--ft-min-width: 2440px">
+               :scroll="rows.length ? { x: 2485 } : undefined" style="--ft-min-width: 2485px">
         <template #bodyCell="{ column, record }">
           <template v-if="column.key === 'no'">
             <a-tooltip :title="record.no"><span class="cell-ellipsis">{{ record.no }}</span></a-tooltip>
@@ -269,6 +274,7 @@ onMounted(() => { load(); loadOptions() })
               <a @click="openDetail(record.id)">查看</a>
               <a v-if="record.status !== 'DRAFT'" @click="openApproval(record)">审批信息</a>
               <a v-if="store.can('contract:ledger:edit') && record.status === 'DRAFT'" @click="openEdit(record)">编辑</a>
+              <a v-if="store.can('contract:sign:edit') && ['EFFECTIVE', 'EXECUTING'].includes(record.status) && !record.signDone" @click="openSign(record)">签收</a>
               <a v-if="store.can('contract:item:edit') && ['EFFECTIVE', 'EXECUTING'].includes(record.status) && !record.acceptanceDone" @click="openAccept(record)">验收</a>
               <template v-if="store.can('contract:ledger:edit')">
                 <a v-for="action in statusActionsOf(record)" :key="action.target" @click="requestStatusAction(action, record)">{{ action.label }}</a>
@@ -294,6 +300,16 @@ onMounted(() => { load(); loadOptions() })
         <ContractItemsEditor :contract-no="acceptContract.no" :contract-status="acceptContract.status" :contract-type="acceptContract.type" />
       </template>
       <template #footer><div class="drawer-footer"><a-button @click="acceptOpen = false">关闭</a-button></div></template>
+    </a-drawer>
+
+    <a-drawer v-model:open="signOpen" title="合同签收 · 清单到货" :width="acceptDrawerWidth" placement="right">
+      <template v-if="signContract">
+        <a-alert type="info" show-icon style="margin-bottom: 12px"
+                 :message="`${signContract.no} · ${signContract.name}`"
+                 description="已生效/执行中的合同可逐行登记到货签收；签收后的清单行可作为到货款付款依据。" />
+        <ContractItemsEditor :contract-no="signContract.no" :contract-status="signContract.status" :contract-type="signContract.type" mode="sign" />
+      </template>
+      <template #footer><div class="drawer-footer"><a-button @click="signOpen = false">关闭</a-button></div></template>
     </a-drawer>
 
     <ContractFormDrawer v-model:open="createOpen" :contract="editingContract" :default-type="fixedType" @saved="onFormSaved" />

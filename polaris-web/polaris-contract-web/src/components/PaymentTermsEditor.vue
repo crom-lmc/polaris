@@ -1,7 +1,7 @@
 <script setup lang="ts">
 /**
- * 合同付款节点配置（内嵌在合同编辑抽屉，仅草稿可编辑）。
- * 比例合计必须 100%、必须含验收款；金额由合同清单合计 × 比例在服务端锁定。
+ * 合同付款/收款节点配置（内嵌在合同编辑抽屉，仅草稿可编辑）。
+ * 采购合同叫付款节点、销售合同叫收款节点；比例合计必须 100%、必须含验收款，金额由清单合计 × 比例在服务端锁定。
  */
 import { computed, onMounted, ref, watch } from 'vue'
 import { message } from 'ant-design-vue'
@@ -11,22 +11,27 @@ import {
 } from '@/api/contract'
 import { yuan } from '@/utils/format'
 
-const props = defineProps<{ contractNo: string; contractStatus?: string; readonly?: boolean; itemsVersion?: number }>()
+const props = defineProps<{ contractNo: string; contractStatus?: string; contractType?: string; readonly?: boolean; itemsVersion?: number }>()
 const emit = defineEmits<{ saved: [terms: PaymentTermVO[]] }>()
+
+/** 销售合同用「收款」措辞，采购/其它用「付款」 */
+const isSales = computed(() => props.contractType === 'SALES')
+const termWord = computed(() => isSales.value ? '收款节点' : '付款节点')
+const stageWord = computed(() => isSales.value ? '收款阶段' : '付款阶段')
 
 const rows = ref<PaymentTermVO[]>([])
 const loading = ref(false)
 const saving = ref(false)
 const editable = computed(() => !props.readonly && props.contractStatus === 'DRAFT')
 
-const columns = [
-  { title: '付款阶段', dataIndex: 'stage', key: 'stage', width: 130 },
+const columns = computed(() => [
+  { title: stageWord.value, dataIndex: 'stage', key: 'stage', width: 130 },
   { title: '比例', dataIndex: 'ratio', key: 'ratio', width: 110, align: 'right' as const },
   { title: '锁定金额', key: 'amount', width: 140, align: 'right' as const },
-  { title: '计划付款日', dataIndex: 'dueDate', key: 'dueDate', width: 150 },
+  { title: isSales.value ? '计划收款日' : '计划付款日', dataIndex: 'dueDate', key: 'dueDate', width: 150 },
   { title: '备注', dataIndex: 'remark', key: 'remark', ellipsis: true },
   ...(editable.value ? [{ title: '操作', key: 'action', width: 80 }] : [])
-]
+])
 const totalRatio = computed(() => Number(rows.value.reduce((s, r) => s + Number(r.ratio || 0), 0).toFixed(2)))
 const hasAccept = computed(() => rows.value.some((r) => r.stage === 'ACCEPT'))
 const usedStages = computed(() => new Set(rows.value.map((r) => r.stage)))
@@ -45,7 +50,7 @@ async function load() {
     rows.value = terms || []
     itemsTotal.value = (items || []).reduce((s, i) => s + Number(i.amount || 0), 0)
   }
-  catch (e: any) { message.error(e?.message || '付款节点加载失败') }
+  catch (e: any) { message.error(e?.message || `${termWord.value}加载失败`) }
   finally { loading.value = false }
 }
 onMounted(() => { if (props.contractNo) load() })
@@ -72,10 +77,10 @@ function removeRow(index: number) { rows.value.splice(index, 1) }
 /** 保存节点；silent=true 供提交审批自动调用，不重复弹成功提示。返回是否就绪（true=已保存/无需保存） */
 async function save(silent = false): Promise<boolean> {
   if (!editable.value || props.readonly) return true
-  if (!rows.value.length) { message.warning('请至少配置一个付款节点'); return false }
-  if (totalRatio.value !== 100) { message.warning(`付款节点比例合计必须为 100%，当前 ${totalRatio.value}%`); return false }
-  if (!hasAccept.value) { message.warning('付款节点必须包含验收款'); return false }
-  if (rows.value.some((r) => !r.ratio || Number(r.ratio) <= 0)) { message.warning('每个付款节点比例必须大于 0'); return false }
+  if (!rows.value.length) { message.warning(`请至少配置一个${termWord.value}`); return false }
+  if (totalRatio.value !== 100) { message.warning(`${termWord.value}比例合计必须为 100%，当前 ${totalRatio.value}%`); return false }
+  if (!hasAccept.value) { message.warning(`${termWord.value}必须包含验收款`); return false }
+  if (rows.value.some((r) => !r.ratio || Number(r.ratio) <= 0)) { message.warning(`每个${termWord.value}比例必须大于 0`); return false }
   saving.value = true
   try {
     const payload: PaymentTermSave[] = rows.value.map((r) => ({
@@ -84,10 +89,10 @@ async function save(silent = false): Promise<boolean> {
     }))
     const saved = await savePaymentTerms(props.contractNo, payload)
     rows.value = saved
-    if (!silent) message.success('付款节点已保存，金额按当前清单合计锁定')
+    if (!silent) message.success(`${termWord.value}已保存，金额按当前清单合计锁定`)
     emit('saved', saved)
     return true
-  } catch (e: any) { message.error(e?.message || '付款节点保存失败'); return false }
+  } catch (e: any) { message.error(e?.message || `${termWord.value}保存失败`); return false }
   finally { saving.value = false }
 }
 
@@ -98,7 +103,7 @@ defineExpose({ save: () => save(true) })
 <template>
   <div class="terms-editor">
     <div class="terms-toolbar">
-      <span class="terms-title">付款节点</span>
+      <span class="terms-title">{{ termWord }}</span>
       <span class="terms-sum" :class="{ invalid: !hasAccept || totalRatio !== 100 }">
         合计 {{ totalRatio }}%<template v-if="!hasAccept"> · 缺验收款</template>
       </span>
@@ -138,7 +143,7 @@ defineExpose({ save: () => save(true) })
         </template>
       </template>
       <template #emptyText>
-        <a-empty v-if="!loading" :description="editable ? '尚未配置付款节点，请添加' : '未配置付款节点（存量合同）'" />
+        <a-empty v-if="!loading" :description="editable ? `尚未配置${termWord}，请添加` : `未配置${termWord}（存量合同）`" />
       </template>
     </a-table>
   </div>

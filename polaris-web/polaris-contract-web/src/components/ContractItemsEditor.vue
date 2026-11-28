@@ -5,15 +5,21 @@ import { useUserStore } from '@/stores/user'
 import { useIsMobile } from '@/composables/useIsMobile'
 import {
   listItems, saveItem, deleteItem, acceptItem, listAcceptances, pushAcceptanceAr, uploadContractAttachment,
-  type ItemVO, type ItemSave, type AcceptanceVO
+  listSigns, signItem,
+  type ItemVO, type ItemSave, type AcceptanceVO, type SignVO
 } from '@/api/contract'
 import { loadMaterialChildren, loadMaterialPage } from '@/composables/useMaterialPicker'
 import MaterialPickerModal, { type MaterialPick } from '@shared/components/MaterialPickerModal.vue'
 import AttachmentUpload from '@shared/components/AttachmentUpload.vue'
 import { yuan } from '@/utils/format'
 
-const props = defineProps<{ contractNo: string; readonly?: boolean; contractStatus?: string; contractType?: string }>()
+const props = defineProps<{
+  contractNo: string; readonly?: boolean; contractStatus?: string; contractType?: string
+  /** accept=到货验收（默认）；sign=到货签收（到货款放行依据，与验收独立） */
+  mode?: 'accept' | 'sign'
+}>()
 const emit = defineEmits<{ changed: [] }>()
+const isSignMode = computed(() => props.mode === 'sign')
 /** 销售合同客户验收：通过/不通过，通过才累加交付并推应收；采购仍为到货验收合格/不合格 */
 const isSales = computed(() => props.contractType === 'SALES')
 const store = useUserStore()
@@ -39,8 +45,8 @@ const columns = computed(() => {
     { title: '数量', dataIndex: 'qty', key: 'qty', align: 'right' as const, width: 80 },
     { title: '单价', key: 'price', align: 'right' as const, width: 100 },
     { title: '金额', key: 'amount', align: 'right' as const, width: 110 },
-    { title: '交付进度', key: 'delivered', width: 130 },
-    { title: '操作', key: 'action', width: 140 }
+    { title: isSignMode.value ? '签收进度' : '交付进度', key: isSignMode.value ? 'signed' : 'delivered', width: 130 },
+    { title: '操作', key: 'action', width: isSignMode.value ? 90 : 140 }
   ]
   return props.readonly ? base.filter((c) => c.key !== 'action') : base
 })
@@ -241,6 +247,61 @@ function openAcceptRecords() {
   loadAcceptances()
 }
 
+/* 到货签收：与验收完全独立，签收数量决定是否可付到货款 */
+const signOpen = ref(false)
+const signSaving = ref(false)
+const signId = ref('')
+const signForm = reactive({ qty: 1, date: undefined as string | undefined, remark: '', fileIds: [] as string[] })
+const signRow = computed(() => rows.value.find((r) => r.id === signId.value) || null)
+const signRemain = computed(() => signRow.value
+  ? Math.max(0, Number(signRow.value.qty || 0) - Number(signRow.value.signedQty || 0)) : 0)
+function openSign(row: ItemVO) {
+  signId.value = row.id
+  signForm.qty = Math.max(1, signRemain.value || 1)
+  signForm.date = undefined
+  signForm.remark = ''
+  signForm.fileIds = []
+  signOpen.value = true
+}
+async function submitSign() {
+  if (!signForm.qty || signForm.qty < 1 || signForm.qty > signRemain.value) {
+    message.warning(`签收数量须在 1 ~ ${signRemain.value} 之间`); return
+  }
+  if (!signForm.date) { message.warning('请选择签收日期'); return }
+  signSaving.value = true
+  try {
+    await signItem(props.contractNo, signId.value, {
+      qty: Number(signForm.qty), date: signForm.date,
+      remark: signForm.remark || undefined, fileIds: signForm.fileIds
+    })
+    signOpen.value = false
+    message.success('到货签收已登记，可据该清单行发起到货款申请')
+    await load()
+    if (signRecordsOpen.value) await loadSigns()
+  } catch (e: any) { message.error(e?.message || '签收失败') }
+  finally { signSaving.value = false }
+}
+
+const signRecordsOpen = ref(false)
+const signRecordsLoading = ref(false)
+const signRecords = ref<SignVO[]>([])
+const signColumns = [
+  { title: '签收单号', dataIndex: 'no', key: 'no', width: 180 },
+  { title: '物料', dataIndex: 'materialCode', key: 'materialCode', width: 150 },
+  { title: '数量', dataIndex: 'qty', key: 'qty', align: 'right' as const, width: 90 },
+  { title: '签收日期', dataIndex: 'date', key: 'date', width: 120 },
+  { title: '签收人', dataIndex: 'signer', key: 'signer', width: 120 },
+  { title: '签收凭证', key: 'attachments', width: 150 }
+]
+const signScrollX = signColumns.reduce((sum, c) => sum + Number(c.width || 100), 0)
+async function loadSigns() {
+  signRecordsLoading.value = true
+  try { signRecords.value = await listSigns(props.contractNo) }
+  catch (e: any) { message.error(e?.message || '加载签收记录失败') }
+  finally { signRecordsLoading.value = false }
+}
+function openSignRecords() { signRecordsOpen.value = true; loadSigns() }
+
 onMounted(() => { load() })
 </script>
 
@@ -249,7 +310,8 @@ onMounted(() => { load() })
     <div class="items-toolbar">
       <span class="grow" />
       <a-tag color="blue">清单 {{ rows.length }} 行</a-tag>
-      <a-button v-if="store.can('contract:ledger:list')" size="small" @click="openAcceptRecords">验收记录</a-button>
+      <a-button v-if="!isSignMode && store.can('contract:ledger:list')" size="small" @click="openAcceptRecords">验收记录</a-button>
+      <a-button v-if="isSignMode && store.can('contract:ledger:list')" size="small" @click="openSignRecords">签收记录</a-button>
       <template v-if="!readonly">
         <a-button v-if="canEditItems && store.can('contract:item:edit')" type="primary" size="small" :loading="saving" @click="openAddPicker">＋ 新增清单行</a-button>
       </template>
@@ -264,13 +326,14 @@ onMounted(() => { load() })
           <a-tooltip :title="record.spec"><span class="cell-ellipsis">{{ record.spec || '-' }}</span></a-tooltip>
         </template>
         <template v-else-if="['price', 'amount'].includes(String(column.key))">{{ yuan(record[column.key as 'price' | 'amount']) }}</template>
-        <template v-else-if="column.key === 'delivered'">
-          <a-progress :percent="Number(record.qty) ? Math.min(100, Math.round(Number(record.deliveredQty || 0) / Number(record.qty) * 100)) : 0" size="small" />
+        <template v-else-if="column.key === 'delivered' || column.key === 'signed'">
+          <a-progress :percent="Number(record.qty) ? Math.min(100, Math.round(Number(record[column.key === 'signed' ? 'signedQty' : 'deliveredQty'] || 0) / Number(record.qty) * 100)) : 0" size="small" />
         </template>
         <template v-else-if="column.key === 'action'">
           <a-space :size="4">
-            <template v-if="store.can('contract:item:edit')">
-              <a v-if="canAccept && Number(record.deliveredQty || 0) < Number(record.qty || 0)" @click="openAccept(record)">验收</a>
+            <template v-if="isSignMode ? store.can('contract:sign:edit') : store.can('contract:item:edit')">
+              <a v-if="isSignMode && canAccept && Number(record.signedQty || 0) < Number(record.qty || 0)" @click="openSign(record)">签收</a>
+              <a v-if="!isSignMode && canAccept && Number(record.deliveredQty || 0) < Number(record.qty || 0)" @click="openAccept(record)">验收</a>
               <a v-if="canEditItems" @click="openEdit(record)">编辑</a>
               <a-tooltip v-if="canEditItems && isFromPlan(record)" title="由采购计划转入的清单行不允许删除，可编辑数量与单价">
                 <span class="link-disabled">删除</span>
@@ -370,6 +433,45 @@ onMounted(() => { load() })
             </template>
           </template>
           <template #emptyText><div class="tbl-empty"><a-empty v-if="!acceptRecordsLoading" description="该合同暂无验收记录" /></div></template>
+        </a-table>
+      </a-spin>
+    </a-modal>
+
+    <a-drawer v-model:open="signOpen" title="到货签收" :width="smallDrawerWidth" placement="right">
+      <a-form layout="vertical">
+        <a-form-item label="物料"><a-input :value="signRow ? `${signRow.materialName} · ${signRow.spec}` : ''" readonly /></a-form-item>
+        <a-form-item label="合同数量"><a-input :value="signRow ? `${signRow.qty} ${signRow.unit || ''}` : ''" readonly /></a-form-item>
+        <a-form-item label="已签收"><a-input :value="signRow ? String(signRow.signedQty || 0) : ''" readonly /></a-form-item>
+        <a-form-item label="本次签收数量" required>
+          <a-input-number v-model:value="signForm.qty" :min="1" :max="signRemain" style="width: 100%" />
+        </a-form-item>
+        <a-form-item label="签收日期" required>
+          <a-date-picker v-model:value="signForm.date" value-format="YYYY-MM-DD" format="YYYY-MM-DD" style="width: 100%" placeholder="请选择签收日期" />
+        </a-form-item>
+        <a-form-item label="备注"><a-textarea v-model:value="signForm.remark" :rows="2" /></a-form-item>
+        <AttachmentUpload v-if="store.can('contract:item:attachment:upload')" v-model="signForm.fileIds" label="签收凭证" button-text="上传签收凭证"
+                          :upload="(file) => uploadContractAttachment(file, 'acceptance')" @error="message.error" />
+      </a-form>
+      <template #footer>
+        <div class="drawer-footer">
+          <a-button @click="signOpen = false">取消</a-button>
+          <a-button type="primary" :loading="signSaving" @click="submitSign">确认签收</a-button>
+        </div>
+      </template>
+    </a-drawer>
+
+    <a-modal v-model:open="signRecordsOpen" title="签收记录 · 签收凭证" :footer="null" :width="820">
+      <a-spin :spinning="signRecordsLoading">
+        <a-table class="ft-table" row-key="id" size="small" :columns="signColumns" :data-source="signRecords"
+                 :pagination="false" :scroll="{ x: signScrollX }" :style="{ '--ft-min-width': `${signScrollX}px` }">
+          <template #bodyCell="{ column, record }">
+            <template v-if="column.key === 'attachments'">
+              <a v-if="record.fileIds?.length && record.attachmentUrls?.[0]" :href="record.attachmentUrls[0]" target="_blank">凭证（{{ record.fileIds.length }}）</a>
+              <span v-else-if="record.fileIds?.length" class="muted">{{ record.fileIds.length }} 个</span>
+              <span v-else class="muted">-</span>
+            </template>
+          </template>
+          <template #emptyText><div class="tbl-empty"><a-empty v-if="!signRecordsLoading" description="该合同暂无签收记录" /></div></template>
         </a-table>
       </a-spin>
     </a-modal>

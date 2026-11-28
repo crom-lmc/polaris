@@ -6,9 +6,10 @@ import { useIsMobile } from '@/composables/useIsMobile'
 import { useOrgDirectory, filterOption as orgFilterOption } from '@/composables/useOrgDirectory'
 import {
   listProjects, getProject, saveProject, updateProject, changeProjectStatus, deleteProject,
-  listContracts,
+  submitProject, fetchProjectApprovalInfo, listContracts,
   type ProjectVO, type ProjectSave, type OrgNodeVO, type ContractVO
 } from '@/api/contract'
+import ApprovalDetailDrawer from '@/components/ApprovalDetailDrawer.vue'
 import { yuan } from '@/utils/format'
 
 const store = useUserStore()
@@ -28,8 +29,8 @@ const query = reactive({
 })
 
 const typeLabel: Record<string, string> = { SALES: '销售项目', PURCHASE: '采购项目', INTERNAL: '内部项目' }
-const statusLabel: Record<string, string> = { DRAFT: '立项中', ACTIVE: '执行中', PAUSED: '已暂停', CLOSED: '已结项', CANCELLED: '已取消' }
-const statusColor: Record<string, string> = { DRAFT: 'blue', ACTIVE: 'green', PAUSED: 'orange', CLOSED: 'default', CANCELLED: 'red' }
+const statusLabel: Record<string, string> = { DRAFT: '立项中', PENDING: '审批中', ACTIVE: '执行中', PAUSED: '已暂停', CLOSED: '已结项', CANCELLED: '已取消' }
+const statusColor: Record<string, string> = { DRAFT: 'blue', PENDING: 'processing', ACTIVE: 'green', PAUSED: 'orange', CLOSED: 'default', CANCELLED: 'red' }
 const typeOptions = Object.entries(typeLabel).map(([value, label]) => ({ value, label }))
 const statusOptions = Object.entries(statusLabel).map(([value, label]) => ({ value, label }))
 
@@ -75,7 +76,7 @@ const columns = [
   { title: '已入账', key: 'usedAmount', align: 'right' as const, width: 120 },
   { title: '执行率', key: 'usage', width: 140 },
   { title: '状态', key: 'status', align: 'center' as const, width: 100 },
-  { title: '操作', key: 'action', width: 200 }
+  { title: '操作', key: 'action', width: 260 }
 ]
 const contractColumns = [
   { title: '合同编号', dataIndex: 'no', key: 'no', width: 240 },
@@ -147,12 +148,12 @@ const editingCode = ref('')
 const saving = ref(false)
 const form = reactive<ProjectSave>({
   name: '', type: 'INTERNAL', orgCode: '', teamCode: '', costCenterCode: '', owner: '',
-  budgetAmount: 0, startDate: undefined, endDate: undefined, status: 'DRAFT', remark: ''
+  budgetAmount: 0, startDate: undefined, endDate: undefined, remark: ''
 })
 function resetForm() {
   Object.assign(form, {
     name: '', type: 'INTERNAL', orgCode: '', teamCode: '', costCenterCode: '', owner: '',
-    budgetAmount: 0, startDate: undefined, endDate: undefined, status: 'DRAFT', remark: ''
+    budgetAmount: 0, startDate: undefined, endDate: undefined, remark: ''
   })
 }
 function openEdit(row?: ProjectVO) {
@@ -165,7 +166,7 @@ function openEdit(row?: ProjectVO) {
       name: row.name, type: row.type, orgCode: row.orgCode, teamCode: row.teamCode,
       costCenterCode: row.costCenterCode, owner: row.owner, budgetAmount: Number(row.budgetAmount || 0),
       startDate: row.startDate || undefined, endDate: row.endDate || undefined,
-      status: row.status, remark: row.remark || ''
+      remark: row.remark || ''
     })
   }
   editOpen.value = true
@@ -186,16 +187,39 @@ async function submit() {
     if (editing.value) await updateProject(editing.value, payload)
     else await saveProject(payload)
     editOpen.value = false
-    message.success('项目档案已保存，编码由服务端按流水自动生成')
+    message.success(editing.value ? '项目档案已保存' : '项目档案已保存为立项中，提交审批通过后转执行中')
     resetAndLoad()
   } catch (e: any) { message.error(e?.message || '保存失败') }
   finally { saving.value = false }
 }
 function nextStatus(s: string): { label: string; value: string } | undefined {
-  if (s === 'DRAFT') return { label: '启动', value: 'ACTIVE' }
+  // DRAFT→ACTIVE 必须走提交审批，由终审回调推进
   if (s === 'ACTIVE') return { label: '暂停', value: 'PAUSED' }
   if (s === 'PAUSED') return { label: '恢复', value: 'ACTIVE' }
   return undefined
+}
+/* 提交审批：DRAFT→PENDING，由上级领导审批，通过转执行中、驳回回立项中 */
+function submitForApproval(row: ProjectVO) {
+  Modal.confirm({
+    centered: true,
+    title: '提交审批',
+    content: `确认提交「${row.name}」审批吗？提交后由上级领导审批，通过后项目转为执行中。`,
+    onOk: async () => {
+      try { await submitProject(row.id); message.success('已提交审批，可在「审批信息」查看进度'); load() }
+      catch (e: any) { message.error(e?.message || '提交审批失败') }
+    }
+  })
+}
+/* 查看审批：业务域反查 instanceId，详情复用审批中心同款抽屉 */
+const approvalOpen = ref(false)
+const approvalInstanceId = ref<string | null>(null)
+async function openApproval(row: ProjectVO) {
+  try {
+    const info = await fetchProjectApprovalInfo(row.id)
+    if (!info?.id) { message.warning('该项目尚未发起审批'); return }
+    approvalInstanceId.value = info.id
+    approvalOpen.value = true
+  } catch (e: any) { message.error(e?.message || '审批信息加载失败') }
 }
 async function applyStatus(row: ProjectVO) {
   const next = nextStatus(row.status)
@@ -238,7 +262,7 @@ onMounted(() => { load(); loadOrg() })
       </div>
       <a-table class="ft-table" row-key="id" :columns="columns" :data-source="rows" :loading="loading"
                :pagination="pagination" :class="{ 'tbl-empty-mode': !loading && !rows.length }"
-               :scroll="rows.length ? { x: 1780 } : undefined" style="--ft-min-width: 1780px">
+               :scroll="rows.length ? { x: 1840 } : undefined" style="--ft-min-width: 1840px">
         <template #bodyCell="{ column, record }">
           <template v-if="column.key === 'name'">
             <a-tooltip :title="record.name"><span class="cell-ellipsis">{{ record.name }}</span></a-tooltip>
@@ -259,7 +283,9 @@ onMounted(() => { load(); loadOrg() })
           <template v-else-if="column.key === 'action'">
             <a-space :size="4">
               <a @click="openDetail(record.id)">详情</a>
+              <a v-if="record.status !== 'DRAFT'" @click="openApproval(record)">审批信息</a>
               <template v-if="store.can('contract:project:edit')">
+                <a v-if="record.status === 'DRAFT'" @click="submitForApproval(record)">提交审批</a>
                 <a v-if="record.status === 'DRAFT'" @click="openEdit(record)">编辑</a>
                 <a v-if="nextStatus(record.status)" @click="applyStatus(record)">{{ nextStatus(record.status)?.label }}</a>
                 <a v-if="record.status === 'DRAFT'" @click="remove(record)">删除</a>
@@ -319,6 +345,8 @@ onMounted(() => { load(); loadOrg() })
       <template #footer>
         <div class="drawer-footer">
           <a-button @click="detailOpen = false">关闭</a-button>
+          <a-button v-if="detail && detail.status !== 'DRAFT'" @click="openApproval(detail)">查看审批</a-button>
+          <a-button v-if="detail?.status === 'DRAFT'" @click="submitForApproval(detail)">提交审批</a-button>
           <a-button v-if="store.can('contract:project:edit') && detail?.status === 'DRAFT'" type="primary" @click="openEdit(detail)">编辑档案</a-button>
         </div>
       </template>
@@ -373,7 +401,6 @@ onMounted(() => { load(); loadOrg() })
               </a-form-item>
             </a-col>
           </a-row>
-          <a-form-item label="项目状态"><a-select v-model:value="form.status" :options="statusOptions" :disabled="!!editing" /></a-form-item>
           <a-form-item label="备注"><a-input v-model:value="form.remark" /></a-form-item>
         </a-card>
       </a-form>
@@ -384,5 +411,7 @@ onMounted(() => { load(); loadOrg() })
         </div>
       </template>
     </a-drawer>
+
+    <ApprovalDetailDrawer v-model:open="approvalOpen" :instance-id="approvalInstanceId" :width="drawerWidth" />
   </section>
 </template>

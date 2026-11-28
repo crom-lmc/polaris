@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { message } from 'ant-design-vue'
 import { useUserStore } from '@/stores/user'
 import { useIsMobile } from '@/composables/useIsMobile'
@@ -134,10 +134,29 @@ const terms = ref<PaymentTermVO[]>([])
 const items = ref<ItemVO[]>([])
 const selectedTerm = computed(() => terms.value.find((t) => t.id === form.termId))
 const termMode = computed(() => terms.value.length > 0)
-const appliableAmount = computed(() => selectedTerm.value
-  ? Number(selectedTerm.value.availableAmount ?? 0)
-  : Number(form.remainingAmount ?? 0))
-const goodsRows = computed(() => items.value.filter((i) => Number(i.deliveredQty || 0) > 0))
+/** 所选清单行金额合计（GOODS 按行带出金额的基础） */
+const selectedItemAmount = computed(() => items.value
+  .filter((i) => form.itemIds.includes(String(i.id)))
+  .reduce((s, i) => s + Number(i.amount || 0), 0))
+/**
+ * 可申请金额：到货款节点按「所选行金额 × 节点比例 − 该节点已申请额」带出，且不超过节点余额；
+ * 其余阶段沿用节点余额；存量无节点沿用合同剩余额。
+ */
+const appliableAmount = computed(() => {
+  const term = selectedTerm.value
+  if (!term) return Number(form.remainingAmount ?? 0)
+  const available = Number(term.availableAmount ?? 0)
+  if (form.stage !== 'GOODS' || !form.itemIds.length) return available
+  const applied = Math.max(0, Number(term.amount ?? 0) - available)
+  const byItems = selectedItemAmount.value * Number(term.ratio ?? 0) / 100 - applied
+  return Math.max(0, Math.min(available, Math.round(byItems * 100) / 100))
+})
+/** GOODS 可选清单行：已到货签收（signedQty > 0）才可作为到货款依据 */
+const goodsRows = computed(() => items.value.filter((i) => Number(i.signedQty || 0) > 0))
+/** 清单行变化后：未填金额或原金额超过新上限时，自动带出可申请金额 */
+watch(appliableAmount, (v) => {
+  if (form.amount == null || form.amount > v) form.amount = v
+})
 const termOptions = computed(() => terms.value.map((t) => ({
   value: t.id,
   label: `${paymentStageLabel(t.stage)} ${t.ratio}% · 可申请 ${yuan(t.availableAmount ?? 0)}`,
@@ -337,11 +356,11 @@ onMounted(() => {
           <a-select v-model:value="form.itemIds" mode="multiple" placeholder="选择已验收的清单行"
                     style="width: 100%" :max-tag-count="3">
             <a-select-option v-for="i in goodsRows" :key="i.id" :value="i.id">
-              {{ i.materialName }} · 已交付 {{ i.deliveredQty }}/{{ i.qty }}
+              {{ i.materialName }} · 已签收 {{ i.signedQty }}/{{ i.qty }} · 行金额 {{ yuan(i.amount || 0) }}
             </a-select-option>
           </a-select>
         </a-form-item>
-        <a-form-item :label="selectedTerm ? '本节点可申请金额' : '合同剩余金额'" required>
+        <a-form-item :label="form.stage === 'GOODS' && form.itemIds.length ? '所选清单行可申请金额' : (selectedTerm ? '本节点可申请金额' : '合同剩余金额')" required>
           <a-input-number :value="appliableAmount" :controls="false" :precision="2" readonly
                           style="width: 100%" addon-before="¥" />
         </a-form-item>

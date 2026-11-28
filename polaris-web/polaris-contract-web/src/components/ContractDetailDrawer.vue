@@ -115,7 +115,7 @@ function close() { emit('update:open', false) }
         <div class="drawer-section-title">合同清单</div>
         <ContractItemsEditor :contract-no="detail.no" :contract-status="detail.status" :contract-type="detail.type" readonly />
 
-        <PaymentTermsEditor :contract-no="detail.no" :contract-status="detail.status" readonly />
+        <PaymentTermsEditor :contract-no="detail.no" :contract-status="detail.status" :contract-type="detail.type" readonly />
 
         <div class="drawer-section-title">付款计划</div>
         <PaymentPlanEditor :contract-no="detail.no" :remaining-amount="detail.pendingAmount" :contract-status="detail.status" readonly />
