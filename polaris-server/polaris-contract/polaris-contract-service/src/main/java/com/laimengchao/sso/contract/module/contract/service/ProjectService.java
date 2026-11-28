@@ -29,4 +29,13 @@ public interface ProjectService {
     void changeStatus(Long id, String status);
 
     void delete(Long id);
+
+    /** 提交项目审批：DRAFT→PENDING 并进审批中心，通过/驳回由回调推进 */
+    void submit(Long id);
+
+    /** 审批中心终审回调：PENDING→ACTIVE（通过）/DRAFT（驳回），幂等 */
+    boolean handleApprovalResult(String bizId, Boolean approved, Integer result);
+
+    /** 项目审批信息：按 bizType+bizId 反查审批实例 ID */
+    ContractVOs.ApprovalInfoVO approvalInfo(Long id);
 }

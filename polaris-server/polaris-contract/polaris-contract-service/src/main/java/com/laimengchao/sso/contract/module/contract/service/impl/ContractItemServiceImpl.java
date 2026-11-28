@@ -16,10 +16,12 @@ import com.laimengchao.sso.contract.module.contract.entity.ContractHeader;
 import com.laimengchao.sso.contract.module.contract.entity.ContractItem;
 import com.laimengchao.sso.contract.module.contract.entity.ContractMaterial;
 import com.laimengchao.sso.contract.module.contract.entity.ContractProject;
+import com.laimengchao.sso.contract.module.contract.entity.ContractSign;
 import com.laimengchao.sso.contract.module.contract.mapper.ContractAcceptanceMapper;
 import com.laimengchao.sso.contract.module.contract.mapper.ContractItemMapper;
 import com.laimengchao.sso.contract.module.contract.mapper.ContractMaterialMapper;
 import com.laimengchao.sso.contract.module.contract.mapper.ContractProjectMapper;
+import com.laimengchao.sso.contract.module.contract.mapper.ContractSignMapper;
 import com.laimengchao.sso.contract.module.contract.support.ContractAttachments;
 import com.laimengchao.sso.contract.module.contract.vo.ContractVOs;
 import com.laimengchao.sso.file.client.api.FileApi;
@@ -47,6 +49,7 @@ public class ContractItemServiceImpl implements ContractItemService {
 
     private final ContractItemMapper mapper;
     private final ContractAcceptanceMapper acceptanceMapper;
+    private final ContractSignMapper signMapper;
     private final ContractMaterialMapper materialMapper;
     private final ContractProjectMapper projectMapper;
     private final ContractService contractService;
@@ -107,6 +110,7 @@ public class ContractItemServiceImpl implements ContractItemService {
             entity = new ContractItem();
             entity.setContractNo(header.getNo());
             entity.setLineNo(req.getLineNo() == null ? nextLineNo(header.getNo()) : req.getLineNo());
+            entity.setSignedQty(BigDecimal.ZERO);
             entity.setDeliveredQty(BigDecimal.ZERO);
             entity.setOrgCode(header.getOrgCode());
             entity.setCreatedAt(LocalDateTime.now());
@@ -141,6 +145,9 @@ public class ContractItemServiceImpl implements ContractItemService {
         ensureEditable(header);
         if (entity.getRemark() != null && entity.getRemark().startsWith(PLAN_ITEM_REMARK_PREFIX)) {
             throw new BizException(ContractErrorCode.CONTRACT_STATUS_INVALID, PLAN_ITEM_DELETE_DENIED);
+        }
+        if (entity.getSignedQty() != null && entity.getSignedQty().compareTo(BigDecimal.ZERO) > 0) {
+            throw new BizException(ContractErrorCode.ACCEPTANCE_STATUS_INVALID, "已签收清单行禁止删除");
         }
         if (entity.getDeliveredQty() != null && entity.getDeliveredQty().compareTo(BigDecimal.ZERO) > 0) {
             throw new BizException(ContractErrorCode.ACCEPTANCE_STATUS_INVALID, "已验收清单行禁止删除");
@@ -220,6 +227,60 @@ public class ContractItemServiceImpl implements ContractItemService {
                     });
         }
         return toAcceptanceVO(acceptance);
+    }
+
+    /**
+     * 到货签收：与验收完全独立——仅累加 signedQty（到货款放行依据），不动 deliveredQty（验收款放行依据）。
+     * 签收不判质量结果、不推应收；已生效/执行中可签收，首次签收同样推进 EFFECTIVE→EXECUTING。
+     */
+    @Transactional(rollbackFor = Exception.class)
+    public ContractVOs.SignVO sign(Long id, ContractRequests.SignRequest req) {
+        ContractItem item = require(id);
+        ContractHeader header = contractService.requireByNo(item.getContractNo());
+        dataScopeService.assertCanAccessOrg(header.getOrgCode());
+        ensureAcceptable(header);
+        if (req == null || req.getQty() == null || req.getQty().compareTo(BigDecimal.ZERO) <= 0) {
+            throw new BizException(ContractErrorCode.SIGN_QTY_INVALID);
+        }
+        if (req.getDate() == null) {
+            throw new BizException(ContractErrorCode.SIGN_DATE_REQUIRED);
+        }
+        BigDecimal signed = item.getSignedQty() == null ? BigDecimal.ZERO : item.getSignedQty();
+        BigDecimal ordered = item.getQty() == null ? BigDecimal.ZERO : item.getQty();
+        if (signed.add(req.getQty()).compareTo(ordered) > 0) {
+            throw new BizException(ContractErrorCode.SIGN_QTY_INVALID);
+        }
+        item.setSignedQty(signed.add(req.getQty()));
+        item.setUpdatedAt(LocalDateTime.now());
+        mapper.updateById(item);
+        ContractSign sign = new ContractSign();
+        sign.setNo(bizNoService.next(BizNoServiceImpl.TABLE_SIGN));
+        sign.setContractNo(header.getNo());
+        sign.setItemId(item.getId());
+        sign.setMaterialCode(item.getMaterialCode());
+        sign.setQty(req.getQty());
+        sign.setDate(req.getDate());
+        sign.setSigner(nvl(com.laimengchao.sso.utils.AccountContext.getUsername(), ""));
+        sign.setRemark(nvl(req.getRemark(), ""));
+        sign.setStatus("DRAFT");
+        sign.setOrgCode(header.getOrgCode());
+        sign.setFileIds(ContractAttachments.join(req.getFileIds()));
+        sign.setCreatedAt(LocalDateTime.now());
+        signMapper.insert(sign);
+        log.info("合同清单签收：contractNo={} itemId={} qty={} signNo={}",
+                header.getNo(), item.getId(), req.getQty(), sign.getNo());
+        // 首次签收自动推进：已生效 → 执行中（与验收同口径，签收同样是实际业务动作）
+        contractService.advanceIfStatus(header.getNo(), "EFFECTIVE", "EXECUTING");
+        return toSignVO(sign);
+    }
+
+    public List<ContractVOs.SignVO> signs(String contractNo) {
+        ContractHeader header = contractService.requireByNo(contractNo);
+        LambdaQueryWrapper<ContractSign> qw = new LambdaQueryWrapper<ContractSign>()
+                .eq(ContractSign::getContractNo, header.getNo())
+                .orderByDesc(ContractSign::getId);
+        dataScopeService.applyOrgScope(qw, ContractSign::getOrgCode);
+        return signMapper.selectList(qw).stream().map(this::toSignVO).toList();
     }
 
     /** 结果归一化：采购「合格/不合格」，销售「通过/不通过」；兼容历史 PASS/OK/FAIL/NG 与中文合格 */
@@ -474,6 +535,7 @@ public class ContractItemServiceImpl implements ContractItemService {
         vo.setQty(e.getQty());
         vo.setPrice(e.getPrice());
         vo.setAmount(e.getAmount());
+        vo.setSignedQty(e.getSignedQty());
         vo.setDeliveredQty(e.getDeliveredQty());
         vo.setRemark(e.getRemark());
         vo.setOrgCode(e.getOrgCode());
@@ -495,6 +557,25 @@ public class ContractItemServiceImpl implements ContractItemService {
         vo.setArError(e.getArError());
         vo.setStatus(e.getStatus());
         vo.setVoucherNo(e.getVoucherNo());
+        vo.setOrgCode(e.getOrgCode());
+        List<String> fileIds = ContractAttachments.split(e.getFileIds());
+        vo.setFileIds(fileIds);
+        vo.setAttachmentUrls(ContractAttachments.signedUrls(fileIds, fileApi));
+        return vo;
+    }
+
+    private ContractVOs.SignVO toSignVO(ContractSign e) {
+        ContractVOs.SignVO vo = new ContractVOs.SignVO();
+        vo.setId(e.getId());
+        vo.setNo(e.getNo());
+        vo.setContractNo(e.getContractNo());
+        vo.setItemId(e.getItemId());
+        vo.setMaterialCode(e.getMaterialCode());
+        vo.setQty(e.getQty());
+        vo.setDate(e.getDate() == null ? null : e.getDate().toString());
+        vo.setSigner(e.getSigner());
+        vo.setRemark(e.getRemark());
+        vo.setStatus(e.getStatus());
         vo.setOrgCode(e.getOrgCode());
         List<String> fileIds = ContractAttachments.split(e.getFileIds());
         vo.setFileIds(fileIds);

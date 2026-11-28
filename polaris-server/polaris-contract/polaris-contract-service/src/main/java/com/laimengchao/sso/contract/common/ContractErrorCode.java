@@ -46,7 +46,11 @@ public enum ContractErrorCode implements IErrorCode {
     WARRANTY_NOT_DUE(8433, "质保期未满，暂不能申请质保金"),
     GOODS_ITEMS_REQUIRED(8434, "请选择到货清单行"),
     AR_PUSH_FAILED(8435, "推应收失败，验收已保留，可稍后重试"),
-    PAYMENT_TERM_REQUIRED(8436, "请选择合同付款节点");
+    PAYMENT_TERM_REQUIRED(8436, "请选择合同付款节点"),
+    SIGN_NOT_FOUND(8437, "签收单不存在或已删除"),
+    SIGN_QTY_INVALID(8438, "签收数量不合法：不能超过清单未签收数量"),
+    SIGN_DATE_REQUIRED(8439, "签收日期不能为空"),
+    SIGN_REQUIRED(8440, "所选清单行尚未到货签收");
 
     private final int code;
     private final String message;

@@ -69,6 +69,21 @@ public class ProjectController {
         return R.ok();
     }
 
+    /** 提交项目审批：DRAFT→PENDING 并进审批中心，通过后由回调推进 ACTIVE */
+    @PostMapping("/{id}/submit")
+    @Permit(PermissionCodes.CONTRACT_PROJECT_EDIT)
+    public R<Void> submit(@PathVariable("id") Long id) {
+        projectService.submit(id);
+        return R.ok();
+    }
+
+    /** 项目审批信息：按 bizType+bizId 反查审批实例 ID，详情由账号中心接口渲染 */
+    @GetMapping("/{id}/approval")
+    @Permit(PermissionCodes.CONTRACT_PROJECT_LIST)
+    public R<?> approval(@PathVariable("id") Long id) {
+        return R.ok(projectService.approvalInfo(id));
+    }
+
     @DeleteMapping("/{id}")
     @Permit(PermissionCodes.CONTRACT_PROJECT_EDIT)
     public R<Void> delete(@PathVariable("id") Long id) {

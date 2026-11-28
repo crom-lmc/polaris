@@ -148,6 +148,8 @@ public final class ContractVOs {
         private Integer itemCount;
         /** 清单是否全部验收完成（派生：全部行 deliveredQty >= qty），前端据此隐藏「验收」入口 */
         private Boolean acceptanceDone;
+        /** 清单是否全部签收完成（派生：全部行 signedQty >= qty），前端据此隐藏「签收」入口 */
+        private Boolean signDone;
         private Integer planCount;
         private Integer changeCount;
         /** 附件 file_id 列表，顺序与 attachmentUrls 一致 */
@@ -184,6 +186,8 @@ public final class ContractVOs {
         private BigDecimal qty;
         private BigDecimal price;
         private BigDecimal amount;
+        /** 已签收数量（到货款放行依据） */
+        private BigDecimal signedQty;
         private BigDecimal deliveredQty;
         private String remark;
         private String orgCode;
@@ -345,6 +349,26 @@ public final class ContractVOs {
         /** 验收凭证 file_id 列表，顺序与 attachmentUrls 一致 */
         private List<String> fileIds;
         /** 验收凭证只读预览 URL（统一文件服务临时签名） */
+        private List<String> attachmentUrls;
+    }
+
+    /** 到货签收单：到货款放行依据，与验收单独立 */
+    @Data
+    public static class SignVO {
+        @JsonSerialize(using = ToStringSerializer.class)
+        private Long id;
+        private String no;
+        private String contractNo;
+        @JsonSerialize(using = ToStringSerializer.class)
+        private Long itemId;
+        private String materialCode;
+        private BigDecimal qty;
+        private String date;
+        private String signer;
+        private String remark;
+        private String status;
+        private String orgCode;
+        private List<String> fileIds;
         private List<String> attachmentUrls;
     }
 

@@ -4,6 +4,7 @@ import com.laimengchao.sso.common.R;
 import com.laimengchao.sso.contract.module.contract.dto.ApprovalCallbackRequest;
 import com.laimengchao.sso.contract.module.contract.service.ContractService;
 import com.laimengchao.sso.contract.module.contract.service.PaymentPlanService;
+import com.laimengchao.sso.contract.module.contract.service.ProjectService;
 import com.laimengchao.sso.contract.module.contract.service.PurchasePlanService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -30,10 +31,12 @@ public class InternalApprovalCallbackController {
     private static final String BIZ_PAYMENT_SENIOR = "contract.payment.senior";
     private static final String BIZ_SALES = "contract.sales";
     private static final String BIZ_PLAN = "contract.plan";
+    private static final String BIZ_PROJECT = "contract.project";
 
     private final ContractService contractService;
     private final PaymentPlanService paymentPlanService;
     private final PurchasePlanService purchasePlanService;
+    private final ProjectService projectService;
 
     @PostMapping("/approval-callback")
     public ResponseEntity<R<Void>> approvalCallback(@RequestBody ApprovalCallbackRequest req) {
@@ -49,6 +52,8 @@ public class InternalApprovalCallbackController {
                 paymentPlanService.handleApprovalResult(req.getBizId(), req.getApproved(), req.getResult());
             } else if (BIZ_PLAN.equals(req.getBizType())) {
                 purchasePlanService.handleApprovalResult(req.getBizId(), req.getApproved(), req.getResult());
+            } else if (BIZ_PROJECT.equals(req.getBizType())) {
+                projectService.handleApprovalResult(req.getBizId(), req.getApproved(), req.getResult());
             } else {
                 log.warn("合同审批回调 bizType 未识别：{}", req.getBizType());
             }

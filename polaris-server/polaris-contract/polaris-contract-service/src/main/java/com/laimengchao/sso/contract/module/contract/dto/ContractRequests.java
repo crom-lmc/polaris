@@ -76,7 +76,6 @@ public final class ContractRequests {
         private BigDecimal budgetAmount;
         private LocalDate startDate;
         private LocalDate endDate;
-        private String status;
         private String remark;
     }
 
@@ -130,6 +129,17 @@ public final class ContractRequests {
         /** 客户验收单号（销售合同，选填） */
         private String customerNo;
         /** 验收凭证 file_id 列表 */
+        private List<String> fileIds;
+    }
+
+    @Data
+    public static class SignRequest {
+        /** 签收数量，必须大于 0 且不超过未签收数量 */
+        private BigDecimal qty;
+        /** 签收日期，必填 */
+        private LocalDate date;
+        private String remark;
+        /** 签收凭证 file_id 列表 */
         private List<String> fileIds;
     }
 

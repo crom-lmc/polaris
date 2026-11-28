@@ -49,6 +49,21 @@ public class ContractItemController {
         return R.ok(itemService.accept(id, req));
     }
 
+    @GetMapping("/signs")
+    @Permit(PermissionCodes.CONTRACT_LEDGER_LIST)
+    public R<?> signs(@PathVariable("contractNo") String contractNo) {
+        return R.ok(itemService.signs(contractNo));
+    }
+
+    /** 到货签收：独立权限码；仅累加 signedQty，不作为验收单 */
+    @PostMapping("/{id}/sign")
+    @Permit(PermissionCodes.CONTRACT_SIGN_EDIT)
+    public R<?> sign(@PathVariable("contractNo") String contractNo,
+                     @PathVariable("id") Long id,
+                     @RequestBody ContractRequests.SignRequest req) {
+        return R.ok(itemService.sign(id, req));
+    }
+
     /** 销售验收推应收失败后重试（幂等；已有 arNo 直接返回） */
     @PostMapping("/acceptances/{acceptanceId}/push-ar")
     @Permit(PermissionCodes.CONTRACT_ITEM_EDIT)

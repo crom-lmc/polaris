@@ -22,6 +22,8 @@ public class ContractItem extends BaseEntity {
     private BigDecimal qty;
     private BigDecimal price;
     private BigDecimal amount;
+    /** 已到货签收数量（到货款放行依据，与 deliveredQty 验收数量独立） */
+    private BigDecimal signedQty;
     private BigDecimal deliveredQty;
     private String remark;
     private String orgCode;

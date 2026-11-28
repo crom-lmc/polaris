@@ -30,6 +30,7 @@ public class BizNoServiceImpl implements BizNoService {
     public static final String TABLE_PROJECT = "contract_project";
     /** 验收单 JD-yyyyMMdd-XXXXXX */
     public static final String TABLE_ACCEPTANCE = "contract_acceptance";
+    public static final String TABLE_SIGN = "contract_sign";
     /** 付款申请单 FK-yyyy-XXXXXX */
     public static final String TABLE_PAYMENT_PLAN = "contract_payment_plan";
     /** 合同变更单 BG-yyyyMMdd-XXXXXX */

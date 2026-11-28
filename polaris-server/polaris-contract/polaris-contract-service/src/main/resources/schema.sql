@@ -120,6 +120,7 @@ CREATE TABLE IF NOT EXISTS `contract_item` (
   `qty` decimal(18,4) NOT NULL DEFAULT 0.0000 COMMENT '数量',
   `price` decimal(18,2) NOT NULL DEFAULT 0.00 COMMENT '单价',
   `amount` decimal(18,2) NOT NULL DEFAULT 0.00 COMMENT '金额=qty*price',
+  `signed_qty` decimal(18,4) NOT NULL DEFAULT 0.0000 COMMENT '已到货签收数量（到货款放行依据）',
   `delivered_qty` decimal(18,4) NOT NULL DEFAULT 0.0000 COMMENT '已到货数量',
   `remark` varchar(500) NOT NULL DEFAULT '' COMMENT '备注',
   `org_code` varchar(64) NOT NULL DEFAULT '' COMMENT '归属组织（随主合同）',
@@ -218,6 +219,29 @@ CREATE TABLE IF NOT EXISTS `contract_acceptance` (
   KEY `idx_acceptance_item` (`item_id`,`deleted`),
   KEY `idx_acceptance_org` (`org_code`,`deleted`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='合同到货验收单';
+
+CREATE TABLE IF NOT EXISTS `contract_sign` (
+  `id` bigint(20) NOT NULL COMMENT '雪花ID',
+  `no` varchar(32) NOT NULL COMMENT 'QS-yyyyMMdd-XXXXXX（settings 单号规则）',
+  `contract_no` varchar(32) NOT NULL COMMENT 'contract_header.no',
+  `item_id` bigint(20) NOT NULL COMMENT 'contract_item.id（雪花ID）',
+  `material_code` varchar(32) NOT NULL DEFAULT '' COMMENT '物料编码',
+  `qty` decimal(18,4) NOT NULL DEFAULT 0.0000 COMMENT '本次签收数量',
+  `date` date DEFAULT NULL COMMENT '签收日期',
+  `signer` varchar(64) NOT NULL DEFAULT '' COMMENT '签收人',
+  `remark` varchar(500) NOT NULL DEFAULT '' COMMENT '备注',
+  `status` varchar(16) NOT NULL DEFAULT 'DRAFT' COMMENT 'DRAFT 留痕单',
+  `org_code` varchar(64) NOT NULL DEFAULT '' COMMENT '归属组织（随主合同）',
+  `file_ids` varchar(1024) NOT NULL DEFAULT '' COMMENT '签收凭证 file_id，逗号分隔',
+  `created_at` datetime NOT NULL,
+  `updated_at` datetime DEFAULT NULL,
+  `deleted` tinyint(1) NOT NULL DEFAULT 0,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_sign_no` (`no`,`deleted`),
+  KEY `idx_sign_contract` (`contract_no`,`deleted`),
+  KEY `idx_sign_item` (`item_id`,`deleted`),
+  KEY `idx_sign_org` (`org_code`,`deleted`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='合同到货签收单（到货款放行依据，与验收独立）';
 
 CREATE TABLE IF NOT EXISTS `contract_change_log` (
   `id` bigint(20) NOT NULL COMMENT '雪花ID',

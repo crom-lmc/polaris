@@ -115,13 +115,14 @@ public class PaymentPlanServiceImpl implements PaymentPlanService {
         if ("GOODS".equals(stage)) {
             itemIds = validateGoodsItems(header, req.getItemIds());
         }
-        BigDecimal limit = term != null ? termAvailable(term, null) : remainingAmount(header, null);
+        BigDecimal limit = availableLimit(term, stage, itemIds, null, header);
         if (limit.signum() <= 0) {
-            throw new BizException(ContractErrorCode.PAYMENT_TERM_LIMIT, "该付款节点可申请金额为 0，不能新增付款计划");
+            throw new BizException(ContractErrorCode.PAYMENT_TERM_LIMIT,
+                    "GOODS".equals(stage) ? "所选清单行可申请金额为 0，请重新选择清单行" : "该付款节点可申请金额为 0，不能新增付款计划");
         }
         if (req.getAmount().compareTo(limit) > 0) {
             throw new BizException(term != null ? ContractErrorCode.PAYMENT_TERM_LIMIT : ErrorCode.PARAM_ERROR,
-                    (term != null ? "超出该付款节点可申请金额 " : "本期付款金额不能超过合同剩余金额 ") + limit);
+                    limitLabel(term, stage) + limit);
         }
         ContractPaymentPlan entity = new ContractPaymentPlan();
         entity.setNo(bizNoService.next(BizNoServiceImpl.TABLE_PAYMENT_PLAN));
@@ -178,7 +179,68 @@ public class PaymentPlanServiceImpl implements PaymentPlanService {
         return amount.subtract(used).max(BigDecimal.ZERO);
     }
 
-    /** GOODS 清单行校验：非空、逗号分隔均为数字、都属本合同且交付数量 > 0；返回规范化 ID 串 */
+    /**
+     * 可申请金额上限：GOODS 阶段按「所选清单行金额 × 节点比例 − 该节点已申请额」计算，
+     * 且不超过节点可用余额；其他阶段沿用节点余额；存量无节点沿用合同剩余额。
+     */
+    private BigDecimal availableLimit(ContractPaymentTerm term, String stage, String itemIds,
+                                      Long excludePlanId, ContractHeader header) {
+        if (term == null) {
+            return remainingAmount(header, excludePlanId);
+        }
+        BigDecimal termAvail = termAvailable(term, excludePlanId);
+        if (!"GOODS".equals(stage)) {
+            return termAvail;
+        }
+        BigDecimal applied = (term.getAmount() == null ? BigDecimal.ZERO : term.getAmount()).subtract(termAvail).max(BigDecimal.ZERO);
+        BigDecimal ratio = term.getRatio() == null ? BigDecimal.ZERO : term.getRatio();
+        BigDecimal byItems = goodsItemsAmount(itemIds).multiply(ratio)
+                .divide(BigDecimal.valueOf(100), 2, java.math.RoundingMode.HALF_UP)
+                .subtract(applied);
+        return termAvail.min(byItems.max(BigDecimal.ZERO));
+    }
+
+    /** 所选清单行金额合计（行 amount 字段，与合同清单合计口径一致） */
+    private BigDecimal goodsItemsAmount(String itemIds) {
+        if (itemIds == null || itemIds.isBlank()) {
+            return BigDecimal.ZERO;
+        }
+        java.util.List<Long> ids = new java.util.ArrayList<>();
+        for (String part : itemIds.split(",")) {
+            if (part == null || part.isBlank()) {
+                continue;
+            }
+            try {
+                ids.add(Long.valueOf(part.trim()));
+            } catch (NumberFormatException ignored) {
+                // 非法 ID 由 validateGoodsItems 统一拦截，此处跳过避免金额计算中断
+            }
+        }
+        if (ids.isEmpty()) {
+            return BigDecimal.ZERO;
+        }
+        List<ContractItem> items = itemMapper.selectBatchIds(ids);
+        if (items == null) {
+            return BigDecimal.ZERO;
+        }
+        BigDecimal total = BigDecimal.ZERO;
+        for (ContractItem item : items) {
+            if (item.getAmount() != null) {
+                total = total.add(item.getAmount());
+            }
+        }
+        return total;
+    }
+
+    /** 金额超限提示前缀：GOODS 按所选清单行口径，其余按节点/合同口径 */
+    private String limitLabel(ContractPaymentTerm term, String stage) {
+        if (term == null) {
+            return "本期付款金额不能超过合同剩余金额 ";
+        }
+        return "GOODS".equals(stage) ? "超出所选清单行可申请金额 " : "超出该付款节点可申请金额 ";
+    }
+
+    /** GOODS 清单行校验：非空、逗号分隔均为数字、都属本合同且已签收数量 > 0；返回规范化 ID 串 */
     private String validateGoodsItems(ContractHeader header, String itemIds) {
         if (itemIds == null || itemIds.isBlank()) {
             throw new BizException(ContractErrorCode.GOODS_ITEMS_REQUIRED);
@@ -205,9 +267,9 @@ public class PaymentPlanServiceImpl implements PaymentPlanService {
             if (!header.getNo().equals(item.getContractNo())) {
                 throw new BizException(ErrorCode.PARAM_ERROR, "所选清单行不属于该合同");
             }
-            BigDecimal delivered = item.getDeliveredQty() == null ? BigDecimal.ZERO : item.getDeliveredQty();
-            if (delivered.signum() <= 0) {
-                throw new BizException(ContractErrorCode.ACCEPTANCE_REQUIRED, "所选清单行尚未验收合格");
+            BigDecimal signed = item.getSignedQty() == null ? BigDecimal.ZERO : item.getSignedQty();
+            if (signed.signum() <= 0) {
+                throw new BizException(ContractErrorCode.SIGN_REQUIRED, "所选清单行尚未到货签收");
             }
         }
         return ids.stream().map(String::valueOf).collect(java.util.stream.Collectors.joining(","));
@@ -237,10 +299,10 @@ public class PaymentPlanServiceImpl implements PaymentPlanService {
             String requested = req.getItemIds() != null ? req.getItemIds() : entity.getItemIds();
             itemIds = validateGoodsItems(header, requested);
         }
-        BigDecimal limit = term != null ? termAvailable(term, id) : remainingAmount(header, id);
+        BigDecimal limit = availableLimit(term, stage, itemIds, id, header);
         if (amount.compareTo(limit) > 0) {
             throw new BizException(term != null ? ContractErrorCode.PAYMENT_TERM_LIMIT : ErrorCode.PARAM_ERROR,
-                    (term != null ? "超出该付款节点可申请金额 " : "本期付款金额不能超过合同剩余金额 ") + limit);
+                    limitLabel(term, stage) + limit);
         }
         entity.setStage(stage);
         entity.setTermId(term == null ? null : term.getId());
@@ -299,12 +361,13 @@ public class PaymentPlanServiceImpl implements PaymentPlanService {
                             "合同清单尚未全部验收完成，验收完成后才能发起付款申请");
                 }
             } else {
-                // 到货款：所选清单行已有合格验收（已交付 > 0），按行/按批放行
+                // 到货款：所选清单行已到货签收（signedQty > 0），按行/按批放行；与验收独立，不要求验收单
                 validateGoodsItems(header, entity.getItemIds());
             }
-            // 埋点 contract.acceptance.required-before-pay 仅对 GOODS / ACCEPT（含存量）生效；
+            // 埋点 contract.acceptance.required-before-pay 仅对 ACCEPT / 存量生效；
+            // GOODS 已由签收单放行（签收独立于验收），不再要求合格验收单。
             // 不校验验收单 status=POSTED——过账在应付单之后，要求先过账会死锁。
-            if (embedPointService.acceptanceRequiredBeforePay()) {
+            if (embedPointService.acceptanceRequiredBeforePay() && !(term != null && "GOODS".equals(stage))) {
                 Long accepted = acceptanceMapper.selectCount(new LambdaQueryWrapper<ContractAcceptance>()
                         .eq(ContractAcceptance::getContractNo, entity.getContractNo())
                         .in(ContractAcceptance::getResult, "合格", "通过", "PASS", "OK")
@@ -322,11 +385,11 @@ public class PaymentPlanServiceImpl implements PaymentPlanService {
             }
         }
         // PREPAY：仅合同状态校验（上面已做），生效即可发起，跳过验收
-        // 金额上限复核（防节点金额/清单变动后旧计划超额）：引用节点按节点余额，存量按合同剩余
-        BigDecimal cap = term != null ? termAvailable(term, entity.getId()) : remainingAmount(header, entity.getId());
+        // 金额上限复核（防节点金额/清单变动后旧计划超额）：GOODS 按所选清单行额度，其余按节点余额，存量按合同剩余
+        BigDecimal cap = availableLimit(term, stage, entity.getItemIds(), entity.getId(), header);
         if (entity.getAmount() != null && entity.getAmount().compareTo(cap) > 0) {
             throw new BizException(term != null ? ContractErrorCode.PAYMENT_TERM_LIMIT : ErrorCode.PARAM_ERROR,
-                    "本期付款金额 " + entity.getAmount() + " 超出可申请金额 " + cap);
+                    "本期付款金额 " + entity.getAmount() + " 超出" + limitLabel(term, stage).trim() + " " + cap);
         }
         if (req != null) {
             if (req.getSourceDocNo() != null && !req.getSourceDocNo().isBlank()) {

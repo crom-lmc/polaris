@@ -4,6 +4,7 @@ import com.laimengchao.sso.contract.common.impl.BizNoServiceImpl;
 import com.laimengchao.sso.contract.module.contract.service.ProjectService;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.laimengchao.sso.common.BizException;
 import com.laimengchao.sso.common.ErrorCode;
@@ -19,30 +20,39 @@ import com.laimengchao.sso.contract.module.contract.mapper.ContractHeaderMapper;
 import com.laimengchao.sso.contract.module.contract.mapper.ContractItemMapper;
 import com.laimengchao.sso.contract.module.contract.mapper.ContractPaymentPlanMapper;
 import com.laimengchao.sso.contract.module.contract.mapper.ContractProjectMapper;
+import com.laimengchao.sso.contract.module.contract.support.ContractApprovalInfoSupport;
+import com.laimengchao.sso.contract.module.contract.support.ContractApprovalLauncher;
 import com.laimengchao.sso.contract.module.contract.vo.ContractVOs;
 import com.laimengchao.sso.contract.security.DataScopeService;
+import com.laimengchao.sso.settings.client.dto.ApprovalStartDTO;
+import com.laimengchao.sso.utils.AccountContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-/** 项目档案：单号走 settings，状态机 DRAFT→ACTIVE→PAUSED→ACTIVE，结项/取消拒绝。 */
+/** 项目档案：单号走 settings，状态机 DRAFT→PENDING→(ACTIVE|DRAFT)，ACTIVE↔PAUSED，结项/取消拒绝。 */
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class ProjectServiceImpl implements ProjectService {
 
     public static final String DRAFT = "DRAFT";
+    public static final String PENDING = "PENDING";
     public static final String ACTIVE = "ACTIVE";
     public static final String PAUSED = "PAUSED";
     public static final String CLOSED = "CLOSED";
     public static final String CANCELLED = "CANCELLED";
+    public static final String BIZ_PROJECT = "contract.project";
 
     private final ContractProjectMapper mapper;
     private final ContractHeaderMapper headerMapper;
@@ -50,6 +60,11 @@ public class ProjectServiceImpl implements ProjectService {
     private final ContractPaymentPlanMapper planMapper;
     private final BizNoService bizNoService;
     private final DataScopeService dataScopeService;
+    private final ContractApprovalLauncher approvalLauncher;
+    private final ContractApprovalInfoSupport approvalInfoSupport;
+
+    @Value("${contract.internal-base-url:http://127.0.0.1:9015}")
+    private String internalBaseUrl;
 
     public PageResult<ContractVOs.ProjectVO> page(String code, String name, String type, String status,
                                                    int page, int size) {
@@ -142,7 +157,8 @@ public class ProjectServiceImpl implements ProjectService {
         ContractProject entity = new ContractProject();
         entity.setCode(bizNoService.next(BizNoServiceImpl.TABLE_PROJECT));
         apply(entity, req, orgCode);
-        entity.setStatus(nvl(req.getStatus(), DRAFT));
+        // 状态是流程结果：新建固定 DRAFT，不接受请求体覆盖（提交审批后由回调推进 ACTIVE）
+        entity.setStatus(DRAFT);
         entity.setCreatedAt(LocalDateTime.now());
         mapper.insert(entity);
         return toVO(entity);
@@ -176,8 +192,12 @@ public class ProjectServiceImpl implements ProjectService {
         if (CLOSED.equals(current) || CANCELLED.equals(current)) {
             throw new BizException(ContractErrorCode.PROJECT_STATUS_INVALID);
         }
-        boolean allowed = (DRAFT.equals(current) && ACTIVE.equals(target))
-                || (ACTIVE.equals(current) && PAUSED.equals(target))
+        // 审批中状态只能由审批中心回调推进，禁止手工改状态绕过审批
+        if (PENDING.equals(current) && approvalInfoSupport.hasRunning(String.valueOf(id), BIZ_PROJECT)) {
+            throw new BizException(ContractErrorCode.PROJECT_STATUS_INVALID, "项目审批中，不能手工改状态");
+        }
+        // DRAFT→ACTIVE 必须走提交审批，由终审回调推进；这里只保留 ACTIVE↔PAUSED
+        boolean allowed = (ACTIVE.equals(current) && PAUSED.equals(target))
                 || (PAUSED.equals(current) && ACTIVE.equals(target))
                 || current.equals(target);
         if (!allowed) {
@@ -202,6 +222,92 @@ public class ProjectServiceImpl implements ProjectService {
             throw new BizException(ContractErrorCode.PROJECT_STATUS_INVALID, "项目已被合同引用，禁止删除");
         }
         mapper.deleteById(id);
+    }
+
+    @Override
+    public void submit(Long id) {
+        ContractProject entity = require(id);
+        if (!DRAFT.equals(entity.getStatus())) {
+            throw new BizException(ContractErrorCode.PROJECT_STATUS_INVALID, "仅立项中的项目可提交审批");
+        }
+        // 审批人规则按 dept 取上级领导，归属组织为空会导致解析不到审批人（BLOCK）
+        if (entity.getOrgCode() == null || entity.getOrgCode().isBlank()) {
+            throw new BizException(ContractErrorCode.PROJECT_STATUS_INVALID, "项目缺归属组织，无法提交审批");
+        }
+        String before = entity.getStatus();
+        entity.setStatus(PENDING);
+        entity.setUpdatedAt(LocalDateTime.now());
+        mapper.updateById(entity);
+        // 先落库再发起审批：终审可能同步回调，避免回调读到未提交行；失败退回原状态，避免卡 PENDING 不可重试
+        try {
+            approvalLauncher.launch(() -> buildApprovalStart(entity));
+        } catch (RuntimeException e) {
+            mapper.update(null, new LambdaUpdateWrapper<ContractProject>()
+                    .eq(ContractProject::getId, entity.getId())
+                    .eq(ContractProject::getStatus, PENDING)
+                    .set(ContractProject::getStatus, before));
+            entity.setStatus(before);
+            throw e;
+        }
+    }
+
+    /** 构造项目审批发起请求：上级领导一级审批，驳回回 DRAFT 可修改再提交 */
+    private ApprovalStartDTO buildApprovalStart(ContractProject entity) {
+        ApprovalStartDTO dto = new ApprovalStartDTO();
+        dto.setBizType(BIZ_PROJECT);
+        dto.setBizId(String.valueOf(entity.getId()));
+        dto.setBizNo(entity.getCode());
+        // applicant_id 在 appr_instance 非空无默认值；不传会让 settings 侧 INSERT 失败返回 500
+        Long applicantId = AccountContext.getAccountId();
+        if (applicantId == null) {
+            throw new BizException(ContractErrorCode.APPROVAL_START_FAILED, "无法获取当前登录人，请重新登录后再发起审批");
+        }
+        dto.setApplicantId(applicantId);
+        dto.setApplicantName(AccountContext.getUsername());
+        dto.setTitle("项目档案 " + entity.getCode() + " " + entity.getName());
+        dto.setSubjectId(String.valueOf(entity.getId()));
+        dto.setBizIdKind("DOC");
+        Map<String, Object> form = new LinkedHashMap<>();
+        form.put("projectId", String.valueOf(entity.getId()));
+        form.put("code", entity.getCode());
+        form.put("name", entity.getName());
+        form.put("dept", entity.getOrgCode());       // 审批规则 FIELD:dept:ORG + levelOffset=1 取上级领导
+        form.put("owner", entity.getOwner());
+        form.put("budgetAmount", entity.getBudgetAmount());
+        dto.setFormData(form);
+        dto.setCallbackUrl(internalBaseUrl + "/internal/contract/approval-callback");
+        return dto;
+    }
+
+    /**
+     * 审批中心终审回调：通过 PENDING→ACTIVE（执行中），驳回/撤回/终止 PENDING→DRAFT（可修改再提交）。
+     * internal 调用无登录上下文，不套 dataScope；仅 PENDING 更新，重复投递返回 false。
+     */
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public boolean handleApprovalResult(String bizId, Boolean approved, Integer result) {
+        Long id;
+        try { id = Long.valueOf(bizId); }
+        catch (NumberFormatException e) { return false; }
+        ContractProject entity = mapper.selectById(id);
+        if (entity == null || !PENDING.equals(entity.getStatus())) {
+            log.info("项目审批回调忽略：id={} status={}", id, entity == null ? "-" : entity.getStatus());
+            return false;
+        }
+        boolean pass = Boolean.TRUE.equals(approved) || Integer.valueOf(1).equals(result);
+        return mapper.update(null, new LambdaUpdateWrapper<ContractProject>()
+                .eq(ContractProject::getId, id)
+                .eq(ContractProject::getStatus, PENDING)
+                .set(ContractProject::getStatus, pass ? ACTIVE : DRAFT)
+                .set(ContractProject::getUpdatedAt, LocalDateTime.now())) > 0;
+    }
+
+    @Override
+    public ContractVOs.ApprovalInfoVO approvalInfo(Long id) {
+        require(id); // 复用数据权限校验
+        com.laimengchao.sso.settings.client.dto.ApprovalInstanceDTO found =
+                approvalInfoSupport.latest(String.valueOf(id), BIZ_PROJECT);
+        return approvalInfoSupport.toVO(found);
     }
 
     private void decorate(ContractVOs.ProjectVO vo) {
